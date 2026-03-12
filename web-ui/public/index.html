@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OutLayer Skills</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.8rem;
+      color: #f0f6fc;
+      margin-bottom: 0.3rem;
+    }
+    .subtitle {
+      color: #8b949e;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+    .skill-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1.2rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .skill-card h2 {
+      font-size: 1.15rem;
+      margin-bottom: 0.4rem;
+    }
+    .skill-card h2 a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+    .skill-card h2 a:hover { text-decoration: underline; }
+    .desc {
+      color: #8b949e;
+      font-size: 0.9rem;
+      margin-bottom: 0.6rem;
+      line-height: 1.4;
+    }
+    .files { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .file-link {
+      font-size: 0.8rem;
+      color: #c9d1d9;
+      background: #21262d;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      text-decoration: none;
+      border: 1px solid #30363d;
+    }
+    .file-link:hover { border-color: #58a6ff; color: #58a6ff; }
+    .meta {
+      margin-top: 2rem;
+      color: #484f58;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>OutLayer Skills</h1>
+  <p class="subtitle">3 skills available &mdash; <code>skills.outlayer.ai</code></p>
+  
+    <div class="skill-card">
+      <h2><a href="/agent-custody/">agent-custody</a></h2>
+      <p class="desc">Multi-chain custody wallet for AI agents with cross-chain swaps via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations — transfers, swaps, contract calls, or cross-chain movements.</p>
+      <div class="files"><a href="/agent-custody/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+    <div class="skill-card">
+      <h2><a href="/building-outlayer-apps/">building-outlayer-apps</a></h2>
+      <p class="desc">Build verifiable off-chain applications on NEAR OutLayer platform. Covers WASI module development in Rust, frontend integration with wallet-selector, Payment Keys, and NEP-413 authentication. Use when creating WASI containers, integrating with NEAR wallets, or building OutLayer-powered applications.</p>
+      <div class="files"><a href="/building-outlayer-apps/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+    <div class="skill-card">
+      <h2><a href="/outlayer-cli/">outlayer-cli</a></h2>
+      <p class="desc">Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents — project scaffolding, GitHub/WASM deploys, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.</p>
+      <div class="files"><a href="/outlayer-cli/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+  <p class="meta">Built 2026-03-12 15:56 UTC</p>
+</body>
+</html>
