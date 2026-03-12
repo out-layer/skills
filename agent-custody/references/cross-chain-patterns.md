@@ -146,3 +146,95 @@ curl -s -X POST -H "Content-Type: application/json" \
 ```
 
 **Note:** The receiver (`user.near`) must have storage registered on `usdt.tether-token.near`. If not, register storage first with a `storage_deposit` call.
+
+## Pattern 7: Agent-to-Agent Payment via Check
+
+Agent2 (buyer) pays Agent1 (seller) 1 USDC for a service using a payment check.
+
+```bash
+# === Agent2 (buyer) creates a payment check ===
+
+# 1. Create check for 1 USDC with 24h expiry
+CHECK=$(curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $BUYER_API_KEY" \
+  -d '{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"1000000","memo":"Payment for song generation","expires_in":86400}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/create")
+
+CHECK_ID=$(echo $CHECK | jq -r '.check_id')
+CHECK_KEY=$(echo $CHECK | jq -r '.check_key')
+echo "Check created: $CHECK_ID"
+echo "Send this key to the seller: $CHECK_KEY"
+
+# 2. Send check_key to Agent1 (out-of-band — via API call, message, etc.)
+#    Agent1 receives: "ed25519:5Kd3NBU...base58_private_key"
+
+# === Agent1 (seller) claims the check ===
+
+# 3. Claim the check
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SELLER_API_KEY" \
+  -d "{\"check_key\":\"$CHECK_KEY\"}" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
+# Response: {"status": "success", "token": "17208...a1", "amount": "1000000", ...}
+
+# 4. Verify funds arrived in intents balance
+curl -s -H "Authorization: Bearer $SELLER_API_KEY" \
+  "https://api.outlayer.fastnear.com/wallet/v1/balance?token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&source=intents"
+# → {"balance": "1000000", ...}
+
+# === Agent2 (buyer) verifies payment was received ===
+
+# 5. Check status
+curl -s -H "Authorization: Bearer $BUYER_API_KEY" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/status?check_id=$CHECK_ID"
+# → {"status": "claimed", "claimed_at": "2026-03-12T10:35:00Z", ...}
+```
+
+### Alternative: Reclaim unclaimed check
+
+```bash
+# If Agent1 never claims and the check expired (or you want to cancel early):
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $BUYER_API_KEY" \
+  -d "{\"check_id\":\"$CHECK_ID\"}" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/reclaim"
+# → {"status": "success", "amount_reclaimed": "1000000", "remaining": "0", "reclaimed_at": "..."}
+# Funds return to buyer's intents balance
+```
+
+## Pattern 8: Partial Claims — Milestone-Based Payments
+
+Agent2 (buyer) creates a check for the full project cost. Agent1 (seller) claims in parts as milestones are delivered. Buyer can reclaim unused funds.
+
+```bash
+# === Agent2 creates a 10 USDC check for a 3-milestone project ===
+CHECK=$(curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $BUYER_API_KEY" \
+  -d '{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"10000000","memo":"Project: 3 milestones","expires_in":604800}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/create")
+CHECK_ID=$(echo $CHECK | jq -r '.check_id')
+CHECK_KEY=$(echo $CHECK | jq -r '.check_key')
+# → 10 USDC locked, 7-day expiry
+
+# === Agent1 claims milestone 1 (3 USDC) ===
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SELLER_API_KEY" \
+  -d "{\"check_key\":\"$CHECK_KEY\",\"amount\":\"3000000\"}" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
+# → {"amount_claimed": "3000000", "remaining": "7000000"}
+
+# === Agent1 claims milestone 2 (3 USDC) ===
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SELLER_API_KEY" \
+  -d "{\"check_key\":\"$CHECK_KEY\",\"amount\":\"3000000\"}" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
+# → {"amount_claimed": "3000000", "remaining": "4000000"}
+
+# === Agent2 cancels milestone 3 — reclaims remaining 4 USDC ===
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $BUYER_API_KEY" \
+  -d "{\"check_id\":\"$CHECK_ID\"}" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/reclaim"
+# → {"amount_reclaimed": "4000000", "remaining": "0"}
+# Agent1 got 6 USDC total, Agent2 got 4 USDC back
+```

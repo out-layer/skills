@@ -182,6 +182,46 @@ Key format: `owner:nonce:secret` (e.g., `alice.near:1:a1b2c3d4e5f6...`).
 
 **Key cannot be recovered after creation** — save it immediately.
 
+## Payment Checks (Agent-to-Agent)
+
+Trustless agent-to-agent payments via ephemeral intents accounts.
+
+```bash
+# Create a check for 1 USDC with memo and 24h expiry
+outlayer checks create 17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 1000000 \
+  --memo "Payment for task" --expires-in 86400
+# → check_id: pc_..., check_key: ed25519:... (save and send to recipient!)
+
+# Batch create from JSON file
+outlayer checks batch-create --file checks.json
+
+# Claim a check (full)
+outlayer checks claim ed25519:5Kd3NBU...
+
+# Partial claim (take part of the check)
+outlayer checks claim ed25519:5Kd3NBU... --amount 500000
+
+# Reclaim unclaimed funds (full)
+outlayer checks reclaim pc_a1b2c3d4e5f6
+
+# Partial reclaim
+outlayer checks reclaim pc_a1b2c3d4e5f6 --amount 300000
+
+# Check status
+outlayer checks status pc_a1b2c3d4e5f6
+
+# List checks (with optional filters)
+outlayer checks list
+outlayer checks list --status unclaimed --limit 50
+
+# Peek at check balance before claiming
+outlayer checks peek ed25519:5Kd3NBU...
+```
+
+Token is the plain NEAR contract ID (e.g. USDC: `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`). Amount is in smallest denomination (USDC: 6 decimals, so `1000000` = 1 USDC).
+
+Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` to move them.
+
 ## Upload (FastFS)
 
 Upload files to on-chain storage (NEAR FastFS) via NEAR transactions.

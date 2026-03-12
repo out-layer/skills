@@ -1,6 +1,6 @@
 ---
 name: agent-custody
-description: Multi-chain custody wallet for AI agents with cross-chain swaps via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations — transfers, swaps, contract calls, or cross-chain movements.
+description: Multi-chain custody wallet for AI agents with cross-chain swaps and payment checks via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations — transfers, swaps, payment checks, contract calls, or cross-chain movements.
 metadata:
   api:
     base_url: https://api.outlayer.fastnear.com
@@ -33,6 +33,13 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Get your address on any chain | Use `GET /wallet/v1/address?chain=ethereum` |
 | Delete the wallet | Use `POST /wallet/v1/delete` — deletes on-chain account, sends NEAR to beneficiary |
 | Ask user to fund your wallet | Generate a fund link (see below) or share your NEAR address |
+| Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` — get `check_key` to send |
+| Pay multiple agents at once | `POST /wallet/v1/payment-check/batch-create` — up to 10 checks |
+| Receive payment from another agent | `POST /wallet/v1/payment-check/claim` with the `check_key` you received |
+| Claim only part of a check | `POST /wallet/v1/payment-check/claim` with `amount` param |
+| See if your check was cashed | `GET /wallet/v1/payment-check/status?check_id={id}` |
+| Take back an unclaimed check | `POST /wallet/v1/payment-check/reclaim` (supports partial via `amount`) |
+| Check a check's balance by key | `POST /wallet/v1/payment-check/peek` with `check_key` |
 | Let the user set spending limits | Share the `handoff_url` from registration |
 
 ## Configuration
@@ -239,6 +246,7 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 | `/intents/withdraw` | Plain NEAR contract ID | `wrap.near` |
 | `/balance` (wallet) | Plain NEAR contract ID | `wrap.near` |
 | `/balance?source=intents` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
+| `/payment-check/*` | Plain NEAR contract ID | `17208628f...a1` (USDC) |
 
 **Rule:** Swap uses `nep141:` prefix. Everything else uses plain contract ID.
 
@@ -323,6 +331,264 @@ Use `GET /wallet/v1/tokens` for the full current list.
 
 ---
 
+## Payment Checks (Agent-to-Agent Payments)
+
+Payment checks enable trustless agent-to-agent payments. One agent writes a check (deposits tokens into an ephemeral account), sends the `check_key` to another agent, and the recipient claims the funds. First-to-claim semantics — no double-spend possible.
+
+Check keys are derived in TEE from the custody keystore — deterministic and recoverable. The server never stores raw private keys.
+
+Optional expiration: set `expires_in` when creating a check. After expiry, the recipient cannot claim via our API, and the sender can reclaim the funds.
+
+### How it works
+
+1. **Agent2** (buyer) creates a check for 1 USDC → gets `check_id` + `check_key`
+2. **Agent2** sends `check_key` to **Agent1** (seller) via any channel (API, message, etc.)
+3. **Agent1** claims the check → 1 USDC lands in Agent1's intents balance
+4. **Agent1** does the work, delivers the result
+
+If Agent1 never claims, Agent2 can reclaim the check at any time.
+
+### Create a payment check
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"1000000","memo":"Payment for song generation","expires_in":86400}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/create"
+```
+
+| Param | Required | Description |
+|-------|----------|-------------|
+| `token` | yes | Plain NEAR contract ID (e.g. USDC: `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`) |
+| `amount` | yes | Amount in smallest denomination (string) |
+| `memo` | no | Human-readable memo (max 256 chars) |
+| `expires_in` | no | Seconds until expiry (e.g. `86400` for 24h). Omit for no expiry. |
+
+Response:
+```json
+{
+  "request_id": "uuid",
+  "status": "success",
+  "check_id": "pc_a1b2c3d4e5f6",
+  "check_key": "ed25519:5Kd3NBU...base58_private_key",
+  "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "amount": "1000000",
+  "memo": "Payment for song generation",
+  "created_at": "2026-03-12T10:30:00Z",
+  "expires_at": "2026-03-13T10:30:00Z"
+}
+```
+
+**`check_key` is shown only once** — this is the check itself. Send it to the recipient. The `check_id` is for your own status tracking and reclaims.
+
+If the wallet has insufficient intents balance but enough wallet balance, the API auto-deposits to intents before creating the check.
+
+### Batch create payment checks
+
+Create up to 10 checks in a single request.
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"checks":[{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"500000","memo":"Task 1"},{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"500000","memo":"Task 2"}]}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/batch-create"
+```
+
+Response: `{"checks": [<same as single create>, ...]}` — one entry per check, same fields.
+
+### Claim a payment check
+
+Supports **partial claims** — pass `amount` to claim less than the full check. Omit for full claim.
+
+```bash
+# Full claim
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RECIPIENT_API_KEY" \
+  -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
+
+# Partial claim (500000 out of 1000000)
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $RECIPIENT_API_KEY" \
+  -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key","amount":"500000"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
+```
+
+| Param | Required | Description |
+|-------|----------|-------------|
+| `check_key` | yes | The check private key received from sender |
+| `amount` | no | Partial claim amount (smallest units). Omit for full balance. |
+
+Response:
+```json
+{
+  "request_id": "uuid",
+  "status": "success",
+  "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "amount_claimed": "500000",
+  "remaining": "500000",
+  "memo": "Payment for song generation",
+  "claimed_at": "2026-03-12T10:35:00Z",
+  "intent_hash": "abc123..."
+}
+```
+
+Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` to move them to a wallet or another chain. When `remaining > 0`, the check stays active for further claims or reclaim.
+
+### Check status
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/status?check_id=pc_a1b2c3d4e5f6"
+```
+
+Response:
+```json
+{
+  "check_id": "pc_a1b2c3d4e5f6",
+  "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "amount": "1000000",
+  "claimed_amount": "500000",
+  "reclaimed_amount": "0",
+  "memo": "Payment for song generation",
+  "status": "partially_claimed",
+  "created_at": "2026-03-12T10:30:00Z",
+  "expires_at": "2026-03-13T10:30:00Z",
+  "claimed_at": "2026-03-12T10:35:00Z",
+  "claimed_by": "a1b2c3..."
+}
+```
+
+| Status | Meaning |
+|--------|---------|
+| `unclaimed` | Funds waiting — check not yet claimed |
+| `partially_claimed` | Recipient claimed part of the check — remaining funds available |
+| `claimed` | Recipient claimed the entire check |
+| `partially_reclaimed` | Sender reclaimed part — remaining available for claim |
+| `reclaimed` | Sender took all remaining funds back |
+| `expired` | Unclaimed and past `expires_at` — sender can reclaim |
+
+### List payment checks
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/list?status=unclaimed&limit=50"
+```
+
+Returns `{"checks": [...]}` — all checks created by the authenticated wallet.
+
+### Reclaim a check (full or partial)
+
+Supports **partial reclaims** — pass `amount` to reclaim less than the remaining balance. Omit for full reclaim.
+
+```bash
+# Full reclaim
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"check_id":"pc_a1b2c3d4e5f6"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/reclaim"
+
+# Partial reclaim (300000 out of remaining 500000)
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"check_id":"pc_a1b2c3d4e5f6","amount":"300000"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/reclaim"
+```
+
+| Param | Required | Description |
+|-------|----------|-------------|
+| `check_id` | yes | The check ID from create response |
+| `amount` | no | Partial reclaim amount (smallest units). Omit for full remaining. |
+
+Response:
+```json
+{
+  "request_id": "uuid",
+  "status": "success",
+  "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "amount_reclaimed": "300000",
+  "remaining": "200000",
+  "reclaimed_at": "2026-03-12T12:00:00Z",
+  "intent_hash": "def456..."
+}
+```
+
+Reclaim works anytime the check has remaining balance — before or after expiry. Only the check creator can reclaim. When `remaining > 0`, the check stays active for further claims or reclaims.
+
+### Peek a check (check balance by key)
+
+Check the on-chain balance and status of a check using its key. Requires wallet auth.
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/peek"
+```
+
+Response:
+```json
+{
+  "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "balance": "500000",
+  "memo": "Payment for song generation",
+  "status": "partially_claimed",
+  "expires_at": "2026-03-13T10:30:00Z"
+}
+```
+
+Use this to verify a check has funds before claiming. The `balance` field is the live on-chain balance of the ephemeral account.
+
+### Flow: Both agents in Agent Custody
+
+```
+Agent2 (buyer)                    API                        Agent1 (seller)
+     |                             |                              |
+     |  POST /payment-check/create |                              |
+     |  {token, amount, memo}      |                              |
+     |---------------------------->|                              |
+     |  {check_id, check_key}      |                              |
+     |<----------------------------|                              |
+     |                             |                              |
+     |  ---- sends check_key to Agent1 (any channel) ----------->|
+     |                             |                              |
+     |                             |  POST /payment-check/claim   |
+     |                             |  {check_key}                 |
+     |                             |<-----------------------------|
+     |                             |  {token, amount}             |
+     |                             |----------------------------->|
+     |                             |                              |
+     |                             |  Funds in Agent1's intents   |
+     |                             |  balance — ready to use      |
+```
+
+### Flow: External wallet claims
+
+External wallets can claim using the `check_key` as a NEAR Intents Gift private key directly on-chain — no API needed. Our status endpoint detects the claim by checking the ephemeral account balance.
+
+```
+Agent2 (buyer, custody)         API                    External Wallet
+     |                           |                          |
+     |  POST /payment-check/create                          |
+     |-------------------------->|                          |
+     |  {check_key}              |                          |
+     |<--------------------------|                          |
+     |                           |                          |
+     |  ---- sends check_key (any channel) ---------------->|
+     |                           |                          |
+     |                           |   Claims on-chain via    |
+     |                           |   NEAR Intents SDK       |
+     |                           |                          |
+     |  GET /payment-check/status|                          |
+     |-------------------------->|                          |
+     |  {status: "claimed"}      |                          |
+     |<--------------------------|                          |
+```
+
+**Expiration caveat:** Expiration is enforced by our API. External wallets claiming directly on-chain can bypass expiry. For high-value checks to external wallets, reclaim promptly after expiry.
+
+---
+
 ## Quick Reference
 
 | Action | Method | Endpoint |
@@ -345,6 +611,13 @@ Use `GET /wallet/v1/tokens` for the full current list.
 | Request status | GET | `/wallet/v1/requests/{request_id}` |
 | List requests | GET | `/wallet/v1/requests` |
 | Audit log | GET | `/wallet/v1/audit?limit=50` |
+| Create payment check | POST | `/wallet/v1/payment-check/create` |
+| Batch create checks | POST | `/wallet/v1/payment-check/batch-create` |
+| Claim payment check | POST | `/wallet/v1/payment-check/claim` |
+| Check status | GET | `/wallet/v1/payment-check/status?check_id={id}` |
+| List checks | GET | `/wallet/v1/payment-check/list` |
+| Reclaim check | POST | `/wallet/v1/payment-check/reclaim` |
+| Peek check balance | POST | `/wallet/v1/payment-check/peek` |
 | Delete wallet | POST | `/wallet/v1/delete` |
 
 All endpoints except `/register` require `Authorization: Bearer <api_key>` header.
@@ -369,6 +642,7 @@ Base URL: `https://api.outlayer.fastnear.com`
 | `/wallet/v1/intents/swap` | Output token storage on your wallet |
 | `/wallet/v1/intents/deposit` | Your wallet's storage on `intents.near` |
 | Fund link (dashboard) | Your wallet's storage on the token contract |
+| `/wallet/v1/payment-check/create` | Auto-deposits to intents if wallet balance sufficient |
 
 **NOT auto-registered:** `/wallet/v1/call` — register storage manually with `storage_deposit` if calling `ft_transfer` to a new receiver.
 
@@ -394,6 +668,13 @@ Base URL: `https://api.outlayer.fastnear.com`
 | `pending_approval` | Needs multisig approval (not an error) |
 | `"token_in must use defuse asset format"` | Missing `nep141:` prefix in swap |
 | `"1Click swap was refunded"` | Solver couldn't fill — tokens returned to wallet |
+| `check_already_claimed` | Payment check was already claimed by recipient |
+| `check_not_found` | No check with this ID for the authenticated wallet |
+| `invalid_check_key` | Key format invalid or does not correspond to a check |
+| `check_empty` | Ephemeral account has zero balance (already claimed on-chain) |
+| `check_already_reclaimed` | Check was already reclaimed by sender |
+| `check_expired` | Check expired — cannot claim (sender can reclaim) |
+| `memo_too_long` | Memo exceeds 256 characters |
 
 ## Guidelines
 
@@ -404,6 +685,7 @@ Base URL: `https://api.outlayer.fastnear.com`
 - **Cross-chain transfers need deposit + withdraw.** Only for moving tokens without swapping.
 - **Poll for async results.** If status is `processing`, poll `/requests/{id}`.
 - Always use `withdraw/dry-run` before real withdrawals.
+- **Payment checks** are ideal for agent-to-agent payments — first-to-claim prevents double-spend. Set `expires_in` to protect against unclaimed checks.
 - Store the API key as a secret — never log or expose it.
 - NEAR amounts are in yoctoNEAR (1 NEAR = 10^24 yoctoNEAR).
 
