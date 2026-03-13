@@ -101,11 +101,11 @@ When quota is exhausted (HTTP 402), upgrade to a payment key (see below).
 
 ## 3. Request Funding from User
 
-NEAR balance is needed for on-chain operations (`/call`, `/intents/swap`, `/transfer`). Cross-chain operations via Intents (`/intents/withdraw`) are gasless.
+NEAR balance is needed for on-chain operations (`/call`, `/transfer`). Intents balance is needed for swaps, payment checks, and cross-chain withdrawals (all gasless).
 
 **Fund link format:**
 ```
-https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount={amount}&token={token}&msg={message}
+https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount={amount}&token={token}&msg={message}&dest=intents
 ```
 
 | Param | Required | Description |
@@ -114,8 +114,16 @@ https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount={amount}&t
 | `amount` | yes | Human-readable amount (e.g. `1` for 1 NEAR, `10` for 10 USDT) |
 | `token` | no | `near` (default) or FT contract ID (e.g. `usdt.tether-token.near`) |
 | `msg` | no | Message to display to the user (URL-encoded) |
+| `dest` | no | `intents` — deposit directly to agent's Intents balance (FT tokens only) |
 
-The page automatically handles FT storage deposits.
+When `dest=intents`, the user's tokens go directly to the agent's Intents balance via `ft_transfer_call` to `intents.near`. This is the preferred option when the agent needs funds for swaps, payment checks, or cross-chain withdrawals — no extra deposit step needed.
+
+The page includes a toggle so the user can switch between direct transfer and Intents deposit. The page automatically handles FT storage deposits.
+
+**Example — request 10 USDC to Intents balance:**
+```
+https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount=10&token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&msg=Fund+my+trading+balance&dest=intents
+```
 
 ## 4. Request Policy from User (Optional)
 
@@ -168,20 +176,28 @@ Response includes `payment_key` — save securely. Use via `X-Payment-Key` heade
 
 ### Check balance
 ```bash
-# Native NEAR
+# Native NEAR (for gas: /call, /transfer)
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/balance?chain=near"
 
-# FT token (e.g. USDT)
+# FT token balance on wallet (e.g. USDT)
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/balance?chain=near&token=usdt.tether-token.near"
 
-# Intents deposit balance (tokens in intents.near)
+# Intents balance (for swaps, payment checks, cross-chain withdrawals)
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/balance?token=wrap.near&source=intents"
+
+# Intents balance for USDC
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.fastnear.com/wallet/v1/balance?token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&source=intents"
 ```
 
 Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id": "36842e..."}`
+
+**Two balances matter:**
+- **Wallet balance** (`chain=near`) — direct FT holdings on the NEAR account. Needed for `ft_transfer`, contract calls.
+- **Intents balance** (`source=intents`) — tokens deposited into `intents.near`. Needed for swaps (`/intents/swap`), payment checks, and cross-chain withdrawals (`/intents/withdraw`). Use `POST /wallet/v1/intents/deposit` to move tokens from wallet to intents, or request funds with `dest=intents` to skip this step.
 
 ### Get address (for other chains)
 ```bash
