@@ -184,13 +184,19 @@ Key format: `owner:nonce:secret` (e.g., `alice.near:1:a1b2c3d4e5f6...`).
 
 ## Payment Checks (Agent-to-Agent)
 
-Trustless agent-to-agent payments via ephemeral intents accounts.
+Trustless agent-to-agent payments via ephemeral intents accounts. Requires a wallet API key (`wk_...`) — pass via `--api-key` flag or `OUTLAYER_WALLET_KEY` env var.
 
 ```bash
+# Set wallet API key (from POST /register)
+export OUTLAYER_WALLET_KEY=wk_15807dbda492636df5280629d7617c3ea80f915ba960389b621e420ca275e545
+
 # Create a check for 1 USDC with memo and 24h expiry
 outlayer checks create 17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 1000000 \
   --memo "Payment for task" --expires-in 86400
 # → check_id: pc_..., check_key: ed25519:... (save and send to recipient!)
+
+# Or pass key inline:
+outlayer checks --api-key wk_... create <token> <amount>
 
 # Batch create from JSON file
 outlayer checks batch-create --file checks.json
@@ -216,11 +222,16 @@ outlayer checks list --status unclaimed --limit 50
 
 # Peek at check balance before claiming
 outlayer checks peek ed25519:5Kd3NBU...
+
+# Sign a message (NEP-413) for external service auth
+outlayer checks sign-message "Login to example.com" example.com
+outlayer checks sign-message "Login to example.com" example.com --nonce "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+# → account_id, public_key, signature, nonce
 ```
 
 Token is the plain NEAR contract ID (e.g. USDC: `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`). Amount is in smallest denomination (USDC: 6 decimals, so `1000000` = 1 USDC).
 
-Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` to move them.
+Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` (gasless) to move them to a NEAR account. Note: the receiver must have storage registered on the token contract first — use `/storage-deposit` if needed.
 
 ## Upload (FastFS)
 
@@ -276,6 +287,7 @@ outlayer status [call_id]      # project info or poll async call status
 | `OUTLAYER_HOME` | Config directory (default: `~/.outlayer`) |
 | `OUTLAYER_NETWORK` | Override network: `mainnet` or `testnet` |
 | `PAYMENT_KEY` | Payment key for `outlayer run` (format: `owner:nonce:secret`) |
+| `OUTLAYER_WALLET_KEY` | Wallet API key for `outlayer checks` (format: `wk_...`) |
 
 ## Global Flags
 
