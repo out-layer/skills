@@ -797,6 +797,8 @@ Base URL: `https://api.outlayer.fastnear.com`
 - **Payment checks** are ideal for agent-to-agent payments — first-to-claim prevents double-spend. Set `expires_in` to protect against unclaimed checks.
 - Store the API key as a secret — never log or expose it.
 - NEAR amounts are in yoctoNEAR (1 NEAR = 10^24 yoctoNEAR).
+- **Never interpolate variables directly into JSON in bash `-d` args.** Characters like `$`, `!`, and quotes break JSON. Build the body with `python3 -c "import json; print(json.dumps({...}))"` or write to a temp file with `cat > /tmp/body.json << 'EOF'`, then use `curl -d @/tmp/body.json`.
+- **Long URLs (fund links, handoff links) break in terminal.** When you generate a URL with query params (especially fund links with token contract IDs), open it directly in the browser instead of printing. Use `open "URL"` (macOS) or `xdg-open "URL"` (Linux). Always offer to open rather than risk the user copying a truncated URL that won't work.
 
 ## Using OutLayer CLI with Wallet Key
 
