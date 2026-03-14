@@ -17,9 +17,12 @@ Command-line tool for deploying, running, and managing WASI agents on OutLayer (
 # Install
 cargo install --git https://github.com/out-layer/outlayer-cli
 
-# Login (prompts for Account ID + ed25519 private key)
+# Login with NEAR private key (prompts for Account ID + ed25519 private key)
 outlayer login              # mainnet
 outlayer login testnet      # testnet
+
+# Or login with Agent Custody wallet key (for AI agents)
+outlayer login --wallet-key wk_...
 
 # Create + deploy
 outlayer create my-agent
@@ -36,15 +39,34 @@ outlayer run alice.near/my-agent '{"command": "hello"}'
 
 ## Authentication
 
+Two login modes: **NEAR private key** (direct signing) or **wallet API key** (custody signing via coordinator).
+
 ```bash
-outlayer login              # mainnet (default) — prompts for Account ID + private key
+# Login with NEAR private key (default — prompts for Account ID + private key)
+outlayer login              # mainnet
 outlayer login testnet      # testnet
-outlayer whoami             # show current account, network, public key
+
+# Login with custody wallet API key (for agents using OutLayer Agent Custody)
+outlayer login --wallet-key wk_15807dbda492636df5280629d7617c3ea80f915ba960389b621e420ca275e545
+outlayer login testnet --wallet-key wk_...
+
+outlayer whoami             # show current account, network, public key, auth type
 outlayer logout             # delete stored credentials
 ```
 
 Credentials: `~/.outlayer/{network}/credentials.json` + OS keychain (macOS Keychain / Linux Secret Service).
 Active network: `~/.outlayer/default-network` (auto-detected if not set).
+
+### Auth Types
+
+| auth_type | How it works | Use case |
+|-----------|-------------|----------|
+| `near_key` | Signs transactions locally with ed25519 private key | Humans, scripts with full access key |
+| `wallet_key` | Routes signing through coordinator `POST /wallet/v1/call` | AI agents using Agent Custody wallets |
+
+When logged in with `--wallet-key`, all commands that need transaction signing (deploy, run, keys, secrets, earnings, versions) use the coordinator wallet API instead of local signing. Upload (FastFS) requires `near_key` auth for now.
+
+`whoami` output includes `Auth: near_key` or `Auth: wallet_key`.
 
 ## Project Scaffolding
 
@@ -326,6 +348,22 @@ outlayer secrets set '{"OPENAI_KEY":"sk-...","DB_URL":"postgres://..."}' \
   --project alice.near/my-agent
 # later, add more without overwriting:
 outlayer secrets update '{"NEW_SECRET":"value"}' --project alice.near/my-agent
+```
+
+### Agent with custody wallet
+
+```bash
+# Agent registers a custody wallet via API
+# POST https://api.outlayer.fastnear.com/register → gets wk_...
+
+# Login with the wallet key
+outlayer login --wallet-key wk_15807dbda...
+
+# All commands work transparently — signing goes through coordinator
+outlayer deploy my-agent
+outlayer run alice.near/my-agent '{"test": true}'
+outlayer secrets set '{"API_KEY":"sk-..."}' --project alice.near/my-agent
+outlayer keys create
 ```
 
 ### Switch active version
