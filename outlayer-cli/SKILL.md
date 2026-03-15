@@ -2,7 +2,7 @@
 name: outlayer-cli
 description: Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents — project scaffolding, GitHub/WASM deploys, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.
 metadata:
-  install: cargo install --git https://github.com/out-layer/outlayer-cli
+  install: "curl -fsSL https://raw.githubusercontent.com/out-layer/outlayer-cli/main/install.sh | sh"
   config: ~/.outlayer/
   project_config: outlayer.toml
 ---
@@ -14,8 +14,9 @@ Command-line tool for deploying, running, and managing WASI agents on OutLayer (
 ## Quick Start
 
 ```bash
-# Install
-cargo install --git https://github.com/out-layer/outlayer-cli
+# Install (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/out-layer/outlayer-cli/main/install.sh | sh
+# Or via cargo: cargo install outlayer-cli
 
 # Login with NEAR private key (prompts for Account ID + ed25519 private key)
 outlayer login              # mainnet
