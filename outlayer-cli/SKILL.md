@@ -270,6 +270,8 @@ outlayer upload <file> --mime-type <type>      # override MIME type
 
 Files >1MB are automatically chunked into multiple transactions.
 
+**Important:** Upload transactions will show "Exceeded the prepaid gas" — this is expected and by design. Gas is intentionally set to 1 to minimize costs. No contract execution is needed — the NEAR indexer picks up file data from the transaction arguments regardless of execution status. The file will be available at its FastFS URL after indexing, which takes 1–2 minutes. Chunked uploads (files >1MB) may take longer since all chunks must be indexed before the file is assembled.
+
 ## Versions
 
 ```bash
