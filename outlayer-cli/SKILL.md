@@ -129,7 +129,7 @@ outlayer run --github github.com/user/repo '{"command": "hello"}'
 outlayer run --github github.com/user/repo --commit abc123 '{"input": 1}'
 
 # Run from WASM URL (on-chain only)
-outlayer run --wasm https://alice.near.fastfs.io/outlayer.near/abc.wasm '{"cmd": "hi"}'
+outlayer run --wasm https://main.fastfs.io/alice.near/outlayer.near/abc.wasm '{"cmd": "hi"}'
 outlayer run --wasm https://example.com/file.wasm --hash abc123... '{}'
 ```
 
@@ -262,7 +262,7 @@ Upload files to on-chain storage (NEAR FastFS) via NEAR transactions.
 
 ```bash
 outlayer upload ./target/wasm32-wasip2/release/my-agent.wasm
-# → https://alice.near.fastfs.io/outlayer.near/abcdef.wasm
+# → https://main.fastfs.io/alice.near/outlayer.near/abcdef.wasm
 
 outlayer upload <file> --receiver <account>    # custom receiver (default: outlayer.near)
 outlayer upload <file> --mime-type <type>      # override MIME type
@@ -341,7 +341,7 @@ outlayer run alice.near/my-agent '{"test": true}'
 ```bash
 outlayer upload ./my-agent.wasm
 # copy the FastFS URL
-outlayer deploy my-agent https://alice.near.fastfs.io/outlayer.near/abc.wasm
+outlayer deploy my-agent https://main.fastfs.io/alice.near/outlayer.near/abc.wasm
 ```
 
 ### Add secrets to existing agent
