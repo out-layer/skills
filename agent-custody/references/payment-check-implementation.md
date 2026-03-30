@@ -1,4 +1,4 @@
-# Payment Check — Implementation Spec
+# Payment Check - Implementation Spec
 
 Спецификация для реализации фичи Payment Check (agent-to-agent payments) на основе NEAR Intents Gifts.
 
@@ -27,7 +27,7 @@ Agent (buyer)                Coordinator                    OutLayer TEE        
 
 ---
 
-## 1. OutLayer TEE — Key Derivation
+## 1. OutLayer TEE - Key Derivation
 
 ### Что реализовать
 
@@ -42,7 +42,7 @@ derive_payment_check_key(wallet_master_key, check_counter) → Ed25519KeyPair
 - **Детерминистичность**: один и тот же `(wallet_master_key, check_counter)` всегда даёт один и тот же keypair
 - **Изоляция**: утечка ephemeral key не компрометирует master key и другие check keys
 - **Derivation path**: `m/payment-check/{check_counter}` (или аналог для Ed25519)
-  - `check_counter` — монотонный счётчик на уровне кошелька, хранится в state координатора
+  - `check_counter` - монотонный счётчик на уровне кошелька, хранится в state координатора
 - **Формат выхода**: Ed25519 keypair, приватный ключ в формате `ed25519:<base58>` (совместимо с NEAR)
 
 ### Рекомендуемый подход
@@ -88,11 +88,11 @@ POST /internal/sign-check-intent
 }
 ```
 
-Это позволяет координатору не хранить приватные ключи — TEE деривирует и подписывает на лету.
+Это позволяет координатору не хранить приватные ключи - TEE деривирует и подписывает на лету.
 
 ---
 
-## 2. Coordinator — Новые эндпоинты
+## 2. Coordinator - Новые эндпоинты
 
 ### Storage / State
 
@@ -128,7 +128,7 @@ CREATE INDEX idx_checks_wallet_status ON payment_checks(wallet_id, status);
 3. Вызов TEE: `derive-check-key(wallet_id, check_counter)` → получаем `public_key`, `private_key`, `implicit_account_id`
 4. Проверка intents balance для `token`:
    - Если достаточно → переходим к п.5
-   - Если нет — проверяем wallet balance. Если достаточно → auto-deposit в intents (`/intents/deposit` логика). Если нет → `insufficient_balance`
+   - Если нет - проверяем wallet balance. Если достаточно → auto-deposit в intents (`/intents/deposit` логика). Если нет → `insufficient_balance`
 5. Подписываем transfer intent от имени wallet: переводим `amount` токена `token` на `implicit_account_id` внутри `intents.near`
 6. Сохраняем запись в `payment_checks`
 7. Возвращаем `check_id`, `check_key` (= `private_key`), остальные поля
@@ -145,9 +145,9 @@ CREATE INDEX idx_checks_wallet_status ON payment_checks(wallet_id, status);
 4. Ищем check в БД по `implicit_account_id` (можно вычислить из public_key):
    - Если найден и `status != unclaimed` → `check_already_claimed` / `check_already_reclaimed`
    - Если найден и `expires_at` прошёл → `check_expired`
-   - Если не найден в БД — чек мог быть создан другим сервисом, всё равно пробуем claim
+   - Если не найден в БД - чек мог быть создан другим сервисом, всё равно пробуем claim
 5. Подписываем transfer intent ephemeral ключом: переводим все токены с `implicit_account_id` на intents-аккаунт получателя (auth wallet)
-   - Для подписи: используем `check_key` напрямую (клиент его прислал) — НЕ нужен вызов TEE
+   - Для подписи: используем `check_key` напрямую (клиент его прислал) - НЕ нужен вызов TEE
 6. Обновляем `status = 'claimed'`, `claimed_at = now()` в БД
 7. Возвращаем `token`, `amount`, `memo`, `claimed_at`
 
@@ -166,7 +166,7 @@ CREATE INDEX idx_checks_wallet_status ON payment_checks(wallet_id, status);
 **Логика:**
 
 1. Query `payment_checks WHERE wallet_id = auth_wallet`
-2. Фильтр по `status` если указан (для `expired` — фильтр `status = 'unclaimed' AND expires_at < now()`)
+2. Фильтр по `status` если указан (для `expired` - фильтр `status = 'unclaimed' AND expires_at < now()`)
 3. Limit (default 50, max 100)
 4. Вернуть `{"checks": [...]}`
 
@@ -178,8 +178,8 @@ CREATE INDEX idx_checks_wallet_status ON payment_checks(wallet_id, status);
 2. Если `status = 'claimed'` → `check_already_claimed`
 3. Если `status = 'reclaimed'` → `check_already_reclaimed`
 4. Вызов TEE: `derive-check-key(wallet_id, check_counter)` → получаем ephemeral keypair
-5. Вызов TEE: `sign-check-intent` — transfer intent от ephemeral account обратно на wallet intents balance
-6. Если транзакция failed (баланс 0 — кто-то уже заклеймил on-chain) → обновить status = 'claimed', вернуть `check_already_claimed`
+5. Вызов TEE: `sign-check-intent` - transfer intent от ephemeral account обратно на wallet intents balance
+6. Если транзакция failed (баланс 0 - кто-то уже заклеймил on-chain) → обновить status = 'claimed', вернуть `check_already_claimed`
 7. Обновить `status = 'reclaimed'`
 8. Вернуть `token`, `amount`, `reclaimed_at`
 
@@ -253,18 +253,18 @@ await sdkAsCheck.signAndSendIntent({
 - [ ] Экспонировать `POST /internal/sign-check-intent`
 - [ ] Тесты: детерминистичность, изоляция ключей
 
-### Фаза 2: Coordinator — Storage
+### Фаза 2: Coordinator - Storage
 - [ ] Миграция: таблица `payment_checks`
 - [ ] Миграция: `next_check_counter` в wallets
 - [ ] Индексы
 
-### Фаза 3: Coordinator — Create + Status
+### Фаза 3: Coordinator - Create + Status
 - [ ] `POST /wallet/v1/payment-check/create` (с auto-deposit)
 - [ ] `GET /wallet/v1/payment-check/status`
 - [ ] `GET /wallet/v1/payment-check/list`
 - [ ] Тесты: создание, статус, expiry
 
-### Фаза 4: Coordinator — Claim + Reclaim
+### Фаза 4: Coordinator - Claim + Reclaim
 - [ ] `POST /wallet/v1/payment-check/claim`
 - [ ] `POST /wallet/v1/payment-check/reclaim`
 - [ ] Обработка race conditions

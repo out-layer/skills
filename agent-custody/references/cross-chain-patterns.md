@@ -1,10 +1,10 @@
-# Cross-Chain Patterns — Complete Workflow Examples
+# Cross-Chain Patterns - Complete Workflow Examples
 
 All examples use `$API_KEY` as the wallet API key and `https://api.outlayer.fastnear.com` as base URL.
 
 ## Pattern 1: Swap wNEAR to USDT (Same Chain)
 
-Most common pattern — swap within NEAR ecosystem. Swap is gasless but tokens must be in intents balance first.
+Most common pattern - swap within NEAR ecosystem. Swap is gasless but tokens must be in intents balance first.
 
 ```bash
 # 1. Check wNEAR balance on NEAR account
@@ -19,7 +19,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   -d '{"token":"wrap.near","amount":"1000000000000000000000000"}' \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/deposit"
 
-# 3. Get quote (optional — preview rate without executing)
+# 3. Get quote (optional - preview rate without executing)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"token_in":"nep141:wrap.near","token_out":"nep141:usdt.tether-token.near","amount_in":"1000000000000000000000000"}' \
@@ -27,7 +27,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 # Response: {"amount_out": "3150000", "min_amount_out": "3118500", ...}
 # → 1 wNEAR ≈ 3.15 USDT
 
-# 4. Execute swap (gasless — 1 wNEAR → USDT, min 3.0 USDT)
+# 4. Execute swap (gasless - 1 wNEAR → USDT, min 3.0 USDT)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"token_in":"nep141:wrap.near","token_out":"nep141:usdt.tether-token.near","amount_in":"1000000000000000000000000","min_amount_out":"3000000"}' \
@@ -126,7 +126,7 @@ fi
 
 ## Pattern 5: Move Tokens to Another NEAR Account via Intents
 
-Deposit into intents → withdraw to another account. The withdraw is **gasless** — no NEAR needed on the wallet's implicit account. **Note:** receiver must have storage on the token contract. Use `/storage-deposit` to register if needed.
+Deposit into intents → withdraw to another account. The withdraw is **gasless** - no NEAR needed on the wallet's implicit account. **Note:** receiver must have storage on the token contract. Use `/storage-deposit` to register if needed.
 
 ```bash
 # 1. Deposit wNEAR into intents balance (on-chain, needs gas)
@@ -152,7 +152,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
 ```
 
-## Pattern 6: Multi-Step — Swap and Send
+## Pattern 6: Multi-Step - Swap and Send
 
 Agent swaps tokens then sends the result to a user. Swap result is in intents, so use `/intents/withdraw` to send.
 
@@ -196,7 +196,7 @@ CHECK_KEY=$(echo $CHECK | jq -r '.check_key')
 echo "Check created: $CHECK_ID"
 echo "Send this key to the seller: $CHECK_KEY"
 
-# 2. Send check_key to Agent1 (out-of-band — via API call, message, etc.)
+# 2. Send check_key to Agent1 (out-of-band - via API call, message, etc.)
 #    Agent1 receives: "ed25519:5Kd3NBU...base58_private_key"
 
 # === Agent1 (seller) claims the check ===
@@ -233,7 +233,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 # Funds return to buyer's intents balance
 ```
 
-## Pattern 8: Partial Claims — Milestone-Based Payments
+## Pattern 8: Partial Claims - Milestone-Based Payments
 
 Agent2 (buyer) creates a check for the full project cost. Agent1 (seller) claims in parts as milestones are delivered. Buyer can reclaim unused funds.
 
@@ -261,7 +261,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
 # → {"amount_claimed": "3000000", "remaining": "4000000"}
 
-# === Agent2 cancels milestone 3 — reclaims remaining 4 USDC ===
+# === Agent2 cancels milestone 3 - reclaims remaining 4 USDC ===
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $BUYER_API_KEY" \
   -d "{\"check_id\":\"$CHECK_ID\"}" \

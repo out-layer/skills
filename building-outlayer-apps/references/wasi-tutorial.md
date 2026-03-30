@@ -152,14 +152,14 @@ For WASI P2, use the `outlayer` crate:
 outlayer = "0.1"
 ```
 
-### `outlayer::env` — Execution Context
+### `outlayer::env` - Execution Context
 
 ```rust
 use outlayer::env;
 
 // Caller identity
-let signer = env::signer_account_id();          // Option<String> — NEAR account or payment key owner
-let predecessor = env::predecessor_account_id(); // Option<String> — contract that called OutLayer
+let signer = env::signer_account_id();          // Option<String> - NEAR account or payment key owner
+let predecessor = env::predecessor_account_id(); // Option<String> - contract that called OutLayer
 
 // Input/output (alternative to raw stdin/stdout)
 let input: MyInput = env::input_json()?.unwrap();  // Deserialize stdin as JSON
@@ -185,7 +185,7 @@ let req_id = env::request_id();          // Option<String>
 - `Some(owner)` via HTTPS with Payment Key
 - `None` via HTTPS without auth
 
-### `outlayer::storage` — Persistent Encrypted Storage
+### `outlayer::storage` - Persistent Encrypted Storage
 
 ```rust
 use outlayer::storage;
@@ -226,7 +226,7 @@ storage::clear_all()?;
 storage::clear_version("wasm-hash")?;
 ```
 
-### `outlayer::vrf` — Verifiable Random Function
+### `outlayer::vrf` - Verifiable Random Function
 
 ```rust
 use outlayer::vrf;

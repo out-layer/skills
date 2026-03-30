@@ -1,6 +1,6 @@
 ---
 name: agent-custody
-description: Multi-chain custody wallet for AI agents with cross-chain swaps and payment checks via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations — transfers, swaps, payment checks, contract calls, or cross-chain movements.
+description: Multi-chain custody wallet for AI agents with cross-chain swaps and payment checks via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations - transfers, swaps, payment checks, contract calls, or cross-chain movements.
 metadata:
   api:
     base_url: https://api.outlayer.fastnear.com
@@ -10,42 +10,42 @@ metadata:
 
 # OutLayer Agent Custody Wallet
 
-Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contract calls, and cross-chain swaps via NEAR Intents protocol — no gas tokens needed on destination chains.
+Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contract calls, and cross-chain swaps via NEAR Intents protocol - no gas tokens needed on destination chains.
 
 ## When to Use This Skill
 
 | You need... | Action |
 |-------------|--------|
-| A crypto wallet for your agent | Register via `POST /register` — includes 100 free WASI calls |
+| A crypto wallet for your agent | Register via `POST /register` - includes 100 free WASI calls |
 | Run a WASI module for free | Use `POST /call/{owner}/{project}` with `Authorization: Bearer wk_...` (trial quota) |
 | Check remaining free calls | Use `GET /trial/status` |
 | Upgrade to paid execution | Use `POST /wallet/v1/create-payment-key` (USDC or NEAR) |
 | Send NEAR to someone | Use `POST /wallet/v1/transfer` with `chain: "near"` |
 | Send FT tokens (USDT, wNEAR) to someone | Use `POST /wallet/v1/call` with `ft_transfer` (see FT transfer section) |
-| Swap tokens (e.g. wNEAR to USDT) | Use `POST /wallet/v1/intents/swap` — gasless swap via 1Click. Tokens must be in intents balance first |
-| Preview swap rate before committing | Use `POST /wallet/v1/intents/swap/quote` — read-only, no gas spent |
-| List available tokens for swaps | Use `GET /wallet/v1/tokens` — returns ~200 tokens across 20+ chains |
-| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param — gasless. For NEAR: receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
-| Register token storage | Use `POST /wallet/v1/storage-deposit` — needed before withdrawing to accounts without storage |
-| Move FT from wallet into Intents | Use `POST /wallet/v1/intents/deposit` — on-chain, needs gas |
-| Call a NEAR smart contract | Use `POST /wallet/v1/call` — on-chain, needs gas |
+| Swap tokens (e.g. wNEAR to USDT) | Use `POST /wallet/v1/intents/swap` - gasless swap via 1Click. Tokens must be in intents balance first |
+| Preview swap rate before committing | Use `POST /wallet/v1/intents/swap/quote` - read-only, no gas spent |
+| List available tokens for swaps | Use `GET /wallet/v1/tokens` - returns ~200 tokens across 20+ chains |
+| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. For NEAR: receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
+| Register token storage | Use `POST /wallet/v1/storage-deposit` - needed before withdrawing to accounts without storage |
+| Move FT from wallet into Intents | Use `POST /wallet/v1/intents/deposit` - on-chain, needs gas |
+| Call a NEAR smart contract | Use `POST /wallet/v1/call` - on-chain, needs gas |
 | Check your balance | Use `GET /wallet/v1/balance?chain=near` or `&token=usdt.tether-token.near` |
 | Check intents deposit balance | Use `GET /wallet/v1/balance?token=wrap.near&source=intents` |
 | Get your address on any chain | Use `GET /wallet/v1/address?chain=ethereum` |
-| Delete the wallet | Use `POST /wallet/v1/delete` — deletes on-chain account, sends NEAR to beneficiary |
+| Delete the wallet | Use `POST /wallet/v1/delete` - deletes on-chain account, sends NEAR to beneficiary |
 | Ask user to fund your wallet | Generate a fund link (see below) or share your NEAR address |
-| Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` — get `check_key` to send |
-| Pay multiple agents at once | `POST /wallet/v1/payment-check/batch-create` — up to 10 checks |
+| Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` - get `check_key` to send |
+| Pay multiple agents at once | `POST /wallet/v1/payment-check/batch-create` - up to 10 checks |
 | Receive payment from another agent | `POST /wallet/v1/payment-check/claim` with the `check_key` you received |
 | Claim only part of a check | `POST /wallet/v1/payment-check/claim` with `amount` param |
 | See if your check was cashed | `GET /wallet/v1/payment-check/status?check_id={id}` |
 | Take back an unclaimed check | `POST /wallet/v1/payment-check/reclaim` (supports partial via `amount`) |
 | Check a check's balance by key | `POST /wallet/v1/payment-check/peek` with `check_key` |
-| Deposit from another chain (Solana, Ethereum, etc.) | `POST /wallet/v1/deposit-intent` with `chain` param — get a deposit address, user sends tokens, 1Click bridges to intents |
-| Check cross-chain deposit status | `GET /wallet/v1/deposit-status?id={intent_id}` — poll until `success` |
-| Withdraw to another chain | `POST /wallet/v1/intents/withdraw` with `chain` param (e.g. `"solana"`, `"ethereum"`) — gasless |
+| Deposit from another chain (Solana, Ethereum, etc.) | `POST /wallet/v1/deposit-intent` with `chain` param - get a deposit address, user sends tokens, 1Click bridges to intents |
+| Check cross-chain deposit status | `GET /wallet/v1/deposit-status?id={intent_id}` - poll until `success` |
+| Withdraw to another chain | `POST /wallet/v1/intents/withdraw` with `chain` param (e.g. `"solana"`, `"ethereum"`) - gasless |
 | List cross-chain deposits | `GET /wallet/v1/deposits` |
-| Authenticate to an external service | `POST /wallet/v1/sign-message` — NEP-413 signed message for login/auth |
+| Authenticate to an external service | `POST /wallet/v1/sign-message` - NEP-413 signed message for login/auth |
 | Let the user set spending limits | Share the `handoff_url` from registration |
 
 ## Configuration
@@ -65,17 +65,17 @@ Every wallet operation falls into one of three categories:
 | **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
 | **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/deposit-status`, `/deposits` |
 
-**On-chain** — wallet signs a NEAR transaction and broadcasts it. The wallet's implicit account must hold NEAR for gas.
+**On-chain** - wallet signs a NEAR transaction and broadcasts it. The wallet's implicit account must hold NEAR for gas.
 
-**Gasless** — wallet signs a NEP-413 message (off-chain). The solver relay executes the intent and pays gas. Works even with zero NEAR balance.
+**Gasless** - wallet signs a NEP-413 message (off-chain). The solver relay executes the intent and pays gas. Works even with zero NEAR balance.
 
 ### `/intents/withdraw` vs `/intents/ft-withdraw`
 
 Same result, different execution:
-- `/intents/withdraw` — **gasless**. Signs NEP-413 intent, solver relay executes. Use this by default. **Note:** receiver must have storage registered on the token contract — use `/storage-deposit` first if needed.
-- `/intents/ft-withdraw` — **on-chain**. Calls `ft_withdraw` on `intents.near`. Needs NEAR for gas.
+- `/intents/withdraw` - **gasless**. Signs NEP-413 intent, solver relay executes. Use this by default. **Note:** receiver must have storage registered on the token contract - use `/storage-deposit` first if needed.
+- `/intents/ft-withdraw` - **on-chain**. Calls `ft_withdraw` on `intents.near`. Needs NEAR for gas.
 
-### `/storage-deposit` — register token storage
+### `/storage-deposit` - register token storage
 
 Before withdrawing tokens to an account, that account must have storage registered on the token contract. Use this endpoint to register storage.
 
@@ -85,7 +85,7 @@ curl -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/j
   "https://api.outlayer.fastnear.com/wallet/v1/storage-deposit"
 ```
 
-Idempotent — returns `already_registered: true` if storage already exists. Optional `account_id` field to register storage for a different account (default = wallet's own address). Costs ~0.00125 NEAR.
+Idempotent - returns `already_registered: true` if storage already exists. Optional `account_id` field to register storage for a different account (default = wallet's own address). Costs ~0.00125 NEAR.
 
 ---
 
@@ -112,11 +112,11 @@ Response:
 }
 ```
 
-**Save `api_key` securely** — it is shown only once. All subsequent requests require it.
+**Save `api_key` securely** - it is shown only once. All subsequent requests require it.
 
 **Important:** Persist the `api_key` to a file or session state immediately after registration. If you lose the key, recovery depends on the user having set a policy (see Key Recovery below).
 
-The `near_account_id` is the NEAR implicit account (hex public key). Cross-chain transfers (Ethereum, Bitcoin, Solana, etc.) are handled via NEAR Intents — no gas tokens needed on other chains.
+The `near_account_id` is the NEAR implicit account (hex public key). Cross-chain transfers (Ethereum, Bitcoin, Solana, etc.) are handled via NEAR Intents - no gas tokens needed on other chains.
 
 ## 2. Free Trial: Run WASI Without Payment
 
@@ -154,13 +154,13 @@ https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount={amount}&t
 | `amount` | yes | Human-readable amount (e.g. `1` for 1 NEAR, `10` for 10 USDT) |
 | `token` | no | `near` (default) or FT contract ID (e.g. `usdt.tether-token.near`) |
 | `msg` | no | Message to display to the user (URL-encoded) |
-| `dest` | no | `intents` — deposit directly to agent's Intents balance (FT tokens only) |
+| `dest` | no | `intents` - deposit directly to agent's Intents balance (FT tokens only) |
 
-When `dest=intents`, the user's tokens go directly to the agent's Intents balance via `ft_transfer_call` to `intents.near`. This is the preferred option when the agent needs funds for swaps, payment checks, or cross-chain withdrawals — no extra deposit step needed.
+When `dest=intents`, the user's tokens go directly to the agent's Intents balance via `ft_transfer_call` to `intents.near`. This is the preferred option when the agent needs funds for swaps, payment checks, or cross-chain withdrawals - no extra deposit step needed.
 
 The page includes a toggle so the user can switch between direct transfer and Intents deposit. The page automatically handles FT storage deposits.
 
-**Example — request 10 USDC to Intents balance:**
+**Example - request 10 USDC to Intents balance:**
 ```
 https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount=10&token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&msg=Fund+my+trading+balance&dest=intents
 ```
@@ -208,7 +208,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.fastnear.com/wallet/v1/create-payment-key"
 ```
 
-Response includes `payment_key` — save securely. Use via `X-Payment-Key` header for paid WASI calls.
+Response includes `payment_key` - save securely. Use via `X-Payment-Key` header for paid WASI calls.
 
 ---
 
@@ -236,8 +236,8 @@ curl -s -H "Authorization: Bearer $API_KEY" \
 Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id": "36842e..."}`
 
 **Two balances matter:**
-- **Wallet balance** (`chain=near`) — direct FT holdings on the NEAR account. Needed for `ft_transfer`, contract calls.
-- **Intents balance** (`source=intents`) — tokens deposited into `intents.near`. Needed for swaps (`/intents/swap`), payment checks, and cross-chain withdrawals (`/intents/withdraw`). Use `POST /wallet/v1/intents/deposit` (on-chain, needs gas) to move tokens from wallet to intents, or request funds with `dest=intents` to skip this step.
+- **Wallet balance** (`chain=near`) - direct FT holdings on the NEAR account. Needed for `ft_transfer`, contract calls.
+- **Intents balance** (`source=intents`) - tokens deposited into `intents.near`. Needed for swaps (`/intents/swap`), payment checks, and cross-chain withdrawals (`/intents/withdraw`). Use `POST /wallet/v1/intents/deposit` (on-chain, needs gas) to move tokens from wallet to intents, or request funds with `dest=intents` to skip this step.
 
 ### Get address (for other chains)
 ```bash
@@ -287,7 +287,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.fastnear.com/wallet/v1/delete"
 ```
 
-### Sign a message (NEP-413 — for external auth)
+### Sign a message (NEP-413 - for external auth)
 
 Sign an arbitrary message using the wallet's NEAR private key (NEP-413 standard). Use this to authenticate your agent to external services that verify NEAR signatures.
 
@@ -318,7 +318,7 @@ Response:
 | `recipient` | Yes | Service that will verify (1-128 chars) |
 | `nonce` | No | Base64-encoded 32 bytes. Auto-generated if omitted |
 
-The response includes both `signature` (ed25519 base58, NEAR-native format) and `signature_base64` (base64-encoded raw bytes). Use `signature_base64` for HTTP auth headers and JWT — no base58→base64 conversion needed.
+The response includes both `signature` (ed25519 base58, NEAR-native format) and `signature_base64` (base64-encoded raw bytes). Use `signature_base64` for HTTP auth headers and JWT - no base58→base64 conversion needed.
 
 **Verification (external service):**
 
@@ -326,13 +326,13 @@ The signature follows NEP-413. The verifier computes:
 1. Borsh-serialize: `tag(2147484061) + message + nonce(32 bytes) + recipient + callback_url(None)`
 2. SHA-256 hash the serialized payload
 3. Verify ed25519 signature against the `public_key`
-4. For implicit accounts: `account_id == hex(public_key_bytes)` — no RPC needed
+4. For implicit accounts: `account_id == hex(public_key_bytes)` - no RPC needed
 
 ---
 
 ## Cross-Chain Swaps (NEAR Intents)
 
-Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are atomic — either both sides complete or nothing happens.
+Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are atomic - either both sides complete or nothing happens.
 
 ### Token ID Format (CRITICAL)
 
@@ -356,7 +356,7 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/tokens"
 ```
-Response includes `defuse_asset_id` for each token — use this in swap calls.
+Response includes `defuse_asset_id` for each token - use this in swap calls.
 
 **2. Check intents balance (tokens must be in intents):**
 ```bash
@@ -394,7 +394,7 @@ Response: `{"request_id": "uuid", "status": "success", "amount_out": "3150000", 
 
 **Result stays in intents balance.** Use `/intents/withdraw` to move tokens out.
 
-`min_amount_out` is optional — omit for a market order. Set to protect against slippage.
+`min_amount_out` is optional - omit for a market order. Set to protect against slippage.
 
 ### Common swap pairs
 
@@ -417,14 +417,14 @@ curl -s -X POST -H "Content-Type: application/json" \
   -d '{"token":"wrap.near","amount":"1000000000000000000000000"}' \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/deposit"
 
-# 2. Withdraw to destination (gasless — no NEAR needed for gas)
+# 2. Withdraw to destination (gasless - no NEAR needed for gas)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"receiver.near","amount":"1000000000000000000000000","token":"wrap.near","chain":"near"}' \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
 ```
 
-The `/intents/withdraw` endpoint is **gasless** — it uses NEP-413 signed intents via the solver relay. No NEAR balance is required on the wallet's implicit account.
+The `/intents/withdraw` endpoint is **gasless** - it uses NEP-413 signed intents via the solver relay. No NEAR balance is required on the wallet's implicit account.
 
 For the on-chain `ft_withdraw` method (requires NEAR for gas on the implicit account), use `/intents/ft-withdraw` instead.
 
@@ -446,7 +446,7 @@ Use `GET /wallet/v1/tokens` for the full current list.
 
 ## Cross-Chain Deposit & Withdraw
 
-Deposit tokens from any supported chain (Solana, Ethereum, Base, Arbitrum, etc.) into intents balance, or withdraw from intents to any chain. No gas tokens needed on source/destination chains — 1Click handles execution.
+Deposit tokens from any supported chain (Solana, Ethereum, Base, Arbitrum, etc.) into intents balance, or withdraw from intents to any chain. No gas tokens needed on source/destination chains - 1Click handles execution.
 
 Supported chains: `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`.
 
@@ -463,9 +463,9 @@ curl -s -X POST -H "Content-Type: application/json" \
 | Param | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `chain` | no | `"solana"` | Source chain (`"solana"`, `"ethereum"`, `"base"`, etc.) |
-| `amount` | yes | — | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC) |
+| `amount` | yes | - | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC) |
 | `token` | no | `"USDC"` | Source token symbol on the origin chain (`"USDC"`, `"SOL"`, `"ETH"`, etc.) |
-| `refund_address` | no | — | Address on source chain for refund if bridge fails |
+| `refund_address` | no | - | Address on source chain for refund if bridge fails |
 | `destination_asset` | no | NEAR USDC | Defuse asset ID for destination token. Override to receive wNEAR etc. |
 
 Response:
@@ -489,7 +489,7 @@ curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/deposit-status?id={intent_id}"
 ```
 
-Status transitions: `pending` → `bridging` → `success`. On `success`, tokens are in intents balance — create payment checks, swap, or withdraw as usual.
+Status transitions: `pending` → `bridging` → `success`. On `success`, tokens are in intents balance - create payment checks, swap, or withdraw as usual.
 
 | Status | Meaning |
 |--------|---------|
@@ -507,7 +507,7 @@ curl -s -H "Authorization: Bearer $API_KEY" \
 
 ### Withdraw from intents → another chain
 
-Send tokens from intents balance to any supported chain. Uses `/intents/withdraw` with `chain` param. Gasless — 1Click solver handles execution.
+Send tokens from intents balance to any supported chain. Uses `/intents/withdraw` with `chain` param. Gasless - 1Click solver handles execution.
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
@@ -537,9 +537,9 @@ Response: `{"request_id": "uuid", "status": "success"}`
 
 ## Payment Checks (Agent-to-Agent Payments)
 
-Payment checks enable trustless agent-to-agent payments. One agent writes a check (deposits tokens into an ephemeral account), sends the `check_key` to another agent, and the recipient claims the funds. First-to-claim semantics — no double-spend possible.
+Payment checks enable trustless agent-to-agent payments. One agent writes a check (deposits tokens into an ephemeral account), sends the `check_key` to another agent, and the recipient claims the funds. First-to-claim semantics - no double-spend possible.
 
-Check keys are derived in TEE from the custody keystore — deterministic and recoverable. The server never stores raw private keys.
+Check keys are derived in TEE from the custody keystore - deterministic and recoverable. The server never stores raw private keys.
 
 Optional expiration: set `expires_in` when creating a check. After expiry, the recipient cannot claim via our API, and the sender can reclaim the funds.
 
@@ -583,7 +583,7 @@ Response:
 }
 ```
 
-**`check_key` is shown only once** — this is the check itself. Send it to the recipient. The `check_id` is for your own status tracking and reclaims.
+**`check_key` is shown only once** - this is the check itself. Send it to the recipient. The `check_id` is for your own status tracking and reclaims.
 
 If the wallet has insufficient intents balance but enough wallet balance, the API auto-deposits to intents before creating the check.
 
@@ -598,11 +598,11 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.fastnear.com/wallet/v1/payment-check/batch-create"
 ```
 
-Response: `{"checks": [<same as single create>, ...]}` — one entry per check, same fields.
+Response: `{"checks": [<same as single create>, ...]}` - one entry per check, same fields.
 
 ### Claim a payment check
 
-Supports **partial claims** — pass `amount` to claim less than the full check. Omit for full claim.
+Supports **partial claims** - pass `amount` to claim less than the full check. Omit for full claim.
 
 ```bash
 # Full claim
@@ -665,12 +665,12 @@ Response:
 
 | Status | Meaning |
 |--------|---------|
-| `unclaimed` | Funds waiting — check not yet claimed |
-| `partially_claimed` | Recipient claimed part of the check — remaining funds available |
+| `unclaimed` | Funds waiting - check not yet claimed |
+| `partially_claimed` | Recipient claimed part of the check - remaining funds available |
 | `claimed` | Recipient claimed the entire check |
-| `partially_reclaimed` | Sender reclaimed part — remaining available for claim |
+| `partially_reclaimed` | Sender reclaimed part - remaining available for claim |
 | `reclaimed` | Sender took all remaining funds back |
-| `expired` | Unclaimed and past `expires_at` — sender can reclaim |
+| `expired` | Unclaimed and past `expires_at` - sender can reclaim |
 
 ### List payment checks
 
@@ -679,11 +679,11 @@ curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/payment-check/list?status=unclaimed&limit=50"
 ```
 
-Returns `{"checks": [...]}` — all checks created by the authenticated wallet.
+Returns `{"checks": [...]}` - all checks created by the authenticated wallet.
 
 ### Reclaim a check (full or partial)
 
-Supports **partial reclaims** — pass `amount` to reclaim less than the remaining balance. Omit for full reclaim.
+Supports **partial reclaims** - pass `amount` to reclaim less than the remaining balance. Omit for full reclaim.
 
 ```bash
 # Full reclaim
@@ -717,7 +717,7 @@ Response:
 }
 ```
 
-Reclaim works anytime the check has remaining balance — before or after expiry. Only the check creator can reclaim. When `remaining > 0`, the check stays active for further claims or reclaims.
+Reclaim works anytime the check has remaining balance - before or after expiry. Only the check creator can reclaim. When `remaining > 0`, the check stays active for further claims or reclaims.
 
 ### Peek a check (check balance by key)
 
@@ -763,12 +763,12 @@ Agent2 (buyer)                    API                        Agent1 (seller)
      |                             |----------------------------->|
      |                             |                              |
      |                             |  Funds in Agent1's intents   |
-     |                             |  balance — ready to use      |
+     |                             |  balance - ready to use      |
 ```
 
 ### Flow: External wallet claims
 
-External wallets can claim using the `check_key` as a NEAR Intents Gift private key directly on-chain — no API needed. Our status endpoint detects the claim by checking the ephemeral account balance.
+External wallets can claim using the `check_key` as a NEAR Intents Gift private key directly on-chain - no API needed. Our status endpoint detects the claim by checking the ephemeral account balance.
 
 ```
 Agent2 (buyer, custody)         API                    External Wallet
@@ -797,13 +797,13 @@ Agent2 (buyer, custody)         API                    External Wallet
 
 | Action | Method | Endpoint | Gas |
 |--------|--------|----------|-----|
-| Register | POST | `/register` | — |
-| Execute WASI (trial) | POST | `/call/{owner}/{project}` | — |
-| Trial status | GET | `/trial/status` | — |
+| Register | POST | `/register` | - |
+| Execute WASI (trial) | POST | `/call/{owner}/{project}` | - |
+| Trial status | GET | `/trial/status` | - |
 | Create payment key | POST | `/wallet/v1/create-payment-key` | on-chain |
-| Get address | GET | `/wallet/v1/address?chain={chain}` | — |
-| Get balance | GET | `/wallet/v1/balance?chain={chain}&token={token}` | — |
-| Get intents balance | GET | `/wallet/v1/balance?token={token}&source=intents` | — |
+| Get address | GET | `/wallet/v1/address?chain={chain}` | - |
+| Get balance | GET | `/wallet/v1/balance?chain={chain}&token={token}` | - |
+| Get intents balance | GET | `/wallet/v1/balance?token={token}&source=intents` | - |
 | Transfer NEAR | POST | `/wallet/v1/transfer` | on-chain |
 | Call contract | POST | `/wallet/v1/call` | on-chain |
 | Delete wallet | POST | `/wallet/v1/delete` | on-chain |
@@ -811,27 +811,27 @@ Agent2 (buyer, custody)         API                    External Wallet
 | Move FT: wallet → intents.near | POST | `/wallet/v1/intents/deposit` | on-chain |
 | Withdraw on-chain (ft_withdraw) | POST | `/wallet/v1/intents/ft-withdraw` | on-chain |
 | Withdraw (gasless, default) | POST | `/wallet/v1/intents/withdraw` | gasless |
-| Dry-run withdrawal | POST | `/wallet/v1/intents/withdraw/dry-run` | — |
+| Dry-run withdrawal | POST | `/wallet/v1/intents/withdraw/dry-run` | - |
 | Swap tokens | POST | `/wallet/v1/intents/swap` | gasless |
-| Swap quote | POST | `/wallet/v1/intents/swap/quote` | — |
+| Swap quote | POST | `/wallet/v1/intents/swap/quote` | - |
 | Deposit from Solana | POST | `/wallet/v1/solana/deposit-intent` | cross-chain |
-| Check Solana deposit | GET | `/wallet/v1/solana/deposit-status?id={id}` | — |
-| List Solana deposits | GET | `/wallet/v1/solana/deposits` | — |
+| Check Solana deposit | GET | `/wallet/v1/solana/deposit-status?id={id}` | - |
+| List Solana deposits | GET | `/wallet/v1/solana/deposits` | - |
 | Withdraw to Solana | POST | `/wallet/v1/solana/withdraw` | cross-chain |
-| List tokens | GET | `/wallet/v1/tokens` | — |
-| Request status | GET | `/wallet/v1/requests/{request_id}` | — |
-| List requests | GET | `/wallet/v1/requests` | — |
-| Sign message (NEP-413) | POST | `/wallet/v1/sign-message` | — |
-| Audit log | GET | `/wallet/v1/audit?limit=50` | — |
+| List tokens | GET | `/wallet/v1/tokens` | - |
+| Request status | GET | `/wallet/v1/requests/{request_id}` | - |
+| List requests | GET | `/wallet/v1/requests` | - |
+| Sign message (NEP-413) | POST | `/wallet/v1/sign-message` | - |
+| Audit log | GET | `/wallet/v1/audit?limit=50` | - |
 | Create payment check | POST | `/wallet/v1/payment-check/create` | gasless |
 | Batch create checks | POST | `/wallet/v1/payment-check/batch-create` | gasless |
 | Claim payment check | POST | `/wallet/v1/payment-check/claim` | gasless |
-| Check status | GET | `/wallet/v1/payment-check/status?check_id={id}` | — |
-| List checks | GET | `/wallet/v1/payment-check/list` | — |
+| Check status | GET | `/wallet/v1/payment-check/status?check_id={id}` | - |
+| List checks | GET | `/wallet/v1/payment-check/list` | - |
 | Reclaim check | POST | `/wallet/v1/payment-check/reclaim` | gasless |
-| Peek check balance | POST | `/wallet/v1/payment-check/peek` | — |
+| Peek check balance | POST | `/wallet/v1/payment-check/peek` | - |
 
-**Gas column:** `on-chain` = wallet pays gas (needs NEAR), `gasless` = solver relay pays, `cross-chain` = 1Click bridge (fee ~0.2%), `—` = no transaction.
+**Gas column:** `on-chain` = wallet pays gas (needs NEAR), `gasless` = solver relay pays, `cross-chain` = 1Click bridge (fee ~0.2%), `-` = no transaction.
 
 All endpoints except `/register` require `Authorization: Bearer <api_key>` header.
 Base URL: `https://api.outlayer.fastnear.com`
@@ -857,7 +857,7 @@ Base URL: `https://api.outlayer.fastnear.com`
 | Fund link (dashboard) | Your wallet's storage on the token contract |
 | `/wallet/v1/payment-check/create` | Auto-deposits to intents if wallet balance sufficient |
 
-**NOT auto-registered:** `/wallet/v1/call` — register storage manually with `storage_deposit` if calling `ft_transfer` to a new receiver.
+**NOT auto-registered:** `/wallet/v1/call` - register storage manually with `storage_deposit` if calling `ft_transfer` to a new receiver.
 
 ## Reading Transaction Statuses
 
@@ -877,38 +877,38 @@ Base URL: `https://api.outlayer.fastnear.com`
 | `policy_denied` | Operation blocked by policy rules |
 | `wallet_frozen` | Wallet frozen by controller |
 | `insufficient_balance` | Not enough funds |
-| `unsupported_token` | Token not supported — check `/tokens` |
+| `unsupported_token` | Token not supported - check `/tokens` |
 | `pending_approval` | Needs multisig approval (not an error) |
 | `"token_in must use defuse asset format"` | Missing `nep141:` prefix in swap |
-| `"1Click swap was refunded"` | Solver couldn't fill — tokens returned to wallet |
+| `"1Click swap was refunded"` | Solver couldn't fill - tokens returned to wallet |
 | `check_already_claimed` | Payment check was already claimed by recipient |
 | `check_not_found` | No check with this ID for the authenticated wallet |
 | `invalid_check_key` | Key format invalid or does not correspond to a check |
 | `check_empty` | Ephemeral account has zero balance (already claimed on-chain) |
 | `check_already_reclaimed` | Check was already reclaimed by sender |
-| `check_expired` | Check expired — cannot claim (sender can reclaim) |
+| `check_expired` | Check expired - cannot claim (sender can reclaim) |
 | `memo_too_long` | Memo exceeds 256 characters |
 
 ## Guidelines
 
 - **Always check balance before any operation.** Query `/wallet/v1/balance` before swap, transfer, call, or withdraw.
-- **Use quote to preview swap rates.** The quote endpoint is free — no gas, no state change.
+- **Use quote to preview swap rates.** The quote endpoint is free - no gas, no state change.
 - **Tokens must be in intents balance before swapping.** Use `/intents/deposit` to move FT from wallet, or request funds with `dest=intents` to skip this step.
 - **`min_amount_out` is optional** but recommended for slippage protection.
 - **Cross-chain transfers need deposit + withdraw.** Only for moving tokens without swapping.
 - **Solana deposits create a temporary address.** Each `deposit-intent` call generates a unique Solana address. Poll `deposit-status` until `success`.
-- **Solana withdraw goes through 1Click bridge.** Use `/solana/withdraw` — tokens leave intents balance and arrive on Solana in ~15-20 seconds.
+- **Solana withdraw goes through 1Click bridge.** Use `/solana/withdraw` - tokens leave intents balance and arrive on Solana in ~15-20 seconds.
 - **Poll for async results.** If status is `processing`, poll `/requests/{id}`.
 - Always use `withdraw/dry-run` before real withdrawals.
-- **Payment checks** are ideal for agent-to-agent payments — first-to-claim prevents double-spend. Set `expires_in` to protect against unclaimed checks.
-- Store the API key as a secret — never log or expose it.
+- **Payment checks** are ideal for agent-to-agent payments - first-to-claim prevents double-spend. Set `expires_in` to protect against unclaimed checks.
+- Store the API key as a secret - never log or expose it.
 - NEAR amounts are in yoctoNEAR (1 NEAR = 10^24 yoctoNEAR).
 - **Never interpolate variables directly into JSON in bash `-d` args.** Characters like `$`, `!`, and quotes break JSON. Build the body with `python3 -c "import json; print(json.dumps({...}))"` or write to a temp file with `cat > /tmp/body.json << 'EOF'`, then use `curl -d @/tmp/body.json`.
 - **Long URLs (fund links, handoff links) break in terminal.** When you generate a URL with query params (especially fund links with token contract IDs), open it directly in the browser instead of printing. Use `open "URL"` (macOS) or `xdg-open "URL"` (Linux). Always offer to open rather than risk the user copying a truncated URL that won't work.
 
 ## Using OutLayer CLI with Wallet Key
 
-Agents with custody wallets can use the OutLayer CLI directly — no NEAR private key needed. The CLI routes all contract operations through `POST /wallet/v1/call` transparently.
+Agents with custody wallets can use the OutLayer CLI directly - no NEAR private key needed. The CLI routes all contract operations through `POST /wallet/v1/call` transparently.
 
 ### Login with wallet key
 
@@ -939,7 +939,7 @@ After wallet-key login, these commands work transparently:
 
 | Command | Reason |
 |---------|--------|
-| `outlayer upload` (FastFS) | Uses raw Borsh-encoded transaction args — `/wallet/v1/call` only accepts JSON. Use `outlayer login` with a NEAR private key for uploads. |
+| `outlayer upload` (FastFS) | Uses raw Borsh-encoded transaction args - `/wallet/v1/call` only accepts JSON. Use `outlayer login` with a NEAR private key for uploads. |
 
 ### Typical agent workflow
 
@@ -960,5 +960,5 @@ outlayer earnings
 
 ## References
 
-- [Token reference](references/token-reference.md) — popular tokens with IDs, decimals, chains
-- [Cross-chain patterns](references/cross-chain-patterns.md) — complete workflow examples
+- [Token reference](references/token-reference.md) - popular tokens with IDs, decimals, chains
+- [Cross-chain patterns](references/cross-chain-patterns.md) - complete workflow examples

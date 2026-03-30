@@ -1,4 +1,4 @@
-# Token Reference — Popular Tokens for AI Agent Swaps
+# Token Reference - Popular Tokens for AI Agent Swaps
 
 Use `GET /wallet/v1/tokens` for the full dynamic list. This reference covers the most commonly used tokens.
 
@@ -8,12 +8,12 @@ Use `GET /wallet/v1/tokens` for the full dynamic list. This reference covers the
 |--------|-------------|-----------------|----------|-------|
 | USDT | `usdt.tether-token.near` | `nep141:usdt.tether-token.near` | 6 | NEAR |
 | USDC | `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1` | `nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1` | 6 | NEAR |
-| USDT (ETH) | — | `nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near` | 6 | Ethereum |
-| USDC (ETH) | — | `nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near` | 6 | Ethereum |
-| USDC (Base) | — | `nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near` | 6 | Base |
-| USDC (Arb) | — | `nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near` | 6 | Arbitrum |
-| USDC (SOL) | — | `nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near` | 6 | Solana |
-| DAI | — | `nep141:eth-0x6b175474e89094c44da98b954eedeac495271d0f.omft.near` | 18 | Ethereum |
+| USDT (ETH) | - | `nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near` | 6 | Ethereum |
+| USDC (ETH) | - | `nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near` | 6 | Ethereum |
+| USDC (Base) | - | `nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near` | 6 | Base |
+| USDC (Arb) | - | `nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near` | 6 | Arbitrum |
+| USDC (SOL) | - | `nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near` | 6 | Solana |
+| DAI | - | `nep141:eth-0x6b175474e89094c44da98b954eedeac495271d0f.omft.near` | 18 | Ethereum |
 
 ## Major Assets
 
@@ -21,12 +21,12 @@ Use `GET /wallet/v1/tokens` for the full dynamic list. This reference covers the
 |--------|-------------|-----------------|----------|-------|
 | wNEAR | `wrap.near` | `nep141:wrap.near` | 24 | NEAR |
 | ETH | `eth.omft.near` | `nep141:eth.omft.near` | 18 | Ethereum |
-| ETH (Arb) | — | `nep141:arb.omft.near` | 18 | Arbitrum |
-| ETH (Base) | — | `nep141:base.omft.near` | 18 | Base |
+| ETH (Arb) | - | `nep141:arb.omft.near` | 18 | Arbitrum |
+| ETH (Base) | - | `nep141:base.omft.near` | 18 | Base |
 | BTC | `btc.omft.near` | `nep141:btc.omft.near` | 8 | Bitcoin |
 | SOL | `sol.omft.near` | `nep141:sol.omft.near` | 9 | Solana |
-| WBTC (ETH) | — | `nep141:eth-0x2260fac5e5542a773aa44fbcfedf7c193bc2c599.omft.near` | 8 | Ethereum |
-| cbBTC (Base) | — | `nep141:base-0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf.omft.near` | 8 | Base |
+| WBTC (ETH) | - | `nep141:eth-0x2260fac5e5542a773aa44fbcfedf7c193bc2c599.omft.near` | 8 | Ethereum |
+| cbBTC (Base) | - | `nep141:base-0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf.omft.near` | 8 | Base |
 
 ## NEAR Ecosystem Tokens
 

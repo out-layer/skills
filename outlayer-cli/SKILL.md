@@ -1,6 +1,6 @@
 ---
 name: outlayer-cli
-description: Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents — project scaffolding, GitHub/WASM deploys, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.
+description: Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents - project scaffolding, GitHub/WASM deploys, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.
 metadata:
   install: "curl -fsSL https://raw.githubusercontent.com/out-layer/outlayer-cli/main/install.sh | sh"
   config: ~/.outlayer/
@@ -43,7 +43,7 @@ outlayer run alice.near/my-agent '{"command": "hello"}'
 Two login modes: **NEAR private key** (direct signing) or **wallet API key** (custody signing via coordinator).
 
 ```bash
-# Login with NEAR private key (default — prompts for Account ID + private key)
+# Login with NEAR private key (default - prompts for Account ID + private key)
 outlayer login              # mainnet
 outlayer login testnet      # testnet
 
@@ -175,7 +175,7 @@ outlayer secrets set '{"API_KEY":"sk-..."}' --generate PROTECTED_DB:hex64   # mi
 outlayer secrets set '{"KEY":"val"}' --access allow-all                     # default
 outlayer secrets set '{"KEY":"val"}' --access whitelist:alice.near,bob.near
 
-# Update (merge — preserves existing keys, preserves all PROTECTED_* variables)
+# Update (merge - preserves existing keys, preserves all PROTECTED_* variables)
 outlayer secrets update '{"NEW_KEY":"val"}' --project alice.near/my-agent
 outlayer secrets update --generate PROTECTED_NEW:ed25519
 
@@ -203,11 +203,11 @@ outlayer keys delete <nonce>           # delete key (refunds storage deposit)
 
 Key format: `owner:nonce:secret` (e.g., `alice.near:1:a1b2c3d4e5f6...`).
 
-**Key cannot be recovered after creation** — save it immediately.
+**Key cannot be recovered after creation** - save it immediately.
 
 ## Payment Checks (Agent-to-Agent)
 
-Trustless agent-to-agent payments via ephemeral intents accounts. Requires a wallet API key (`wk_...`) — pass via `--api-key` flag or `OUTLAYER_WALLET_KEY` env var.
+Trustless agent-to-agent payments via ephemeral intents accounts. Requires a wallet API key (`wk_...`) - pass via `--api-key` flag or `OUTLAYER_WALLET_KEY` env var.
 
 ```bash
 # Set wallet API key (from POST /register)
@@ -254,7 +254,7 @@ outlayer checks sign-message "Login to example.com" example.com --nonce "AAAAAAA
 
 Token is the plain NEAR contract ID (e.g. USDC: `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`). Amount is in smallest denomination (USDC: 6 decimals, so `1000000` = 1 USDC).
 
-Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` (gasless) to move them to a NEAR account. Note: the receiver must have storage registered on the token contract first — use `/storage-deposit` if needed.
+Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` (gasless) to move them to a NEAR account. Note: the receiver must have storage registered on the token contract first - use `/storage-deposit` if needed.
 
 ## Upload (FastFS)
 
@@ -270,7 +270,7 @@ outlayer upload <file> --mime-type <type>      # override MIME type
 
 Files >1MB are automatically chunked into multiple transactions.
 
-**Important:** Upload transactions will show "Exceeded the prepaid gas" — this is expected and by design. Gas is intentionally set to 1 to minimize costs. No contract execution is needed — the NEAR indexer picks up file data from the transaction arguments regardless of execution status. The file will be available at its FastFS URL after indexing, which takes 1–2 minutes. Chunked uploads (files >1MB) may take longer since all chunks must be indexed before the file is assembled.
+**Important:** Upload transactions will show "Exceeded the prepaid gas" - this is expected and by design. Gas is intentionally set to 1 to minimize costs. No contract execution is needed - the NEAR indexer picks up file data from the transaction arguments regardless of execution status. The file will be available at its FastFS URL after indexing, which takes 1–2 minutes. Chunked uploads (files >1MB) may take longer since all chunks must be indexed before the file is assembled.
 
 ## Versions
 
@@ -362,7 +362,7 @@ outlayer secrets update '{"NEW_SECRET":"value"}' --project alice.near/my-agent
 # Login with the wallet key
 outlayer login --wallet-key wk_15807dbda...
 
-# All commands work transparently — signing goes through coordinator
+# All commands work transparently - signing goes through coordinator
 outlayer deploy my-agent
 outlayer run alice.near/my-agent '{"test": true}'
 outlayer secrets set '{"API_KEY":"sk-..."}' --project alice.near/my-agent
