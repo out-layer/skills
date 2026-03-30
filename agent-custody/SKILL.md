@@ -25,7 +25,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Swap tokens (e.g. wNEAR to USDT) | Use `POST /wallet/v1/intents/swap` — gasless swap via 1Click. Tokens must be in intents balance first |
 | Preview swap rate before committing | Use `POST /wallet/v1/intents/swap/quote` — read-only, no gas spent |
 | List available tokens for swaps | Use `GET /wallet/v1/tokens` — returns ~200 tokens across 20+ chains |
-| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` — gasless. Receiver must have storage (use `/storage-deposit` first) |
+| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param — gasless. For NEAR: receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
 | Register token storage | Use `POST /wallet/v1/storage-deposit` — needed before withdrawing to accounts without storage |
 | Move FT from wallet into Intents | Use `POST /wallet/v1/intents/deposit` — on-chain, needs gas |
 | Call a NEAR smart contract | Use `POST /wallet/v1/call` — on-chain, needs gas |
@@ -41,10 +41,10 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | See if your check was cashed | `GET /wallet/v1/payment-check/status?check_id={id}` |
 | Take back an unclaimed check | `POST /wallet/v1/payment-check/reclaim` (supports partial via `amount`) |
 | Check a check's balance by key | `POST /wallet/v1/payment-check/peek` with `check_key` |
-| Deposit from Solana (USDC, SOL) | `POST /wallet/v1/solana/deposit-intent` — get a Solana address, user sends tokens, 1Click bridges to intents |
-| Check Solana deposit status | `GET /wallet/v1/solana/deposit-status?id={intent_id}` — poll until `success` |
-| Withdraw to Solana | `POST /wallet/v1/solana/withdraw` — gasless bridge from intents to a Solana address |
-| List Solana deposits | `GET /wallet/v1/solana/deposits` |
+| Deposit from another chain (Solana, Ethereum, etc.) | `POST /wallet/v1/deposit-intent` with `chain` param — get a deposit address, user sends tokens, 1Click bridges to intents |
+| Check cross-chain deposit status | `GET /wallet/v1/deposit-status?id={intent_id}` — poll until `success` |
+| Withdraw to another chain | `POST /wallet/v1/intents/withdraw` with `chain` param (e.g. `"solana"`, `"ethereum"`) — gasless |
+| List cross-chain deposits | `GET /wallet/v1/deposits` |
 | Authenticate to an external service | `POST /wallet/v1/sign-message` — NEP-413 signed message for login/auth |
 | Let the user set spending limits | Share the `handoff_url` from registration |
 
@@ -62,8 +62,8 @@ Every wallet operation falls into one of three categories:
 |----------|-------------|----------------------|-----------|
 | **On-chain** | Agent's wallet | Yes (~0.001 NEAR/tx) | `/call`, `/transfer`, `/delete`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit` |
 | **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/swap`, `/payment-check/*` |
-| **Cross-chain** | 1Click bridge | No | `/solana/deposit-intent`, `/solana/withdraw` |
-| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/solana/deposit-status`, `/solana/deposits` |
+| **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
+| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/deposit-status`, `/deposits` |
 
 **On-chain** — wallet signs a NEAR transaction and broadcasts it. The wallet's implicit account must hold NEAR for gas.
 
@@ -244,7 +244,7 @@ Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/address?chain=ethereum"
 ```
-Supported chains: `near` only (other chains not yet supported for address derivation). For Solana operations, use `/solana/deposit-intent` and `/solana/withdraw` instead.
+Supported chains: `near` only (other chains not yet supported for address derivation). For cross-chain operations, use `/deposit-intent` and `/intents/withdraw` with `chain` param instead.
 
 ### Transfer NEAR
 **Before calling:** check NEAR balance covers transfer amount + gas (~0.001 NEAR).
@@ -345,10 +345,9 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 | `/balance` (wallet) | Plain NEAR contract ID | `wrap.near` |
 | `/balance?source=intents` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
 | `/payment-check/*` | Plain NEAR contract ID | `17208628f...a1` (USDC) |
-| `/solana/deposit-intent` | Token symbol | `USDC`, `SOL` |
-| `/solana/withdraw` | Defuse asset ID with prefix (intents token) | `nep141:17208628f...a1` |
+| `/deposit-intent` | Token symbol | `USDC`, `SOL`, `ETH` |
 
-**Rule:** Swap and Solana withdraw use `nep141:` prefix. Solana deposit uses symbol. Everything else uses plain contract ID.
+**Rule:** Swap uses `nep141:` prefix. Cross-chain deposit uses symbol. Withdraw accepts either format. Everything else uses plain contract ID.
 
 ### Swap workflow
 
@@ -445,25 +444,28 @@ Use `GET /wallet/v1/tokens` for the full current list.
 
 ---
 
-## Solana Cross-Chain (Deposit & Withdraw)
+## Cross-Chain Deposit & Withdraw
 
-Bridge tokens between Solana and NEAR intents via 1Click/Defuse. No Solana RPC, no SOL for gas — 1Click handles the bridge.
+Deposit tokens from any supported chain (Solana, Ethereum, Base, Arbitrum, etc.) into intents balance, or withdraw from intents to any chain. No gas tokens needed on source/destination chains — 1Click handles execution.
 
-### Deposit from Solana → intents
+Supported chains: `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`.
+
+### Deposit from another chain → intents
 
 **1. Create deposit intent:**
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -d '{"amount": "1000000", "token": "USDC"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/solana/deposit-intent"
+  -d '{"chain": "solana", "amount": "1000000", "token": "USDC"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/deposit-intent"
 ```
 
 | Param | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `amount` | yes | — | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC). SOL: 9 decimals (`"100000000"` = 0.1 SOL) |
-| `token` | no | `"USDC"` | Source token symbol on Solana (`"USDC"`, `"SOL"`, etc.) |
-| `refund_address` | no | — | Solana address for refund if bridge fails (e.g. user's Phantom address) |
+| `chain` | no | `"solana"` | Source chain (`"solana"`, `"ethereum"`, `"base"`, etc.) |
+| `amount` | yes | — | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC) |
+| `token` | no | `"USDC"` | Source token symbol on the origin chain (`"USDC"`, `"SOL"`, `"ETH"`, etc.) |
+| `refund_address` | no | — | Address on source chain for refund if bridge fails |
 | `destination_asset` | no | NEAR USDC | Defuse asset ID for destination token. Override to receive wNEAR etc. |
 
 Response:
@@ -479,58 +481,57 @@ Response:
 }
 ```
 
-**2. User sends tokens** from Phantom/Solflare to `deposit_address`.
+**2. User sends tokens** to `deposit_address` on the source chain.
 
 **3. Poll status:**
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/solana/deposit-status?id={intent_id}"
+  "https://api.outlayer.fastnear.com/wallet/v1/deposit-status?id={intent_id}"
 ```
 
-Status transitions: `pending` → `bridging` → `success`. On `success`, USDC is in intents balance — create payment checks, swap, or withdraw as usual.
+Status transitions: `pending` → `bridging` → `success`. On `success`, tokens are in intents balance — create payment checks, swap, or withdraw as usual.
 
 | Status | Meaning |
 |--------|---------|
-| `pending` | Waiting for Solana deposit |
-| `bridging` | 1Click detected deposit, bridging to NEAR |
-| `success` | USDC in intents balance |
-| `failed` | Bridge error or refund |
+| `pending` | Waiting for deposit on source chain |
+| `bridging` | 1Click detected deposit, settling to NEAR intents |
+| `success` | Tokens in intents balance |
+| `failed` | Error or refund |
 | `expired` | No deposit before deadline |
 
 **4. List all deposits:**
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/solana/deposits?limit=20"
+  "https://api.outlayer.fastnear.com/wallet/v1/deposits?limit=20"
 ```
 
-### Withdraw from intents → Solana
+### Withdraw from intents → another chain
 
-Send tokens from intents balance to a Solana address. Gasless — uses 1Click bridge.
+Send tokens from intents balance to any supported chain. Uses `/intents/withdraw` with `chain` param. Gasless — 1Click solver handles execution.
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -d '{"to": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", "token": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1", "amount": "1000000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/solana/withdraw"
+  -d '{"to": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", "token": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1", "amount": "1000000", "chain": "solana"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
 ```
 
 | Param | Required | Description |
 |-------|----------|-------------|
-| `to` | yes | Destination Solana address (base58) |
+| `to` | yes | Destination address on target chain |
 | `token` | yes | Intents token (defuse asset ID, e.g. `nep141:17208628f...a1` for USDC) |
 | `amount` | yes | Amount in minimal units |
-| `destination_token` | no | Solana token symbol override (e.g. `"SOL"`). Default: auto-resolved from source token |
-| `min_amount_out` | no | Slippage protection |
+| `chain` | yes | `"solana"`, `"ethereum"`, `"base"`, etc. |
 
-Response: `{"request_id": "uuid", "status": "success", "amount_out": "999000", "intent_hash": "..."}`
+Response: `{"request_id": "uuid", "status": "success"}`
 
-### Solana limitations
+### Cross-chain limitations
 
 - **Minimum deposit/withdraw**: ~$0.10. 1Click returns clear error with exact minimum if too low.
-- **Bridge fee**: ~0.2% (shown in `amount_out` / `min_amount_out`).
-- **Bridge time**: ~15-20 seconds (confirmed E2E).
-- **Deposit address**: unique per intent, valid ~24h. Each `deposit-intent` call creates a new address.
-- **Supported tokens**: USDC, SOL, and any token available on Solana via 1Click (use `GET /tokens` to check).
+- **Fee**: ~0.2% (shown in `amount_out` / `min_amount_out`).
+- **Settlement time**: ~15-30 seconds depending on chain.
+- **Deposit address**: unique per intent, valid ~30 min. Each `deposit-intent` call creates a new address. Amount sent must match exactly.
+- **Supported tokens**: use `GET /wallet/v1/tokens` to check available tokens per chain.
 
 ---
 
