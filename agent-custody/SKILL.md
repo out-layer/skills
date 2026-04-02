@@ -49,7 +49,8 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Let the user set spending limits | Share the `handoff_url` from registration |
 | Create wallets for users (no per-user keys) | Use deterministic registration: `POST /register` with NEAR signature fields |
 | Authenticate with NEAR key (no stored secrets) | Use `Bearer near:<base64url>` header instead of `Bearer wk_...` |
-| Create sub-agent with simple Bearer token | Derive `wk_` key, register hash via `PUT /wallet/v1/api-key` |
+| Create sub-agent (custody wallet) | Sign with `POST /wallet/v1/sign-message` (`format: "raw"`), then `PUT /wallet/v1/api-key` — see "Create Sub-Agents" section |
+| Create sub-agent (external NEAR key) | Derive `wk_` key, sign with your NEAR key, register hash via `PUT /wallet/v1/api-key` |
 | Revoke a sub-agent's key | `DELETE /wallet/v1/api-key/{key_hash}` (last key protected) |
 
 ## Configuration
@@ -234,17 +235,80 @@ Returns 409 Conflict if it's the last active key for the wallet.
 
 No endpoint needed. Add a new key to your NEAR account, start signing with it. Remove old key — access revoked within 60 seconds (cache TTL). Wallet identity is tied to (account_id, seed), not to which key signs.
 
-#### Custody wallet → sub-agents (no NEAR key needed)
+## Create Sub-Agents
 
-If your agent only has a `wk_` API key (no NEAR private key), creating sub-agents is simple:
+### From a custody wallet (Bearer wk_...)
 
-```bash
-# Just register another wallet — each gets its own wk_ key
-curl -s -X POST https://api.outlayer.fastnear.com/register
-# Give the new api_key to the sub-agent
+A custody wallet doesn't have a NEAR private key — it's in the TEE. Use `POST /wallet/v1/sign-message` with `"format": "raw"` to get a raw ed25519 signature, then register a delegate key for the sub-agent via `PUT /wallet/v1/api-key`.
+
+The sub-agent gets a simple `wk_` Bearer token — no crypto libraries needed.
+
+```python
+import hashlib, time, requests
+
+API = "https://api.outlayer.fastnear.com"
+PARENT_KEY = "wk_..."  # parent's custody wallet key
+HEADERS = {"Authorization": f"Bearer {PARENT_KEY}", "Content-Type": "application/json"}
+
+# 1. Get parent's public key and account_id
+addr = requests.get(f"{API}/wallet/v1/address?chain=near", headers=HEADERS).json()
+pubkey = addr["public_key"]          # "ed25519:<base58>"
+account_id = addr["account_id"]      # hex implicit account
+
+# 2. Build the message to sign
+seed = "sub-agent-task-42"
+timestamp = int(time.time())
+message = f"api-key:{seed}:{timestamp}"
+
+# 3. Sign with format: "raw" (raw ed25519, not NEP-413)
+sign_resp = requests.post(f"{API}/wallet/v1/sign-message",
+    headers=HEADERS,
+    json={"message": message, "recipient": "outlayer.near", "format": "raw"},
+).json()
+signature = sign_resp["signature"]   # base58, no prefix
+
+# 4. Derive a wk_ key for the sub-agent
+sub_key = f"wk_{hashlib.sha256(f'{seed}:0:{PARENT_KEY}'.encode()).hexdigest()}"
+key_hash = hashlib.sha256(sub_key.encode()).hexdigest()
+
+# 5. Register the key hash (creates wallet if needed, idempotent)
+resp = requests.put(f"{API}/wallet/v1/api-key", json={
+    "account_id": account_id,
+    "seed": seed,
+    "key_hash": key_hash,
+    "pubkey": pubkey,
+    "message": message,
+    "signature": signature,
+}).json()
+print(f"Sub-agent wallet: {resp['near_account_id']}")
+
+# 6. Hand the key to the sub-agent — it uses simple Bearer auth
+sub_agent_headers = {"Authorization": f"Bearer {sub_key}"}
+balance = requests.get(f"{API}/wallet/v1/balance?chain=near",
+    headers=sub_agent_headers).json()
 ```
 
-No deterministic features or NEAR signatures needed. Each sub-agent gets an independent random wallet.
+Same (account_id, seed) always produces the same wallet — call again to re-derive the key without storage.
+
+### From an external NEAR account
+
+If you have your own NEAR private key (bot, server), sign directly without `sign-message`:
+
+```python
+# Sign "api-key:<seed>:<timestamp>" with your NEAR ed25519 key
+# See "Deterministic Wallets" section for details
+```
+
+### Simple alternative (no parent→child link)
+
+If you don't need deterministic wallet IDs, just register independent wallets:
+
+```bash
+curl -s -X POST https://api.outlayer.fastnear.com/register
+# Give the new api_key to the sub-agent — independent wallet, no link to parent
+```
+
+---
 
 ## 2. Free Trial: Run WASI Without Payment
 
@@ -443,14 +507,25 @@ Response:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `message` | Yes | Text to sign (max 10000 bytes) |
-| `recipient` | Yes | Service that will verify (1-128 chars) |
-| `nonce` | No | Base64-encoded 32 bytes. Auto-generated if omitted |
+| `recipient` | Yes (NEP-413) | Service that will verify (1-128 chars). Ignored for `format: "raw"` |
+| `nonce` | No | Base64-encoded 32 bytes. Auto-generated if omitted. Not used for `format: "raw"` |
+| `format` | No | `"nep413"` (default) or `"raw"`. Raw signs message bytes directly with ed25519 |
 
-The response includes both `signature` (ed25519 base58, NEAR-native format) and `signature_base64` (base64-encoded raw bytes). Use `signature_base64` for HTTP auth headers and JWT - no base58→base64 conversion needed.
+**NEP-413 (default):** The response includes both `signature` (ed25519 base58, NEAR-native format) and `signature_base64` (base64-encoded raw bytes). Use `signature_base64` for HTTP auth headers and JWT.
 
-**Verification (external service):**
+**Raw (`format: "raw"`):** Signs the raw message bytes with the wallet's ed25519 key. Returns `signature` as base58 (no prefix) — use directly in `PUT /api-key` and deterministic wallet auth. No NEP-413 envelope.
 
-The signature follows NEP-413. The verifier computes:
+```bash
+# Raw signature for deterministic wallet auth
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"message":"api-key:sub-task:1712000000","recipient":"outlayer.near","format":"raw"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/sign-message"
+# Response: {"signature": "<base58_no_prefix>", "public_key": "ed25519:...", ...}
+```
+
+**Verification (external service, NEP-413 only):**
+
+The NEP-413 signature verifier computes:
 1. Borsh-serialize: `tag(2147484061) + message + nonce(32 bytes) + recipient + callback_url(None)`
 2. SHA-256 hash the serialized payload
 3. Verify ed25519 signature against the `public_key`
