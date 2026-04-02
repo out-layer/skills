@@ -47,6 +47,10 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | List cross-chain deposits | `GET /wallet/v1/deposits` |
 | Authenticate to an external service | `POST /wallet/v1/sign-message` - NEP-413 signed message for login/auth |
 | Let the user set spending limits | Share the `handoff_url` from registration |
+| Create wallets for users (no per-user keys) | Use deterministic registration: `POST /register` with NEAR signature fields |
+| Authenticate with NEAR key (no stored secrets) | Use `Bearer near:<base64url>` header instead of `Bearer wk_...` |
+| Create sub-agent with simple Bearer token | Derive `wk_` key, register hash via `PUT /wallet/v1/api-key` |
+| Revoke a sub-agent's key | `DELETE /wallet/v1/api-key/{key_hash}` (last key protected) |
 
 ## Configuration
 
@@ -117,6 +121,91 @@ Response:
 **Important:** Persist the `api_key` to a file or session state immediately after registration. If you lose the key, recovery depends on the user having set a policy (see Key Recovery below).
 
 The `near_account_id` is the NEAR implicit account (hex public key). Cross-chain transfers (Ethereum, Bitcoin, Solana, etc.) are handled via NEAR Intents - no gas tokens needed on other chains.
+
+### Deterministic Wallets (NEAR Signature Auth)
+
+For servers, bots, and agents with a NEAR account: register deterministic wallets that require **zero per-user key storage**. The wallet_id is derived from (account_id, seed) — same inputs always produce the same wallet. Auth uses NEAR ed25519 signatures on every request instead of stored API keys.
+
+**Use cases:** Telegram bots (one NEAR key, thousands of user wallets), web apps with OAuth login, AI agents spawning sub-agents.
+
+#### Register a deterministic wallet
+
+```bash
+# Sign message: "register:<seed>:<unix_timestamp>"
+# Signature = ed25519 sign of the message with your NEAR key (base58-encoded)
+
+curl -s -X POST -H "Content-Type: application/json" \
+  -d '{
+    "account_id": "my-bot.near",
+    "seed": "user-42",
+    "pubkey": "ed25519:<base58_public_key>",
+    "message": "register:user-42:1712000000",
+    "signature": "<base58_signature>"
+  }' \
+  "https://api.outlayer.fastnear.com/register"
+```
+
+Response:
+```json
+{
+  "wallet_id": "uuid-string",
+  "near_account_id": "hex64-implicit-account",
+  "trial": { "calls_remaining": 100, "expires_at": "...", "limits": {...} }
+}
+```
+
+No `api_key` in response — not needed. Idempotent: calling again returns the same wallet.
+
+#### Authenticate with Bearer near:
+
+All wallet endpoints accept `Bearer near:<base64url>` instead of `Bearer wk_...`:
+
+```bash
+# Build token: base64url-encode a JSON object with signature
+TOKEN=$(echo -n '{"account_id":"my-bot.near","seed":"user-42","pubkey":"ed25519:...","timestamp":1712000000,"signature":"<base58>"}' | base64url)
+
+curl -s -H "Authorization: Bearer near:${TOKEN}" \
+  "https://api.outlayer.fastnear.com/wallet/v1/balance?chain=near"
+```
+
+The signed message for Bearer auth is `"auth:<seed>:<timestamp>"` (±30 second window).
+
+#### Register delegate key for sub-agents
+
+Parent agent derives a `wk_` key and registers its SHA-256 hash. Sub-agent uses simple `Bearer wk_...` — no crypto needed.
+
+```bash
+# Parent: derive key = "wk_" + hex(HMAC-SHA256(near_private_key, "sub-task:0"))
+# Parent: compute key_hash = SHA256(key)
+
+curl -s -X PUT -H "Content-Type: application/json" \
+  -d '{
+    "account_id": "parent-agent.near",
+    "seed": "sub-task",
+    "key_hash": "sha256hex64chars...",
+    "pubkey": "ed25519:<base58>",
+    "message": "api-key:sub-task:1712000000",
+    "signature": "<base58>"
+  }' \
+  "https://api.outlayer.fastnear.com/wallet/v1/api-key"
+```
+
+Response: `{"wallet_id": "...", "near_account_id": "..."}`
+
+Creates wallet if it doesn't exist. Idempotent.
+
+#### Revoke delegate key
+
+```bash
+curl -s -X DELETE -H "Authorization: Bearer near:${TOKEN}" \
+  "https://api.outlayer.fastnear.com/wallet/v1/api-key/${KEY_HASH}"
+```
+
+Returns 409 Conflict if it's the last active key for the wallet.
+
+#### Key rotation
+
+No endpoint needed. Add a new key to your NEAR account, start signing with it. Remove old key — access revoked within 60 seconds (cache TTL). Wallet identity is tied to (account_id, seed), not to which key signs.
 
 ## 2. Free Trial: Run WASI Without Payment
 
@@ -797,7 +886,10 @@ Agent2 (buyer, custody)         API                    External Wallet
 
 | Action | Method | Endpoint | Gas |
 |--------|--------|----------|-----|
-| Register | POST | `/register` | - |
+| Register (random) | POST | `/register` | - |
+| Register (deterministic) | POST | `/register` (with NEAR sig body) | - |
+| Register delegate key | PUT | `/wallet/v1/api-key` | - |
+| Revoke delegate key | DELETE | `/wallet/v1/api-key/{key_hash}` | - |
 | Execute WASI (trial) | POST | `/call/{owner}/{project}` | - |
 | Trial status | GET | `/trial/status` | - |
 | Create payment key | POST | `/wallet/v1/create-payment-key` | on-chain |
@@ -814,10 +906,9 @@ Agent2 (buyer, custody)         API                    External Wallet
 | Dry-run withdrawal | POST | `/wallet/v1/intents/withdraw/dry-run` | - |
 | Swap tokens | POST | `/wallet/v1/intents/swap` | gasless |
 | Swap quote | POST | `/wallet/v1/intents/swap/quote` | - |
-| Deposit from Solana | POST | `/wallet/v1/solana/deposit-intent` | cross-chain |
-| Check Solana deposit | GET | `/wallet/v1/solana/deposit-status?id={id}` | - |
-| List Solana deposits | GET | `/wallet/v1/solana/deposits` | - |
-| Withdraw to Solana | POST | `/wallet/v1/solana/withdraw` | cross-chain |
+| Deposit from any chain | POST | `/wallet/v1/deposit-intent` | cross-chain |
+| Check deposit status | GET | `/wallet/v1/deposit-status?id={id}` | - |
+| List deposits | GET | `/wallet/v1/deposits` | - |
 | List tokens | GET | `/wallet/v1/tokens` | - |
 | Request status | GET | `/wallet/v1/requests/{request_id}` | - |
 | List requests | GET | `/wallet/v1/requests` | - |
@@ -833,7 +924,7 @@ Agent2 (buyer, custody)         API                    External Wallet
 
 **Gas column:** `on-chain` = wallet pays gas (needs NEAR), `gasless` = solver relay pays, `cross-chain` = 1Click bridge (fee ~0.2%), `-` = no transaction.
 
-All endpoints except `/register` require `Authorization: Bearer <api_key>` header.
+All endpoints except `/register` and `PUT /wallet/v1/api-key` require `Authorization: Bearer <api_key>` or `Bearer near:<base64url>` header.
 Base URL: `https://api.outlayer.fastnear.com`
 
 ---
