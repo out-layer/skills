@@ -333,7 +333,7 @@ Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/address?chain=ethereum"
 ```
-Supported chains: `near` only (other chains not yet supported for address derivation). For cross-chain operations, use `/deposit-intent` and `/intents/withdraw` with `chain` param instead.
+Supported chains: `near`, `ethereum`, `bitcoin`, `solana`, `base`, `arbitrum`, `polygon`, `optimism`, `avalanche`, `bsc`, and more. Returns a derived address for each chain.
 
 ### Transfer NEAR
 **Before calling:** check NEAR balance covers transfer amount + gas (~0.001 NEAR).
