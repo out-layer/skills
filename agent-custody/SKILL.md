@@ -124,26 +124,51 @@ The `near_account_id` is the NEAR implicit account (hex public key). Cross-chain
 
 ### Deterministic Wallets (NEAR Signature Auth)
 
-For servers, bots, and agents with a NEAR account: register deterministic wallets that require **zero per-user key storage**. The wallet_id is derived from (account_id, seed) — same inputs always produce the same wallet. Auth uses NEAR ed25519 signatures on every request instead of stored API keys.
+For servers, bots, and agents **that have their own NEAR private key**: register deterministic wallets with zero per-user key storage. The wallet_id is derived from (account_id, seed) — same inputs always produce the same wallet.
 
-**Use cases:** Telegram bots (one NEAR key, thousands of user wallets), web apps with OAuth login, AI agents spawning sub-agents.
+**Requires:** Access to a NEAR ed25519 private key (in env, in a file, etc.). This is NOT the custody wallet key — it's the integrator's own NEAR account key.
+
+**Use cases:** Telegram bots (one NEAR key in env, thousands of user wallets), web apps with OAuth login, parent agents creating sub-agents.
+
+**Not for custody wallets:** If your agent was created via `POST /register` (random path) and only has a `wk_` API key, it does NOT have a NEAR private key. To create sub-agents from a custody wallet, just call `POST /register` again for each sub-agent — each gets its own `wk_` key. No deterministic features needed.
+
+#### Signature format (IMPORTANT)
+
+All signatures in deterministic wallet endpoints are **raw ed25519 signatures**, NOT NEP-413.
+
+- Sign the **raw message string bytes** with your NEAR ed25519 private key
+- Encode the 64-byte signature as **base58** (no prefix)
+- `POST /wallet/v1/sign-message` returns NEP-413 signatures — these are a **different format** and will NOT work here
+- `pubkey` field uses the `ed25519:` prefix: `"ed25519:<base58_public_key>"`
+- `signature` field has NO prefix: just the base58-encoded 64-byte signature
+
+```python
+# Python example (nacl library)
+from nacl.signing import SigningKey
+import base58
+
+key = SigningKey(secret_key_bytes)  # 32 bytes
+message = "register:user-42:1712000000"
+sig = key.sign(message.encode()).signature  # 64 bytes
+signature_b58 = base58.b58encode(sig).decode()  # no prefix
+pubkey = f"ed25519:{base58.b58encode(key.verify_key.encode()).decode()}"
+```
 
 #### Register a deterministic wallet
 
 ```bash
-# Sign message: "register:<seed>:<unix_timestamp>"
-# Signature = ed25519 sign of the message with your NEAR key (base58-encoded)
-
 curl -s -X POST -H "Content-Type: application/json" \
   -d '{
     "account_id": "my-bot.near",
     "seed": "user-42",
     "pubkey": "ed25519:<base58_public_key>",
     "message": "register:user-42:1712000000",
-    "signature": "<base58_signature>"
+    "signature": "<base58_signature_no_prefix>"
   }' \
   "https://api.outlayer.fastnear.com/register"
 ```
+
+Signed message format: `"register:<seed>:<unix_timestamp>"`. Timestamp window: **±5 minutes**.
 
 Response:
 ```json
@@ -162,7 +187,7 @@ All wallet endpoints accept `Bearer near:<base64url>` instead of `Bearer wk_...`
 
 ```bash
 # Build token: base64url-encode a JSON object with signature
-TOKEN=$(echo -n '{"account_id":"my-bot.near","seed":"user-42","pubkey":"ed25519:...","timestamp":1712000000,"signature":"<base58>"}' | base64url)
+TOKEN=$(echo -n '{"account_id":"my-bot.near","seed":"user-42","pubkey":"ed25519:...","timestamp":1712000000,"signature":"<base58_no_prefix>"}' | base64url)
 
 curl -s -H "Authorization: Bearer near:${TOKEN}" \
   "https://api.outlayer.fastnear.com/wallet/v1/balance?chain=near"
@@ -172,7 +197,7 @@ The signed message for Bearer auth is `"auth:<seed>:<timestamp>"` (±30 second w
 
 #### Register delegate key for sub-agents
 
-Parent agent derives a `wk_` key and registers its SHA-256 hash. Sub-agent uses simple `Bearer wk_...` — no crypto needed.
+Parent agent (with NEAR key) derives a `wk_` key and registers its SHA-256 hash. Sub-agent uses simple `Bearer wk_...` — no crypto needed.
 
 ```bash
 # Parent: derive key = "wk_" + hex(HMAC-SHA256(near_private_key, "sub-task:0"))
@@ -185,10 +210,12 @@ curl -s -X PUT -H "Content-Type: application/json" \
     "key_hash": "sha256hex64chars...",
     "pubkey": "ed25519:<base58>",
     "message": "api-key:sub-task:1712000000",
-    "signature": "<base58>"
+    "signature": "<base58_no_prefix>"
   }' \
   "https://api.outlayer.fastnear.com/wallet/v1/api-key"
 ```
+
+Signed message format: `"api-key:<seed>:<unix_timestamp>"`. Timestamp window: **±5 minutes**.
 
 Response: `{"wallet_id": "...", "near_account_id": "..."}`
 
@@ -206,6 +233,18 @@ Returns 409 Conflict if it's the last active key for the wallet.
 #### Key rotation
 
 No endpoint needed. Add a new key to your NEAR account, start signing with it. Remove old key — access revoked within 60 seconds (cache TTL). Wallet identity is tied to (account_id, seed), not to which key signs.
+
+#### Custody wallet → sub-agents (no NEAR key needed)
+
+If your agent only has a `wk_` API key (no NEAR private key), creating sub-agents is simple:
+
+```bash
+# Just register another wallet — each gets its own wk_ key
+curl -s -X POST https://api.outlayer.fastnear.com/register
+# Give the new api_key to the sub-agent
+```
+
+No deterministic features or NEAR signatures needed. Each sub-agent gets an independent random wallet.
 
 ## 2. Free Trial: Run WASI Without Payment
 
