@@ -32,7 +32,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Check your balance | Use `GET /wallet/v1/balance?chain=near` or `&token=usdt.tether-token.near` |
 | Check intents deposit balance | Use `GET /wallet/v1/balance?token=wrap.near&source=intents` |
 | Get your address on any chain | Use `GET /wallet/v1/address?chain=ethereum` |
-| Delete the wallet | Use `POST /wallet/v1/delete` - deletes on-chain account, sends NEAR to beneficiary |
+| Delete the wallet | Use `POST /wallet/v1/delete` - deletes on-chain account, sends NEAR to beneficiary. Wallet must have NEAR balance |
 | Ask user to fund your wallet | Generate a fund link (see below) or share your NEAR address |
 | Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` - get `check_key` to send |
 | Pay multiple agents at once | `POST /wallet/v1/payment-check/batch-create` - up to 10 checks |
@@ -131,7 +131,7 @@ For servers, bots, and agents **that have their own NEAR private key**: register
 
 **Use cases:** Telegram bots (one NEAR key in env, thousands of user wallets), web apps with OAuth login, parent agents creating sub-agents.
 
-**Not for custody wallets:** If your agent was created via `POST /register` (random path) and only has a `wk_` API key, it does NOT have a NEAR private key. To create sub-agents from a custody wallet, just call `POST /register` again for each sub-agent — each gets its own `wk_` key. No deterministic features needed.
+**Custody wallets** (created via `POST /register` with a `wk_` key) don't need NEAR signatures for sub-agents. Use `PUT /wallet/v1/api-key` with your Bearer token — see "Create Sub-Agents" section below.
 
 #### Signature format (IMPORTANT)
 
@@ -419,7 +419,7 @@ Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/address?chain=ethereum"
 ```
-Supported chains: `near`, `ethereum`, `bitcoin`, `solana`, `base`, `arbitrum`, `polygon`, `optimism`, `avalanche`, `bsc`, and more. Returns a derived address for each chain.
+Supported chains: `near` only. Multi-chain address derivation (ethereum, solana, bitcoin, etc.) is not yet available in wallet v1. For cross-chain operations, use `/deposit-intent` and `/intents/withdraw` with `chain` param instead — these work without a derived address.
 
 ### Transfer NEAR
 **Before calling:** check NEAR balance covers transfer amount + gas (~0.001 NEAR).
@@ -453,7 +453,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 Response: `{"request_id": "uuid", "status": "success", "tx_hash": "...", "result": ...}`
 
 ### Delete wallet
-**WARNING:** FT tokens and Intents balances are lost. Transfer all assets first.
+**WARNING:** FT tokens and Intents balances are lost. Transfer all assets first. Wallet must have NEAR balance (for gas to execute the on-chain delete).
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
@@ -986,7 +986,7 @@ Agent2 (buyer, custody)         API                    External Wallet
 |--------|--------|----------|-----|
 | Register (random) | POST | `/register` | - |
 | Register (deterministic) | POST | `/register` (with NEAR sig body) | - |
-| Register delegate key | PUT | `/wallet/v1/api-key` | - |
+| Register delegate key | PUT | `/wallet/v1/api-key` (Bearer or NEAR sig) | - |
 | Revoke delegate key | DELETE | `/wallet/v1/api-key/{key_hash}` | - |
 | Execute WASI (trial) | POST | `/call/{owner}/{project}` | - |
 | Trial status | GET | `/trial/status` | - |
@@ -1077,6 +1077,10 @@ Base URL: `https://api.outlayer.fastnear.com`
 | `check_already_reclaimed` | Check was already reclaimed by sender |
 | `check_expired` | Check expired - cannot claim (sender can reclaim) |
 | `memo_too_long` | Memo exceeds 256 characters |
+| `timestamp_expired` | Signature timestamp outside allowed window (±30s for Bearer, ±5min for register/api-key) |
+| `conflict` | Cannot revoke last active API key (409) |
+| `"Ambiguous auth"` | PUT /api-key received both Bearer header and signature fields in body — use one or the other |
+| `"seed must not be empty"` | Empty seed in register or api-key |
 
 ## Guidelines
 
