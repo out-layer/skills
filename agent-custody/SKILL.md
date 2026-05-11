@@ -49,6 +49,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Let the user set spending limits | Share the `handoff_url` from registration |
 | Create wallets for users (no per-user keys) | Use deterministic registration: `POST /register` with NEAR signature fields |
 | Authenticate with NEAR key (no stored secrets) | Use `Bearer near:<base64url>` header instead of `Bearer wk_...` |
+| Use your OWN per-customer master (no shared TEE) | Tell the user to deploy a sovereign vault — see "Sovereign Vaults" section |
 | Create sub-agent (custody wallet) | `PUT /wallet/v1/api-key` with Bearer auth + `{seed, key_hash}` — see "Create Sub-Agents" section |
 | Create sub-agent (external NEAR key) | Derive `wk_` key, sign with your NEAR key, register hash via `PUT /wallet/v1/api-key` |
 | Revoke a sub-agent's key | `DELETE /wallet/v1/api-key/{key_hash}` (last key protected) |
@@ -234,6 +235,15 @@ Returns 409 Conflict if it's the last active key for the wallet.
 #### Key rotation
 
 No endpoint needed. Add a new key to your NEAR account, start signing with it. Remove old key — access revoked within 60 seconds (cache TTL). Wallet identity is tied to (account_id, seed), not to which key signs.
+
+## Sovereign Vaults — Per-Customer Master Keys
+
+By default every custody wallet's keys derive from OutLayer's shared TEE master. A **sovereign vault** replaces that shared master with a per-customer master derived via NEAR's MPC network — the customer can recover it independently if OutLayer ever shuts down. The agent **cannot** deploy a vault on the user's behalf (it needs an on-chain transaction signed by the user's NEAR account). If the user wants one, point them to either:
+
+- **Dashboard**: <https://outlayer.fastnear.com/vault>
+- **CLI**: `outlayer vault init` (after `outlayer login`)
+
+Both flows return a `wk_...` API key at the end. The agent uses that key as `Authorization: Bearer wk_...` like any other custody wallet — no extra setup, all wallet endpoints behave identically. The only observable difference: `GET /wallet/v1/address` will include `"vault_id": "..."` in the response.
 
 ## Create Sub-Agents
 
