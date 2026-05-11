@@ -238,12 +238,22 @@ No endpoint needed. Add a new key to your NEAR account, start signing with it. R
 
 ## Sovereign Vaults — Per-Customer Master Keys
 
-By default every custody wallet's keys derive from OutLayer's shared TEE master. A **sovereign vault** replaces that shared master with a per-customer master derived via NEAR's MPC network — the customer can recover it independently if OutLayer ever shuts down. The agent **cannot** deploy a vault on the user's behalf (it needs an on-chain transaction signed by the user's NEAR account). If the user wants one, point them to either:
+By default every custody wallet's keys derive from OutLayer's shared TEE master. A **sovereign vault** replaces that shared master with a per-customer one derived via NEAR's MPC network — recoverable by the customer if OutLayer ever shuts down. The vault itself is purely a master-secret source on chain; API keys are still minted through the regular `/register` endpoint.
+
+The agent **cannot** deploy a vault on the user's behalf — that needs an on-chain transaction signed by the user's NEAR account. If the user wants one, point them to either:
 
 - **Dashboard**: <https://outlayer.fastnear.com/vault>
 - **CLI**: `outlayer vault init` (after `outlayer login`)
 
-Both flows return a `wk_...` API key at the end. The agent uses that key as `Authorization: Bearer wk_...` like any other custody wallet — no extra setup, all wallet endpoints behave identically. The only observable difference: `GET /wallet/v1/address` will include `"vault_id": "..."` in the response.
+Once the vault is deployed and verified on chain (the user-side flow handles both), the agent obtains a vault-scoped API key by passing the vault account id to `/register`:
+
+```bash
+curl -s -X POST "https://api.outlayer.fastnear.com/register" \
+  -H "Content-Type: application/json" \
+  -d '{"vault_id": "vault.<their.near>"}'
+```
+
+Response shape is the regular `/register` response — `api_key`, `wallet_id`, `near_account_id`, trial quota. The only observable difference vs. a non-vault wallet: `near_account_id` derives from the per-vault master, and `GET /wallet/v1/address` will include `"vault_id"` in the response. Use the returned `wk_...` as `Authorization: Bearer wk_...` like any other custody wallet — all subsequent endpoints behave identically.
 
 ## Create Sub-Agents
 
