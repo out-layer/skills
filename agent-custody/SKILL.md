@@ -238,22 +238,43 @@ No endpoint needed. Add a new key to your NEAR account, start signing with it. R
 
 ## Sovereign Vaults — Per-Customer Master Keys
 
-By default every custody wallet's keys derive from OutLayer's shared TEE master. A **sovereign vault** replaces that shared master with a per-customer one derived via NEAR's MPC network — recoverable by the customer if OutLayer ever shuts down. The vault itself is purely a master-secret source on chain; API keys are still minted through the regular `/register` endpoint.
+> **TL;DR for the agent**: a vault is just an on-chain account that holds the *master secret* for a customer. Once the user has deployed one, you call **`POST /register`** with `{"vault_id": "<vault_addr>"}` and get back a normal `wk_...` API key — use it exactly like any other custody wallet. **Don't** use "Create Sub-Agents" for this; that's a different flow for splitting one wk_ into child keys.
 
-The agent **cannot** deploy a vault on the user's behalf — that needs an on-chain transaction signed by the user's NEAR account. If the user wants one, point them to either:
+### What a vault is, in one paragraph
+
+By default every custody wallet's keys derive from OutLayer's shared TEE master. A **sovereign vault** replaces that shared master with a per-customer one derived via NEAR's MPC network — recoverable by the customer if OutLayer ever shuts down. The vault is just a small on-chain contract; it does **not** issue API keys itself. API keys are always minted through `/register`, with or without a vault binding.
+
+### Step 1 — User deploys the vault (off your hands)
+
+The agent **cannot** deploy a vault — it requires an on-chain transaction signed by the user's NEAR account. When the user asks how, point them to either:
 
 - **Dashboard**: <https://outlayer.fastnear.com/vault>
 - **CLI**: `outlayer vault init` (after `outlayer login`)
 
-Once the vault is deployed and verified on chain (the user-side flow handles both), the agent obtains a vault-scoped API key by passing the vault account id to `/register`:
+Wait for the user to come back with a vault account id (typically `vault.<their.near>`, but the sub-account name is user-chosen).
+
+### Step 2 — You bind a custody wallet to that vault
+
+This is the only API call you make. Same `/register` endpoint as for a regular wallet, just with `vault_id` added:
 
 ```bash
 curl -s -X POST "https://api.outlayer.fastnear.com/register" \
   -H "Content-Type: application/json" \
-  -d '{"vault_id": "vault.<their.near>"}'
+  -d '{"vault_id": "vault.alice.near"}'
 ```
 
-Response shape is the regular `/register` response — `api_key`, `wallet_id`, `near_account_id`, trial quota. The only observable difference vs. a non-vault wallet: `near_account_id` derives from the per-vault master, and `GET /wallet/v1/address` will include `"vault_id"` in the response. Use the returned `wk_...` as `Authorization: Bearer wk_...` like any other custody wallet — all subsequent endpoints behave identically.
+Response is the standard `/register` shape — `api_key`, `wallet_id`, `near_account_id`, trial quota. The `near_account_id` derives from the per-vault master (not OutLayer's shared master), and `GET /wallet/v1/address` responses for this key include `"vault_id"`.
+
+**One vault, one wallet.** A partial UNIQUE constraint on `wallet_accounts.vault_id` means each vault binds to exactly one wallet for its lifetime. If the user already ran `outlayer vault init` (which auto-binds a key during deploy), Step 2 will return `400 vault ... is already bound to a wallet` — in that case the user should reuse the existing `wk_...` printed by the CLI / dashboard, not call `/register` again.
+
+### Step 3 — Use the wk_ normally
+
+Set `Authorization: Bearer wk_...` on every wallet endpoint as usual. No `X-Customer-Vault` header is needed (the coordinator binds the vault from the DB row, not from a request header — a spoofed header is silently ignored).
+
+### What this is NOT
+
+- **Not "Create Sub-Agents"** — that flow (further below) splits a single parent `wk_` into deterministic child keys using `PUT /wallet/v1/api-key`. It's for delegating a slice of an existing custody wallet to a helper agent. It is **not** how you get a wallet from a vault.
+- **Not deterministic registration** — the `POST /register` with NEAR-signature fields (`account_id`, `seed`, `pubkey`, `message`, `signature`) does **not** accept `vault_id`. Only the random-wallet path of `/register` supports the vault binding.
 
 ## Create Sub-Agents
 
