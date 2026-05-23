@@ -17,7 +17,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | You need... | Action |
 |-------------|--------|
 | A crypto wallet for your agent | Register via `POST /register` - includes 100 free WASI calls |
-| Run a WASI module for free | Use `POST /call/{owner}/{project}` with `Authorization: Bearer wk_...` (trial quota) |
+| Run a WASI module for free | Use `POST /call/{owner}/{project}` with `Authorization: Bearer wk_...` (trial quota — primary `/register` wallets only) |
 | Check remaining free calls | Use `GET /trial/status` |
 | Upgrade to paid execution | Use `POST /wallet/v1/create-payment-key` (USDC or NEAR) |
 | Send NEAR to someone | Use `POST /wallet/v1/transfer` with `chain: "near"` |
@@ -25,7 +25,8 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Swap tokens (e.g. wNEAR to USDT) | Use `POST /wallet/v1/intents/swap` - gasless swap via 1Click. Tokens must be in intents balance first |
 | Preview swap rate before committing | Use `POST /wallet/v1/intents/swap/quote` - read-only, no gas spent |
 | List available tokens for swaps | Use `GET /wallet/v1/tokens` - returns ~200 tokens across 20+ chains |
-| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. For NEAR: receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
+| Withdraw native NEAR (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain: "near"` and `token: "near"` (default). Unwraps your wNEAR → native NEAR; receiver needs **no** storage. Recipient account must already exist (or be a 64-char implicit account) |
+| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. For NEAR delivering wNEAR (`token: "nep141:wrap.near"`): receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
 | Register token storage | Use `POST /wallet/v1/storage-deposit` - needed before withdrawing to accounts without storage |
 | Move FT from wallet into Intents | Use `POST /wallet/v1/intents/deposit` - on-chain, needs gas |
 | Call a NEAR smart contract | Use `POST /wallet/v1/call` - on-chain, needs gas |
@@ -78,8 +79,10 @@ Every wallet operation falls into one of three categories:
 ### `/intents/withdraw` vs `/intents/ft-withdraw`
 
 Same result, different execution:
-- `/intents/withdraw` - **gasless**. Signs NEP-413 intent, solver relay executes. Use this by default. **Note:** receiver must have storage registered on the token contract - use `/storage-deposit` first if needed.
-- `/intents/ft-withdraw` - **on-chain**. Calls `ft_withdraw` on `intents.near`. Needs NEAR for gas.
+- `/intents/withdraw` - **gasless**. Signs NEP-413 intent, solver relay executes. Use this by default.
+  - **For `chain=near`, the `token` field picks what the recipient gets:** omitted / `near` / `native` (default) delivers **native NEAR** — intents.near unwraps your wNEAR (`native_withdraw` intent), and the receiver needs **no** storage. `nep141:wrap.near` (or any `nep141:<token>`) delivers that NEP-141 instead, and the receiver **must** have storage registered (use `/storage-deposit` first).
+  - **Native-NEAR caveat:** the recipient account must already exist (or be a 64-char implicit account). Withdrawing native NEAR to a non-existent named account is rejected up front (the unwrapped wNEAR would otherwise be burned).
+- `/intents/ft-withdraw` - **on-chain**. Calls `ft_withdraw` on `intents.near`. Needs NEAR for gas. NEP-141 only (no native NEAR).
 
 ### `/storage-deposit` - register token storage
 
@@ -126,7 +129,9 @@ The `near_account_id` is the NEAR implicit account (hex public key). Cross-chain
 
 ### Deterministic Wallets (NEAR Signature Auth)
 
-For servers, bots, and agents **that have their own NEAR private key**: register deterministic wallets with zero per-user key storage. The wallet_id is derived from (account_id, seed) — same inputs always produce the same wallet.
+For servers, bots, and agents **that have their own NEAR private key**: register deterministic wallets with zero per-user key storage. The wallet_id is derived from `(account_id, seed, vault_or_none)` — same inputs always produce the same wallet, and different vault scopes legitimately mint independent sub-wallets.
+
+**Seed format:** `[a-zA-Z0-9._-]`, 1-256 characters. No NUL byte, no `:`, no whitespace, no Unicode. SHA-256 hex strings (typical seed source) fit naturally.
 
 **Requires:** Access to a NEAR ed25519 private key (in env, in a file, etc.). This is NOT the custody wallet key — it's the integrator's own NEAR account key.
 
@@ -234,7 +239,7 @@ Returns 409 Conflict if it's the last active key for the wallet.
 
 #### Key rotation
 
-No endpoint needed. Add a new key to your NEAR account, start signing with it. Remove old key — access revoked within 60 seconds (cache TTL). Wallet identity is tied to (account_id, seed), not to which key signs.
+No endpoint needed. Add a new key to your NEAR account, start signing with it. Remove old key — access revoked within 60 seconds (cache TTL). Wallet identity is tied to `(account_id, seed, vault_or_none)`, not to which key signs.
 
 ## Sovereign Vaults — Per-Customer Master Keys
 
@@ -284,8 +289,17 @@ A single user can mix vault-bound and default-master wallets:
 
 ### What this is NOT
 
-- **Not "Create Sub-Agents"** — that flow (further below) splits a single parent `wk_` into deterministic child keys using `PUT /wallet/v1/api-key`. Sub-agent wallets do inherit the parent's vault binding, but the use case is "delegate a slice of an existing wallet with reproducible IDs", not "get a fresh wallet under a vault".
+- **Not "Create Sub-Agents"** — that flow (further below) splits a single parent `wk_` into deterministic child keys using `PUT /wallet/v1/api-key`. Sub-agent wallets do inherit the parent's vault binding, but the use case is "delegate a slice of an existing wallet with reproducible IDs", not "get a fresh wallet under a vault". Sub-agents also don't get a trial quota (only primary `/register` wallets do).
 - **Not deterministic registration** — the `POST /register` with NEAR-signature fields (`account_id`, `seed`, `pubkey`, `message`, `signature`) does **not** accept `vault_id`. Only the random-wallet path of `/register` supports the vault binding.
+
+### Same parent, multiple vaults
+
+Under the current schema each `(account_id, seed, vault_id)` tuple maps to a **distinct wallet_id**. A parent that runs both a custody vault and a treasury vault can use the same `seed` for both:
+
+- `PUT /wallet/v1/api-key {seed: "user-42", vault_id: "vault.custody.parent.near", ...}` → wk_A under custody vault
+- `PUT /wallet/v1/api-key {seed: "user-42", vault_id: "vault.treasury.parent.near", ...}` → wk_B under treasury vault (DIFFERENT wallet_id, DIFFERENT on-chain address)
+
+Both succeed (no rebind refusal). The two sub-wallets are cryptographically isolated — funds at one are inaccessible from the other.
 
 ## Create Sub-Agents
 
@@ -321,7 +335,9 @@ balance = requests.get(f"{API}/wallet/v1/balance?chain=near",
     headers=sub_agent_headers).json()
 ```
 
-Same (parent_wallet_id, seed) always produces the same sub-wallet — call again to re-derive the key without storage.
+Same `(parent_wallet_id, seed, vault_scope)` always produces the same sub-wallet — call again to re-derive the key without storage. Different vault scopes under the same `(parent_wallet_id, seed)` mint **independent sub-wallets** with their own addresses (this is intentional — each scope is its own identity).
+
+**Sub-agents do not get trial quota.** Trial is reserved for primary `/register` wallets. A sub-agent calling `/call/{owner}/{project}` without `X-Payment-Key` will see `TrialQuotaExhausted`. To run WASI from a sub-agent, attach a payment key.
 
 No `sign-message`, no NEAR signatures, no crypto libraries. Just derive a key, register its hash, hand it to the sub-agent.
 
@@ -347,7 +363,9 @@ curl -s -X POST https://api.outlayer.fastnear.com/register
 
 ## 2. Free Trial: Run WASI Without Payment
 
-Every registered wallet gets **100 free WASI execution calls** (30-day expiry).
+Trial is granted to **primary wallets only** — those minted via `POST /register` (random or deterministic). Sub-agents created via `PUT /wallet/v1/api-key` and stateless `Bearer near:` callers do **not** receive a trial quota; they must use `X-Payment-Key` (paid path) or be granted a primary wallet's `wk_` to access trial.
+
+A primary wallet gets **100 free WASI execution calls** (30-day expiry).
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
@@ -579,7 +597,7 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 |----------|--------|---------|
 | `/intents/swap` and `/intents/swap/quote` | Defuse asset ID with prefix | `nep141:wrap.near` |
 | `/intents/deposit` | Plain NEAR contract ID | `wrap.near` |
-| `/intents/withdraw` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
+| `/intents/withdraw` | Either format (auto-prefixed); `near`/`native`/omitted = native NEAR | `near` (native), `wrap.near` or `nep141:wrap.near` (wNEAR) |
 | `/intents/ft-withdraw` | Plain NEAR contract ID | `wrap.near` |
 | `/balance` (wallet) | Plain NEAR contract ID | `wrap.near` |
 | `/balance?source=intents` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
@@ -660,6 +678,15 @@ curl -s -X POST -H "Content-Type: application/json" \
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"receiver.near","amount":"1000000000000000000000000","token":"wrap.near","chain":"near"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
+```
+
+**Withdraw NATIVE NEAR** (default for `chain=near`) - unwraps your wNEAR and delivers native NEAR; receiver needs no `wrap.near` storage. `amount` is yoctoNEAR (24 decimals; 1 NEAR = `1000000000000000000000000`):
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"to":"receiver.near","amount":"1000000000000000000000000","token":"near","chain":"near"}' \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
 ```
 
@@ -1052,7 +1079,7 @@ Agent2 (buyer, custody)         API                    External Wallet
 | Register token storage | POST | `/wallet/v1/storage-deposit` | on-chain |
 | Move FT: wallet → intents.near | POST | `/wallet/v1/intents/deposit` | on-chain |
 | Withdraw on-chain (ft_withdraw) | POST | `/wallet/v1/intents/ft-withdraw` | on-chain |
-| Withdraw (gasless, default) | POST | `/wallet/v1/intents/withdraw` | gasless |
+| Withdraw native NEAR / wNEAR / cross-chain (gasless, default) | POST | `/wallet/v1/intents/withdraw` | gasless |
 | Dry-run withdrawal | POST | `/wallet/v1/intents/withdraw/dry-run` | - |
 | Swap tokens | POST | `/wallet/v1/intents/swap` | gasless |
 | Swap quote | POST | `/wallet/v1/intents/swap/quote` | - |
@@ -1132,7 +1159,9 @@ Base URL: `https://api.outlayer.fastnear.com`
 | `timestamp_expired` | Signature timestamp outside allowed window (±30s for Bearer, ±5min for register/api-key) |
 | `conflict` | Cannot revoke last active API key (409) |
 | `"Ambiguous auth"` | PUT /api-key received both Bearer header and signature fields in body — use one or the other |
-| `"seed must not be empty"` | Empty seed in register or api-key |
+| `"seed: 1-256 chars required"` | Empty or oversized seed in register or api-key |
+| `"seed: only [a-zA-Z0-9._-] allowed"` | Seed contains forbidden characters (NUL, colon, whitespace, Unicode, etc) — use SHA-256 hex or alphanumeric |
+| `TrialQuotaExhausted` | Sub-agent or stateless Bearer-near tried `/call` without `X-Payment-Key`; trial is only available on primary `/register` wk_ |
 
 ## Guidelines
 
