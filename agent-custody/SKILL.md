@@ -497,9 +497,13 @@ Supported chains: `near` only. Multi-chain address derivation (ethereum, solana,
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -d '{"chain":"near","receiver_id":"bob.near","amount":"1000000000000000000000000"}' \
+  -d '{"chain":"near","to":"bob.near","amount":"1000000000000000000000000"}' \
   "https://api.outlayer.fastnear.com/wallet/v1/transfer"
 ```
+
+The recipient field is `to`. The legacy name `receiver_id` is still accepted
+as a deprecated alias for backward compatibility; sending both in the same
+body is rejected with a 400.
 
 ### Transfer FT tokens (USDT, wNEAR, etc.)
 
@@ -602,9 +606,12 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 | `/balance` (wallet) | Plain NEAR contract ID | `wrap.near` |
 | `/balance?source=intents` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
 | `/payment-check/*` | Plain NEAR contract ID | `17208628f...a1` (USDC) |
-| `/deposit-intent` | Token symbol | `USDC`, `SOL`, `ETH` |
+| `/deposit-intent` | Defuse asset id (`source_asset`, preferred) **or** symbol + chain (`token` + `chain`, legacy) | `nep141:base-0x833…omft.near` (source_asset); `USDC` (legacy token) |
 
-**Rule:** Swap uses `nep141:` prefix. Cross-chain deposit uses symbol. Withdraw accepts either format. Everything else uses plain contract ID.
+**Rule:** Swap uses `nep141:` prefix. Cross-chain deposit accepts either a
+`source_asset` (defuse asset id; chain derived from prefix) or the legacy
+`{chain, token symbol}` pair. Withdraw accepts either format. Everything
+else uses plain contract ID.
 
 ### Swap workflow
 
@@ -714,11 +721,37 @@ Use `GET /wallet/v1/tokens` for the full current list.
 
 Deposit tokens from any supported chain (Solana, Ethereum, Base, Arbitrum, etc.) into intents balance, or withdraw from intents to any chain. No gas tokens needed on source/destination chains - 1Click handles execution.
 
-Supported chains: `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`.
+Supported chains: `near`, `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`. The returned `deposit_address` is always on the chain that matches the source asset (64-char hex for NEAR, `0x…` for EVM, base58 for Solana, `bc1…`/`1…`/`3…` for Bitcoin).
+
+> **NEAR source? Prefer `/wallet/v1/intents/deposit`.** When the funds are
+> already on NEAR (in the agent's wallet), don't go through this endpoint —
+> use `POST /wallet/v1/intents/deposit` instead (see "Move FT from wallet
+> into Intents" in the quick-reference table above).
+> It signs a direct `ft_transfer_call(token, receiver=intents.near, amount)`
+> in one transaction, ~3 seconds, no 1Click solver hop. Calling
+> `/deposit-intent` with `chain=near` still works (after the Bug A fix) but
+> takes an extra solver hop and ~5 seconds extra. The response from
+> `/deposit-intent` includes a `hint` field warning about this when it
+> detects a NEAR source.
 
 ### Deposit from another chain → intents
 
-**1. Create deposit intent:**
+Two request shapes are accepted; pick whichever fits the caller. If both
+`source_asset` and `chain` are supplied, `source_asset` wins (and a server
+warning is logged about the mismatch).
+
+**Preferred — by `source_asset`** (defuse asset id from `GET /wallet/v1/tokens`):
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{
+    "source_asset": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    "amount": "1000000"
+  }' \
+  "https://api.outlayer.fastnear.com/wallet/v1/deposit-intent"
+```
+
+**Legacy — by `chain` + `token` symbol**:
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
@@ -728,11 +761,12 @@ curl -s -X POST -H "Content-Type: application/json" \
 
 | Param | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `chain` | no | `"solana"` | Source chain (`"solana"`, `"ethereum"`, `"base"`, etc.) |
-| `amount` | yes | - | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC) |
-| `token` | no | `"USDC"` | Source token symbol on the origin chain (`"USDC"`, `"SOL"`, `"ETH"`, etc.) |
-| `refund_address` | no | - | Address on source chain for refund if bridge fails |
-| `destination_asset` | no | NEAR USDC | Defuse asset ID for destination token. Override to receive wNEAR etc. |
+| `source_asset` | one of `source_asset` / `chain` is required | - | Defuse asset id (e.g. `nep141:eth-…omft.near`). Chain is derived from the prefix. |
+| `chain` | one of `source_asset` / `chain` is required | - | Source chain name. Supported: `near`, `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`. |
+| `amount` | yes | - | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC). |
+| `token` | no | `"USDC"` | Source token symbol (legacy shape only — ignored if `source_asset` is supplied). |
+| `refund_address` | no | - | Address on source chain for refund if bridge fails. |
+| `destination_asset` | no | NEAR USDC | Defuse asset id for destination token. Override to receive wNEAR etc. |
 
 Response:
 ```json
