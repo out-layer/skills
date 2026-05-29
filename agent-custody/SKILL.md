@@ -49,7 +49,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Move funds into the private (confidential) shard | `POST /wallet/v1/confidential/deposit` with `{ token, amount }` — SHIELD from public intents balance; **publicly links your wallet on chain** (entry reveal) |
 | Move funds back from private to public | `POST /wallet/v1/confidential/unshield` with `{ token, amount }` — reverse SHIELD (exit reveal) |
 | Fund private balance **without** linking your wallet | `POST /wallet/v1/confidential/deposit-intent` with `{ source_asset, amount }` → returns a bridge address on the source chain; send funds there. Your NEAR wallet never touches the public chain |
-| Withdraw private balance to an external chain (no link) | `POST /wallet/v1/confidential/withdraw` with `{ chain, to, amount, token }` — gasless; your wallet stays off the public chain. **`chain="near"` is rejected (400)** — use unshield instead |
+| Withdraw private balance to an external chain (no link) | `POST /wallet/v1/confidential/withdraw` with `{ chain, to, amount, token }` — gasless; your wallet stays off the public chain. `chain="near"` delivers **native NEAR** (1Click runs `native_withdraw` on `intents.near`); for sending back to your **own** public balance use `unshield` instead |
 | Preview a confidential withdraw | `POST /wallet/v1/confidential/withdraw/dry-run` — same body, no commit |
 | Private transfer to another wallet's private balance | `POST /wallet/v1/confidential/transfer` with `{ to, amount, token }` — no public-chain trace |
 | Swap tokens privately | `POST /wallet/v1/confidential/swap` with `{ token_in, token_out, amount_in, min_amount_out? }` — distinct assets, no public-chain trace |
@@ -861,8 +861,10 @@ offered here", not an error to retry.
 The action endpoints are **asynchronous**: they return
 `{ request_id, status: "pending_deposit", intent_hash, deposit_address }`. Poll
 `GET /wallet/v1/requests/{request_id}` until `status` is `success`, `failed`, or
-`refunded`. `chain="near"` on `/confidential/withdraw` is **rejected (400)** —
-use `/confidential/unshield` to return funds to your own public balance.
+`refunded`. `chain="near"` on `/confidential/withdraw` **delivers native NEAR**
+to the named NEAR account (`intents.near native_withdraw` unwraps wNEAR and
+sends native). To return funds to your **own** public intents balance use
+`/confidential/unshield` instead.
 
 ### Conventions (apply to every endpoint below)
 
