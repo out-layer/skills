@@ -46,6 +46,15 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Check cross-chain deposit status | `GET /wallet/v1/deposit-status?id={intent_id}` - poll until `success` |
 | Withdraw to another chain | `POST /wallet/v1/intents/withdraw` with `chain` param (e.g. `"solana"`, `"ethereum"`) - gasless |
 | List cross-chain deposits | `GET /wallet/v1/deposits` |
+| Move funds into the private (confidential) shard | `POST /wallet/v1/confidential/deposit` with `{ token, amount }` — SHIELD from public intents balance; **publicly links your wallet on chain** (entry reveal) |
+| Move funds back from private to public | `POST /wallet/v1/confidential/unshield` with `{ token, amount }` — reverse SHIELD (exit reveal) |
+| Fund private balance **without** linking your wallet | `POST /wallet/v1/confidential/deposit-intent` with `{ source_asset, amount }` → returns a bridge address on the source chain; send funds there. Your NEAR wallet never touches the public chain |
+| Withdraw private balance to an external chain (no link) | `POST /wallet/v1/confidential/withdraw` with `{ chain, to, amount, token }` — gasless; your wallet stays off the public chain. **`chain="near"` is rejected (400)** — use unshield instead |
+| Preview a confidential withdraw | `POST /wallet/v1/confidential/withdraw/dry-run` — same body, no commit |
+| Private transfer to another wallet's private balance | `POST /wallet/v1/confidential/transfer` with `{ to, amount, token }` — no public-chain trace |
+| Swap tokens privately | `POST /wallet/v1/confidential/swap` with `{ token_in, token_out, amount_in, min_amount_out? }` — distinct assets, no public-chain trace |
+| Preview a confidential swap | `POST /wallet/v1/confidential/swap/quote` |
+| Read your private (confidential) balance | `GET /wallet/v1/confidential/balance?token={defuse_id}` or omit `token` for all |
 | Authenticate to an external service | `POST /wallet/v1/sign-message` - NEP-413 signed message for login/auth |
 | Let the user set spending limits | Share the `handoff_url` from registration |
 | Create wallets for users (no per-user keys) | Use deterministic registration: `POST /register` with NEAR signature fields |
@@ -70,7 +79,8 @@ Every wallet operation falls into one of three categories:
 | **On-chain** | Agent's wallet | Yes (~0.001 NEAR/tx) | `/call`, `/transfer`, `/delete`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit` |
 | **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/swap`, `/payment-check/*` |
 | **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
-| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/deposit-status`, `/deposits` |
+| **Confidential** | 1Click solver (settles on private shard `intents.far`) | No | `/confidential/deposit`, `/confidential/unshield`, `/confidential/withdraw`, `/confidential/transfer`, `/confidential/swap`, `/confidential/deposit-intent` — see "Confidential Intents" section |
+| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/deposit-status`, `/deposits`, `/confidential/balance` |
 
 **On-chain** - wallet signs a NEAR transaction and broadcasts it. The wallet's implicit account must hold NEAR for gas.
 
@@ -818,6 +828,190 @@ Response: `{"request_id": "uuid", "status": "success"}`
 
 ---
 
+## Confidential Intents
+
+Move balances between your **public** intents shard, the **confidential**
+shielded-pool shard, and external chains. Same TEE-mediated signing as the
+rest of the wallet — just a different shard.
+
+> **Full developer integration guide**: [`CONFIDENTIAL_INTENTS.md`](https://github.com/out-layer/outlayer-coordinator/blob/main/docs/CONFIDENTIAL_INTENTS.md)
+> — mental model (private shard vs off-chain misconception), endpoint flow,
+> two privacy recipes (SHIELD vs cross-chain in/out), curl walkthroughs, error
+> codes. Read it once before integrating; the section below is a quick
+> reference for an already-familiar caller.
+
+**Availability**: these routes return **HTTP 503** (`confidential_unavailable`)
+unless the deployment has confidential intents enabled. Treat 503 as "not
+offered here", not an error to retry.
+
+### Endpoints
+
+| Endpoint | Action | Body |
+|---|---|---|
+| `POST /wallet/v1/confidential/deposit` | **SHIELD**: public intents → confidential | `{ token, amount }` |
+| `POST /wallet/v1/confidential/unshield` | confidential → public intents | `{ token, amount }` |
+| `POST /wallet/v1/confidential/withdraw` | confidential → external chain | `{ chain, to, amount, token }` |
+| `POST /wallet/v1/confidential/withdraw/dry-run` | quote a withdraw | same |
+| `POST /wallet/v1/confidential/transfer` | private transfer (confidential → confidential) | `{ to, amount, token }` |
+| `POST /wallet/v1/confidential/swap` | confidential swap (distinct assets) | `{ token_in, token_out, amount_in }` |
+| `POST /wallet/v1/confidential/swap/quote` | quote a swap | same |
+| `POST /wallet/v1/confidential/deposit-intent` | cross-chain DEPOSIT (returns bridge address) | `{ source_asset, amount }` |
+| `GET  /wallet/v1/confidential/balance` | read confidential balances | `?token=` (optional) |
+
+The action endpoints are **asynchronous**: they return
+`{ request_id, status: "pending_deposit", intent_hash, deposit_address }`. Poll
+`GET /wallet/v1/requests/{request_id}` until `status` is `success`, `failed`, or
+`refunded`. `chain="near"` on `/confidential/withdraw` is **rejected (400)** —
+use `/confidential/unshield` to return funds to your own public balance.
+
+### Conventions (apply to every endpoint below)
+
+- **`Authorization: Bearer wk_…`** on every call (same key as the rest of the
+  wallet — no separate confidential key).
+- **`X-Idempotency-Key: <uuid>`** is supported on every action endpoint. A
+  retry with the same key returns the original `request_id` instead of acting
+  twice. Use one per logical user action.
+- **Token IDs**: defuse asset id (`nep141:wrap.near`). Plain contract IDs
+  (`wrap.near`) are also accepted and auto-prefixed.
+- **Amounts**: minimal integer units as a **string**. wNEAR/NEAR 24 decimals
+  (`"10000000000000000000000"` = 0.01 NEAR). USDC 6 decimals (`"1000000"` = 1
+  USDC). Same convention as the public `/intents/*` endpoints.
+- **`request_id` from the action response is the poll key**: keep it,
+  `GET /wallet/v1/requests/{request_id}` returns the merged
+  `{ status, result }` until terminal. `result.intent_hash` /
+  `result.deposit_address` mirror the action response; `result.swap_details`
+  appears once the solver settles.
+- **No `tx_hash`**: confidential ops don't put your signed intent on the
+  public chain (the private shard's settlement isn't a public tx). Track by
+  `request_id` and `intent_hash`.
+
+### Method reference (body + response, per endpoint)
+
+`ConfidentialOpResponse` (the shared async-action response):
+
+```json
+{ "request_id": "uuid", "status": "pending_deposit", "intent_hash": "...", "deposit_address": "..." }
+```
+
+`QuotePreview` (returned by `/withdraw/dry-run` and `/swap/quote`):
+
+```json
+{
+  "amount_in": "...", "amount_out": "...", "min_amount_out": "...",
+  "deadline": "2026-…T…Z", "time_estimate_seconds": 10
+}
+```
+
+| Endpoint | Body | Response | Notes |
+|---|---|---|---|
+| `POST /confidential/deposit` | `{ token, amount }` | `ConfidentialOpResponse` | SHIELD — wallet must already hold `token` in its **public** intents balance |
+| `POST /confidential/unshield` | `{ token, amount }` | `ConfidentialOpResponse` | Reverse of SHIELD; returns funds to **your own** public intents balance |
+| `POST /confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain="near"` → **400** (use `unshield`). Supported chains same as public intents. The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
+| `POST /confidential/withdraw/dry-run` | same as `withdraw` | `QuotePreview` | No DB write, no sign/submit. Use to preview spread/eta before the real call |
+| `POST /confidential/transfer` | `{ to, amount, token }` (no `chain`) | `ConfidentialOpResponse` | `to` = recipient's `intentsUserId` (their 64-hex NEAR implicit address). NEAR-only context. Recipient must also have confidential intents enabled on their deployment |
+| `POST /confidential/swap` | `{ token_in, token_out, amount_in, min_amount_out? }` | `ConfidentialOpResponse` | `token_in != token_out`; `min_amount_out` enforced before signing (rejects 400 if quote below floor) |
+| `POST /confidential/swap/quote` | same as `swap` | `QuotePreview` | Read-only; no DB, no sign. Preview the swap rate |
+| `POST /confidential/deposit-intent` | `{ source_asset, amount }` **or** `{ chain, token?, amount }` (`token` defaults to `"USDC"`) | `{ intent_id, deposit_address, amount, amount_out, min_amount_out, expires_at?, hint? }` | Quote-only — returns the bridge address on the source chain; you then send funds out-of-band on that chain. **Privacy-preserving path**: your NEAR wallet never touches the public chain |
+| `GET /confidential/balance?token=` | query string | `{ balance, token, account_id }` (filtered) or `{ balances: [{ token_id, available }, …], account_id }` (no filter) | Reads `/v0/account/balances` from the private shard. Zero-balance tokens are **omitted** from the unfiltered list |
+
+### More curl examples
+
+```bash
+# WITHDRAW 0.5 USDC from confidential to a Solana address (gasless, async)
+curl -sX POST $BASE/wallet/v1/confidential/withdraw \
+  -H "Authorization: Bearer $WK" -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: $(uuidgen)" \
+  -d '{"chain":"solana","to":"<sol-addr>","amount":"500000","token":"nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near"}'
+# → {"request_id":"…","status":"pending_deposit","intent_hash":"…","deposit_address":"…"}
+
+# DRY-RUN the same withdraw (preview spread + eta, no commit)
+curl -sX POST $BASE/wallet/v1/confidential/withdraw/dry-run \
+  -H "Authorization: Bearer $WK" -H "Content-Type: application/json" \
+  -d '{"chain":"solana","to":"<sol-addr>","amount":"500000","token":"nep141:sol-…omft.near"}'
+# → {"amount_in":"500000","amount_out":"440000","min_amount_out":"435600","time_estimate_seconds":7,...}
+
+# Privacy-preserving FUND path: get a Solana bridge address; send funds on Solana
+curl -sX POST $BASE/wallet/v1/confidential/deposit-intent \
+  -H "Authorization: Bearer $WK" -H "Content-Type: application/json" \
+  -d '{"source_asset":"nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near","amount":"500000"}'
+# → {"intent_id":"…","deposit_address":"<Solana addr>","amount":"500000","amount_out":"500000",...}
+
+# Private transfer to another confidential identity (no public-chain trace)
+curl -sX POST $BASE/wallet/v1/confidential/transfer \
+  -H "Authorization: Bearer $WK" -H "Content-Type: application/json" \
+  -d '{"to":"<their 64-hex intentsUserId>","amount":"1000000","token":"nep141:wrap.near"}'
+
+# Confidential swap (distinct assets, min_amount_out floor enforced)
+curl -sX POST $BASE/wallet/v1/confidential/swap \
+  -H "Authorization: Bearer $WK" -H "Content-Type: application/json" \
+  -d '{"token_in":"nep141:wrap.near","token_out":"nep141:17208628f...a1","amount_in":"10000000000000000000000","min_amount_out":"22500000"}'
+
+# Poll any action's progress
+curl -s $BASE/wallet/v1/requests/<request_id> -H "Authorization: Bearer $WK"
+# → {"status":"success","result":{"intent_hash":"…","deposit_address":"…","swap_details":{...},"oneclick_status":"SUCCESS",...}}
+
+# Read confidential balance for one asset, or all
+curl -s "$BASE/wallet/v1/confidential/balance?token=nep141:wrap.near" -H "Authorization: Bearer $WK"
+curl -s $BASE/wallet/v1/confidential/balance                          -H "Authorization: Bearer $WK"
+```
+
+### Errors
+
+| HTTP | `error` | Meaning |
+|---|---|---|
+| 503 | `confidential_unavailable` | confidential intents not enabled on this deployment — **don't retry**, route to a different deployment or fall back to public intents |
+| 502 | `confidential_jwt_expired` / `keystore_error` | upstream (1Click / keystore) hiccup; the coordinator already retried auth once. Safe to retry |
+| 403 | `policy_denied` / `wallet_frozen` | blocked by the wallet's on-chain policy (same engine as `/intents/withdraw`). Don't retry without changing the policy |
+| 400 | `bad_request` | bad input — `chain="near"` on withdraw, missing `to`/`token`, `token_in == token_out` on swap, quote `amount_out` below `min_amount_out`, etc. |
+
+### Privacy model — read this before relying on "confidential"
+
+The confidential shard is a separate **private shard** — the `intents.far`
+contract, distinct from public `intents.near` — NOT a Tor-like anonymity
+network. Confidential balances are **real on-chain state** on that private
+shard, not off-chain and not a solver database: it is an auditable smart
+contract. The privacy is that the private shard has **no public RPC** — you
+cannot read it from public mainnet (`intents.far` resolves as
+`UNKNOWN_ACCOUNT` there) — but the operator/Defuse, auditors, or law
+enforcement with a warrant **can** read it. Only edges (shield/unshield,
+cross-chain in/out) touch the **public** chain, and those carry only **public**
+asset ids and **public-side** participants.
+
+**What public chain observers see, by direction** (SHIELD and cross-chain DEPOSIT/WITHDRAW verified against mainnet; UNSHIELD and internal transfer/swap inferred by protocol symmetry, not yet exercised live):
+
+| Direction | Your wallet on chain? | Asset id on chain | Amount on chain | Notes |
+|---|---|---|---|---|
+| SHIELD (`INTENTS → CONFIDENTIAL`) | **yes** (signer of inner intent) | public `nep141:…` | yes | "entry" reveal: full link wallet ↔ confidential pool |
+| UNSHIELD (mirror) | **yes** | public `nep141:…` | yes | "exit-to-public" reveal: same as SHIELD inverted |
+| internal CONFIDENTIAL ops (transfer, swap) | **no** | n/a | n/a | settle on the private shard — no **public-chain** trace |
+| DEPOSIT `ORIGIN_CHAIN → CONFIDENTIAL` | **no** | public on source chain + NEAR bridge mint | yes | source-chain sender visible on source chain only |
+| WITHDRAW `CONFIDENTIAL → DESTINATION_CHAIN` | **no** | public dest-chain token | yes (after bridge fee) | dest-chain receiver visible on dest chain only; the NEAR-side `ft_withdraw` is signed by a 1Click hop |
+
+**What is NOT hidden, ever:**
+
+- **Defuse / 1Click solvers** see plaintext intents pre-execution. They know the
+  asset, signer, recipient, amount, and the route. Privacy holds against public
+  chain observers, not against the solver layer.
+- **`partner_id` mapping**: all per-account JWTs issued under our partner JWT are
+  tagged with `partner_id=near-agents-market`. Defuse can enumerate every
+  confidential identity we mint under that partner.
+- **Source-chain identity**: the externally-funded chain side (Solana sender
+  address, EVM `from`, BTC input UTXO) is fully public — no protocol-level hiding.
+
+**Strongest-privacy recipe**: avoid SHIELD/UNSHIELD (they link your wallet
+on-chain). Instead fund the confidential balance via cross-chain DEPOSIT
+(`/confidential/deposit-intent`), do your work inside the shard (transfer/swap —
+settles on the private shard, no public-chain trace), and exit via cross-chain
+WITHDRAW. In that flow your NEAR custody address never appears on the public
+chain. The only residual attack surface is
+**timing/amount correlation** between the source-chain deposit and the
+destination-chain delivery — mitigate with jitter and amount splitting.
+
+> Each wallet has one confidential identity — your custody wallet itself. There
+> is no separate or unlinkable confidential identity.
+
+---
+
 ## Payment Checks (Agent-to-Agent Payments)
 
 Payment checks enable trustless agent-to-agent payments. One agent writes a check (deposits tokens into an ephemeral account), sends the `check_key` to another agent, and the recipient claims the funds. First-to-claim semantics - no double-spend possible.
@@ -1103,6 +1297,15 @@ Agent2 (buyer, custody)         API                    External Wallet
 | Deposit from any chain | POST | `/wallet/v1/deposit-intent` | cross-chain |
 | Check deposit status | GET | `/wallet/v1/deposit-status?id={id}` | - |
 | List deposits | GET | `/wallet/v1/deposits` | - |
+| Confidential: SHIELD public→confidential | POST | `/wallet/v1/confidential/deposit` | confidential |
+| Confidential: confidential→public | POST | `/wallet/v1/confidential/unshield` | confidential |
+| Confidential: withdraw to external chain | POST | `/wallet/v1/confidential/withdraw` | confidential |
+| Confidential: dry-run withdraw | POST | `/wallet/v1/confidential/withdraw/dry-run` | - |
+| Confidential: private transfer | POST | `/wallet/v1/confidential/transfer` | confidential |
+| Confidential: swap inside private shard | POST | `/wallet/v1/confidential/swap` | confidential |
+| Confidential: swap quote | POST | `/wallet/v1/confidential/swap/quote` | - |
+| Confidential: cross-chain DEPOSIT (bridge address) | POST | `/wallet/v1/confidential/deposit-intent` | confidential |
+| Confidential: read balance | GET | `/wallet/v1/confidential/balance?token={token}` | - |
 | List tokens | GET | `/wallet/v1/tokens` | - |
 | Request status | GET | `/wallet/v1/requests/{request_id}` | - |
 | List requests | GET | `/wallet/v1/requests` | - |
@@ -1116,7 +1319,7 @@ Agent2 (buyer, custody)         API                    External Wallet
 | Reclaim check | POST | `/wallet/v1/payment-check/reclaim` | gasless |
 | Peek check balance | POST | `/wallet/v1/payment-check/peek` | - |
 
-**Gas column:** `on-chain` = wallet pays gas (needs NEAR), `gasless` = solver relay pays, `cross-chain` = 1Click bridge (fee ~0.2%), `-` = no transaction.
+**Gas column:** `on-chain` = wallet pays gas (needs NEAR), `gasless` = solver relay pays, `cross-chain` = 1Click bridge (fee ~0.2%), `confidential` = 1Click solver settles on the private shard (no wallet gas, no wallet on the public chain except for SHIELD/UNSHIELD edges), `-` = no transaction.
 
 All endpoints except `/register` and `PUT /wallet/v1/api-key` require `Authorization: Bearer <api_key>` or `Bearer near:<base64url>` header.
 Base URL: `https://api.outlayer.fastnear.com`
@@ -1152,6 +1355,8 @@ Base URL: `https://api.outlayer.fastnear.com`
 | `failed` | Failed | Check `result` for error details |
 | `processing` | In progress | Poll `GET /wallet/v1/requests/{id}` |
 | `pending_approval` | Needs multisig | Inform user, provide dashboard link |
+| `pending_deposit` | Confidential op accepted by 1Click, waiting for solver settlement | Poll `GET /wallet/v1/requests/{id}` (typical 5–30s) |
+| `refunded` | Confidential op failed mid-flight; funds refunded inside the confidential balance | Inspect `result.swap_details.refundReason`; safe to retry |
 
 ## Error Handling
 
