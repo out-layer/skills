@@ -834,7 +834,7 @@ Move balances between your **public** intents shard, the **confidential**
 shielded-pool shard, and external chains. Same TEE-mediated signing as the
 rest of the wallet — just a different shard.
 
-> **Full developer integration guide**: [`CONFIDENTIAL_INTENTS.md`](https://github.com/out-layer/outlayer-coordinator/blob/main/docs/CONFIDENTIAL_INTENTS.md)
+> **Full developer integration guide**: [`CONFIDENTIAL_INTENTS.md`](https://github.com/out-layer/coordinator/blob/main/docs/CONFIDENTIAL_INTENTS.md)
 > — mental model (private shard vs off-chain misconception), endpoint flow,
 > two privacy recipes (SHIELD vs cross-chain in/out), curl walkthroughs, error
 > codes. Read it once before integrating; the section below is a quick
