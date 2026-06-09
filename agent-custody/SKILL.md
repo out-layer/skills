@@ -32,7 +32,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Call a NEAR smart contract | Use `POST /wallet/v1/call` - on-chain, needs gas |
 | Check your balance | Use `GET /wallet/v1/balance?chain=near` or `&token=usdt.tether-token.near` |
 | Check intents deposit balance | Use `GET /wallet/v1/balance?token=wrap.near&source=intents` |
-| Get your address on any chain | Use `GET /wallet/v1/address?chain=ethereum` |
+| Get your NEAR address | Use `GET /wallet/v1/address?chain=near` (wallet v1 is NEAR-only); the account is in the `address` field |
 | Delete the wallet | Use `POST /wallet/v1/delete` - deletes on-chain account, sends NEAR to beneficiary. Wallet must have NEAR balance |
 | Ask user to fund your wallet | Generate a fund link (see below) or share your NEAR address |
 | Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` - get `check_key` to send |
@@ -494,12 +494,23 @@ Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id
 - **Wallet balance** (`chain=near`) - direct FT holdings on the NEAR account. Needed for `ft_transfer`, contract calls.
 - **Intents balance** (`source=intents`) - tokens deposited into `intents.near`. Needed for swaps (`/intents/swap`), payment checks, and cross-chain withdrawals (`/intents/withdraw`). Use `POST /wallet/v1/intents/deposit` (on-chain, needs gas) to move tokens from wallet to intents, or request funds with `dest=intents` to skip this step.
 
-### Get address (for other chains)
+### Get address
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/address?chain=ethereum"
+  "https://api.outlayer.fastnear.com/wallet/v1/address?chain=near"
 ```
-Supported chains: `near` only. Multi-chain address derivation (ethereum, solana, bitcoin, etc.) is not yet available in wallet v1. For cross-chain operations, use `/deposit-intent` and `/intents/withdraw` with `chain` param instead — these work without a derived address.
+Response:
+```json
+{
+  "wallet_id": "a1b2c3d4-...",
+  "chain": "near",
+  "address": "36842e2f73d0b7b2f2af6e0d94a7a997398c2c09d9cf09ca3fa23b5426fccf88",
+  "public_key": "ed25519:<base58>"
+}
+```
+The NEAR account is the **`address`** field (there is no `account_id` field here — that name only appears on `/wallet/v1/balance`). This is the default setup — your wallet derives from OutLayer's shared vault, nothing to configure. (An optional `vault_id` field appears only for the rare keys bound to a dedicated customer vault.)
+
+Supported chains: `near` only. Passing `chain=ethereum` (or solana, base, arbitrum) returns an `UnsupportedChain` error — multi-chain address derivation is not available in wallet v1. For cross-chain operations, use `/intents/deposit/cross-chain` and `/intents/withdraw` with `chain` param instead — these work without a derived address.
 
 ### Transfer NEAR
 **Before calling:** check NEAR balance covers transfer amount + gas (~0.001 NEAR).
@@ -629,6 +640,17 @@ curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/tokens"
 ```
 Response includes `defuse_asset_id` for each token - use this in swap calls.
+
+> ⚠️ **`symbol` is NOT unique — never resolve a token by symbol.** The same
+> display symbol appears once per chain (e.g. "USDC" returns ~17 entries:
+> `nep141:17208628…` native NEAR USDC, `nep141:eth-0xa0b8…omft.near` Ethereum
+> USDC, `nep141:base-0x833…omft.near` Base USDC, plus arb/sol/avax/pol/op/…).
+> A naive `symbol === "USDC"` lookup grabs the first match (usually the
+> Ethereum-bridged one) and you deposit/withdraw against the WRONG chain's
+> asset — funds end up stuck or lost. Always select the entry by its exact
+> `defuse_asset_id`, choosing the one whose `chains` array contains your target
+> chain. See [token-reference.md](references/token-reference.md) for the
+> chain-disambiguated list of common assets.
 
 **2. Check intents balance (tokens must be in intents):**
 ```bash
@@ -907,13 +929,13 @@ sends native). To return funds to your **own** public intents balance use
 |---|---|---|---|
 | `POST /wallet/v1/confidential/shield` | `{ token, amount }` | `ConfidentialOpResponse` | SHIELD — wallet must already hold `token` in its **public** intents balance. Canonical; legacy alias `POST /wallet/v1/confidential/deposit` still works |
 | `POST /wallet/v1/confidential/unshield` | `{ token, amount }` | `ConfidentialOpResponse` | Reverse of SHIELD; returns funds to **your own** public intents balance |
-| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain="near"` → **400** (use `unshield`). Supported chains same as public intents. The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
+| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain="near"` **is supported** — delivers **native NEAR** to the named `to` account (1Click `native_withdraw` unwraps wNEAR). To return funds to your **own** public intents balance use `/confidential/unshield` instead. Supported chains same as public intents. The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
 | `POST /wallet/v1/confidential/withdraw/dry-run` | same as `withdraw` | `QuotePreview` | No DB write, no sign/submit. Use to preview spread/eta before the real call |
 | `POST /wallet/v1/confidential/transfer` | `{ to, amount, token }` (no `chain`) | `ConfidentialOpResponse` | `to` = recipient's `intentsUserId` (their 64-hex NEAR implicit address). NEAR-only context. Recipient must also have confidential intents enabled on their deployment |
 | `POST /wallet/v1/confidential/swap` | `{ token_in, token_out, amount_in, min_amount_out? }` | `ConfidentialOpResponse` | `token_in != token_out`; `min_amount_out` enforced before signing (rejects 400 if quote below floor) |
 | `POST /wallet/v1/confidential/swap/quote` | same as `swap` | `QuotePreview` | Read-only; no DB, no sign. Preview the swap rate |
 | `POST /wallet/v1/confidential/deposit/cross-chain` | `{ source_asset, amount }` **or** `{ chain, token?, amount }` (`token` defaults to `"USDC"`) | `{ intent_id, deposit_address, amount, amount_out, min_amount_out, expires_at?, hint? }` | Quote-only — returns the bridge address on the source chain; you then send funds out-of-band on that chain. **Privacy-preserving path**: your NEAR wallet never touches the public chain. Canonical; legacy alias `POST /wallet/v1/confidential/deposit-intent` still works |
-| `GET /wallet/v1/confidential/balance?token=` | query string | `{ balance, token, account_id }` (filtered) or `{ balances: [{ token_id, available }, …], account_id }` (no filter) | Reads `/v0/account/balances` from the private shard. Zero-balance tokens are **omitted** from the unfiltered list |
+| `GET /wallet/v1/confidential/balance?token=` | query string | `{ balance, token, account_id }` (filtered) or `{ balances: [{ token, balance }, …], account_id }` (no filter) | Reads `/v0/account/balances` from the private shard. Zero-balance tokens are **omitted** from the unfiltered list |
 
 ### More curl examples
 
@@ -963,7 +985,7 @@ curl -s $BASE/wallet/v1/confidential/balance                          -H "Author
 | 503 | `confidential_unavailable` | confidential intents not enabled on this deployment — **don't retry**, route to a different deployment or fall back to public intents |
 | 502 | `confidential_jwt_expired` / `keystore_error` | upstream (1Click / keystore) hiccup; the coordinator already retried auth once. Safe to retry |
 | 403 | `policy_denied` / `wallet_frozen` | blocked by the wallet's on-chain policy (same engine as `/intents/withdraw`). Don't retry without changing the policy |
-| 400 | `bad_request` | bad input — `chain="near"` on withdraw, missing `to`/`token`, `token_in == token_out` on swap, quote `amount_out` below `min_amount_out`, etc. |
+| 400 | `bad_request` | bad input — missing `to`/`token`, `token_in == token_out` on swap, quote `amount_out` below `min_amount_out`, etc. (note: `chain="near"` on withdraw is **valid** — native NEAR delivery) |
 
 ### Privacy model — read this before relying on "confidential"
 
@@ -1394,7 +1416,7 @@ Base URL: `https://api.outlayer.fastnear.com`
 - **`min_amount_out` is optional** but recommended for slippage protection.
 - **Cross-chain transfers need deposit + withdraw.** Only for moving tokens without swapping.
 - **Solana deposits create a temporary address.** Each `deposit-intent` call generates a unique Solana address. Poll `deposit-status` until `success`.
-- **Solana withdraw goes through 1Click bridge.** Use `/solana/withdraw` - tokens leave intents balance and arrive on Solana in ~15-20 seconds.
+- **Solana withdraw goes through 1Click bridge.** Use `POST /wallet/v1/intents/withdraw` with `chain:"solana"` - tokens leave intents balance and arrive on Solana in ~15-20 seconds.
 - **Poll for async results.** If status is `processing`, poll `/requests/{id}`.
 - Always use `withdraw/dry-run` before real withdrawals.
 - **Payment checks** are ideal for agent-to-agent payments - first-to-claim prevents double-spend. Set `expires_in` to protect against unclaimed checks.

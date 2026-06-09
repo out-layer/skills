@@ -122,7 +122,7 @@ async function callOutLayerHttps(
     throw new Error(result.error || 'Execution failed');
   }
 
-  return JSON.parse(result.output);
+  return result.output;
 }
 ```
 

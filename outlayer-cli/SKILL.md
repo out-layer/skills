@@ -264,7 +264,7 @@ Upload files to on-chain storage (NEAR FastFS) via NEAR transactions.
 outlayer upload ./target/wasm32-wasip2/release/my-agent.wasm
 # → https://main.fastfs.io/alice.near/outlayer.near/abcdef.wasm
 
-outlayer upload <file> --receiver <account>    # custom receiver (default: outlayer.near)
+outlayer upload <file> --receiver <account>    # custom receiver (default: network contract - outlayer.near mainnet / outlayer.testnet testnet)
 outlayer upload <file> --mime-type <type>      # override MIME type
 ```
 

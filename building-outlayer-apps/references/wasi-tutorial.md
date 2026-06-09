@@ -231,9 +231,9 @@ storage::clear_version("wasm-hash")?;
 ```rust
 use outlayer::vrf;
 
-// Generate verifiable randomness (includes proof)
-let vrf_output = vrf::random()?;
-// Returns bytes that can be verified on-chain
+// Generate verifiable randomness (includes proof). A seed is REQUIRED.
+let vrf_output = vrf::random("my-seed")?;
+// Returns VrfOutput { output_hex, signature_hex, alpha } - verifiable on-chain
 ```
 
 ### Complete Example
@@ -283,7 +283,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 3. **Format**: JSON only
 4. **Size**:
    - Blockchain: ≤900 bytes
-   - HTTPS: Up to 25MB
+   - HTTPS: Up to 10MB
 5. **MUST flush**: `stdout().flush()`
 
 ## Common Pitfalls

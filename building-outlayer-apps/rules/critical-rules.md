@@ -165,26 +165,30 @@ async function good() {
 
 ---
 
-## 8. OutLayer Response Wrapper
+## 8. Response Shape Is Defined By Your WASM, Not OutLayer
 
-OutLayer returns wrapped format:
+OutLayer does **not** add a platform wrapper. The contract returns whatever your
+WASM writes to stdout, verbatim (`ExecutionOutput::Json(value) => value` -
+returned directly, no enum/envelope). If you want a `{ success, output, error }`
+envelope, your WASM must emit it.
+
+The convention used across these examples (and the playground) is:
 
 ```json
-{ "success": true, "result": {...}, "error": null }
+{ "success": true, "output": {...}, "error": null, "logs": [...] }
 ```
 
-Handle it in callbacks:
+Note the field is `output`, not `result`. If your WASM emits this shape, parse it:
 
 ```rust
 #[derive(Deserialize)]
-pub struct OutLayerResponse {
+pub struct AgentResponse {
     pub success: bool,
-    pub result: serde_json::Value,
+    pub output: serde_json::Value,
     pub error: Option<String>,
 }
 
-// Parse result field separately
-let data: MyType = serde_json::from_value(response.result)?;
+let data: MyType = serde_json::from_value(response.output)?;
 ```
 
 ---

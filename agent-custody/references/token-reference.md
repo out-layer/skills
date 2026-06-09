@@ -2,6 +2,13 @@
 
 Use `GET /wallet/v1/tokens` for the full dynamic list. This reference covers the most commonly used tokens.
 
+> ⚠️ **One display symbol maps to many chain-specific assets.** "USDC", "USDT",
+> "ETH", "BTC" each exist on multiple chains with a DIFFERENT `defuse_asset_id`
+> (see the `(ETH)`/`(Base)`/`(Arb)`/`(SOL)` rows below). Always pick the asset
+> by its exact `defuse_asset_id` for the chain you want — never by symbol alone.
+> Picking the wrong chain's variant on a deposit/withdraw sends funds to the
+> wrong asset and they can be stuck or lost.
+
 ## Stablecoins
 
 | Symbol | Contract ID | Defuse Asset ID | Decimals | Chain |
