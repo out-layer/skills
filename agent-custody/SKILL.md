@@ -28,6 +28,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Withdraw native NEAR (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain: "near"` and `token: "near"` (default). Unwraps your wNEAR → native NEAR; receiver needs **no** storage. Recipient account must already exist (or be a 64-char implicit account) |
 | Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. For NEAR delivering wNEAR (`token: "nep141:wrap.near"`): receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
 | Register token storage | Use `POST /wallet/v1/storage-deposit` - needed before withdrawing to accounts without storage |
+| Transfer tokens to another account's intents balance | Use `POST /wallet/v1/intents/transfer` with `{ to, amount, token }` — gasless; stays **inside** `intents.near` (recipient is credited there, not on-chain). NOT a withdrawal — use this when the recipient also holds an intents balance. Recipient need not exist on-chain (64-hex implicit is fine) |
 | Move FT from wallet into Intents | Use `POST /wallet/v1/intents/deposit` - on-chain, needs gas |
 | Call a NEAR smart contract | Use `POST /wallet/v1/call` - on-chain, needs gas |
 | Check your balance | Use `GET /wallet/v1/balance?chain=near` or `&token=usdt.tether-token.near` |
@@ -77,7 +78,7 @@ Every wallet operation falls into one of three categories:
 | Category | Who pays gas | NEAR on wallet needed? | Endpoints |
 |----------|-------------|----------------------|-----------|
 | **On-chain** | Agent's wallet | Yes (~0.001 NEAR/tx) | `/call`, `/transfer`, `/delete`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit` |
-| **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/swap`, `/payment-check/*` |
+| **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/transfer`, `/intents/swap`, `/payment-check/*` |
 | **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
 | **Confidential** | 1Click solver (settles on private shard `intents.far`) | No | `/confidential/shield`, `/confidential/unshield`, `/confidential/withdraw`, `/confidential/transfer`, `/confidential/swap`, `/confidential/deposit/cross-chain` — see "Confidential Intents" section |
 | **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/deposit-status`, `/deposits`, `/confidential/balance` |
@@ -622,6 +623,7 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 | `/intents/swap` and `/intents/swap/quote` | Defuse asset ID with prefix | `nep141:wrap.near` |
 | `/intents/deposit` | Plain NEAR contract ID | `wrap.near` |
 | `/intents/withdraw` | Either format (auto-prefixed); `near`/`native`/omitted = native NEAR | `near` (native), `wrap.near` or `nep141:wrap.near` (wNEAR) |
+| `/intents/transfer` | Either format (auto-prefixed); **required** (no native concept — send NEAR as `nep141:wrap.near`) | `nep141:usdc.near` or `usdc.near` |
 | `/intents/ft-withdraw` | Plain NEAR contract ID | `wrap.near` |
 | `/balance` (wallet) | Plain NEAR contract ID | `wrap.near` |
 | `/balance?source=intents` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
@@ -737,6 +739,22 @@ curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"receiver.near","amount":"1000000000000000000000000","token":"wrap.near","chain":"near"}' \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw/dry-run"
+```
+
+### Transfer inside Intents (`/intents/transfer`) vs Withdraw
+
+`POST /wallet/v1/intents/transfer` moves a token from your `intents.near` balance to **another account's `intents.near` balance** — gasless, and the funds **stay inside the intents pool** (the recipient is credited there, nothing lands on the public chain). This is **not** a withdrawal.
+
+- **Use `/intents/transfer`** when the recipient also holds an intents balance (e.g. another OutLayer custody wallet) and you want to keep funds inside intents — cheapest, no exit.
+- **Use `/intents/withdraw`** when the recipient should receive funds on a plain on-chain account (it runs `ft_withdraw`/`native_withdraw`, leaving the intents pool).
+
+NEAR-only: no `chain` field, and `token` is **required** (to send NEAR, transfer `nep141:wrap.near`). The recipient need not exist on-chain — a 64-hex implicit account is a valid recipient. Same policy gating as withdraw (recipient whitelist + per-token amount limit; multisig returns `status=pending_approval`).
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"to":"partner.near","amount":"1000000","token":"nep141:usdc.near"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/intents/transfer"
 ```
 
 ### Supported chains
