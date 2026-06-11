@@ -623,7 +623,7 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 | `/intents/swap` and `/intents/swap/quote` | Defuse asset ID with prefix | `nep141:wrap.near` |
 | `/intents/deposit` | Plain NEAR contract ID | `wrap.near` |
 | `/intents/withdraw` | Either format (auto-prefixed); `near`/`native`/omitted = native NEAR | `near` (native), `wrap.near` or `nep141:wrap.near` (wNEAR) |
-| `/intents/transfer` | Either format (auto-prefixed); **required** (no native concept — send NEAR as `nep141:wrap.near`) | `nep141:usdc.near` or `usdc.near` |
+| `/intents/transfer` | Either format (auto-prefixed); **required** (no native concept — send NEAR as `nep141:wrap.near`) | `nep141:usdt.tether-token.near` or `usdt.tether-token.near` |
 | `/intents/ft-withdraw` | Plain NEAR contract ID | `wrap.near` |
 | `/balance` (wallet) | Plain NEAR contract ID | `wrap.near` |
 | `/balance?source=intents` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
@@ -753,7 +753,7 @@ NEAR-only: no `chain` field, and `token` is **required** (to send NEAR, transfer
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -d '{"to":"partner.near","amount":"1000000","token":"nep141:usdc.near"}' \
+  -d '{"to":"partner.near","amount":"1000000","token":"nep141:usdt.tether-token.near"}' \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/transfer"
 ```
 
