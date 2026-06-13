@@ -692,6 +692,15 @@ Response: `{"request_id": "uuid", "status": "success", "amount_out": "3150000", 
 
 `min_amount_out` is optional - omit for a market order. Set to protect against slippage.
 
+> **Reading `amount_out` correctly — the realized fill. SAME RULE for `/intents/swap` AND `/confidential/swap`:**
+>
+> `amount_out` is the **actual delivered amount ONLY when `status == "success"`**. At every earlier stage it is an **estimate, not the fill**:
+> - `/intents/swap/quote` and `/confidential/swap/quote` → price preview only.
+> - **Public** `/intents/swap` blocks to settlement, so its response usually already carries `status:"success"` + the realized `amount_out`. If it ever returns non-terminal, poll `GET /wallet/v1/requests/{request_id}` and read `result.amount_out` from the `success` row.
+> - **Confidential** `/confidential/swap` returns `status:"pending_deposit"` with **NO `amount_out`** in the submit response — this is **timing, NOT privacy**. It settles `pending_deposit → processing → success` (slower than public); the realized `amount_out` appears in `result.amount_out` **only at `success`**. The actual delivered amount *is* returned — confidential does **not** hide it. A short poll window (e.g. 90s / 30×3s) can expire before `success` — keep polling, do not give up and record the quote.
+>
+> **Never** record a position / qty / PnL from a quote or a submit-time estimate, and **never** fall back to a snapshot- or price-derived qty — both drift from the real fill. The only correct source is **`result.amount_out` read at `status == "success"`**, for both public and confidential swaps.
+
 ### Common swap pairs
 
 | Pair | token_in | token_out |
@@ -921,7 +930,14 @@ sends native). To return funds to your **own** public intents balance use
   `GET /wallet/v1/requests/{request_id}` returns the merged
   `{ status, result }` until terminal. `result.intent_hash` /
   `result.deposit_address` mirror the action response; `result.swap_details`
-  appears once the solver settles.
+  appears once the solver settles. For a **swap**, the realized fill is
+  `result.amount_out` **only once `status` is `success`** (same rule as the
+  public `/intents/swap` — see *Reading `amount_out` correctly* above). The
+  confidential submit response carries **no `amount_out`**, and `result.amount_out`
+  holds the **quote estimate** until settlement — this is **timing, not
+  privacy**: the actual delivered amount *is* returned, just at `success`. A 90s /
+  30×3s poll window can expire before `success`; keep polling rather than
+  recording the quote.
 - **No `tx_hash`**: confidential ops don't put your signed intent on the
   public chain (the private shard's settlement isn't a public tx). Track by
   `request_id` and `intent_hash`.
@@ -989,7 +1005,7 @@ curl -sX POST $BASE/wallet/v1/confidential/swap \
 
 # Poll any action's progress
 curl -s $BASE/wallet/v1/requests/<request_id> -H "Authorization: Bearer $WK"
-# → {"status":"success","result":{"intent_hash":"…","deposit_address":"…","swap_details":{...},"oneclick_status":"SUCCESS",...}}
+# → {"status":"success","result":{"intent_hash":"…","deposit_address":"…","amount_out":"22513900","swap_details":{...},"oneclick_status":"SUCCESS",...}}
 
 # Read confidential balance for one asset, or all
 curl -s "$BASE/wallet/v1/confidential/balance?token=nep141:wrap.near" -H "Authorization: Bearer $WK"
