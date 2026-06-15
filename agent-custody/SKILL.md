@@ -33,7 +33,10 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Call a NEAR smart contract | Use `POST /wallet/v1/call` - on-chain, needs gas |
 | Check your balance | Use `GET /wallet/v1/balance?chain=near` or `&token=usdt.tether-token.near` |
 | Check intents deposit balance | Use `GET /wallet/v1/balance?token=wrap.near&source=intents` |
-| Get your NEAR address | Use `GET /wallet/v1/address?chain=near` (wallet v1 is NEAR-only); the account is in the `address` field |
+| Get your NEAR or EVM address | Use `GET /wallet/v1/address?chain=near` (or `?chain=polygon`/`ethereum`/`base`/… — all EVM chains return ONE shared `0x` address); the account is in the `address` field |
+| Sign an EIP-712 order / typed data (EVM) | `POST /wallet/v1/evm/sign-typed-data` with `{chain, typed_data}` — off-chain; signs Polymarket-style CLOB orders. Gated by `evm_sign` |
+| Sign an EIP-191 message (EVM) | `POST /wallet/v1/evm/sign-message` with `{chain, message}` — e.g. venue L1 auth / CLOB API-key derivation |
+| Sign a raw EVM transaction | `POST /wallet/v1/evm/sign-transaction` with `{chain, unsigned_tx}` — you serialize + broadcast; gated by `evm_sign.raw_tx` (default-OFF) |
 | Delete the wallet | Use `POST /wallet/v1/delete` - deletes on-chain account, sends NEAR to beneficiary. Wallet must have NEAR balance |
 | Ask user to fund your wallet | Generate a fund link (see below) or share your NEAR address |
 | Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` - get `check_key` to send |
@@ -81,7 +84,7 @@ Every wallet operation falls into one of three categories:
 | **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/transfer`, `/intents/swap`, `/payment-check/*` |
 | **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
 | **Confidential** | 1Click solver (settles on private shard `intents.far`) | No | `/confidential/shield`, `/confidential/unshield`, `/confidential/withdraw`, `/confidential/transfer`, `/confidential/swap`, `/confidential/deposit/cross-chain` — see "Confidential Intents" section |
-| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/deposit-status`, `/deposits`, `/confidential/balance` |
+| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/evm/sign-typed-data`, `/evm/sign-message`, `/evm/sign-transaction`, `/deposit-status`, `/deposits`, `/confidential/balance` |
 
 **On-chain** - wallet signs a NEAR transaction and broadcasts it. The wallet's implicit account must hold NEAR for gas.
 
@@ -425,7 +428,7 @@ https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount=10&token=1
 
 A policy defines spending limits, address whitelists, and multisig rules.
 
-**Available policy types:** spending limits, address whitelist/blacklist, allowed tokens, transaction types, time restrictions, rate limits, multisig approval, authorized API keys, webhooks.
+**Available policy types:** spending limits, address whitelist/blacklist, allowed tokens, transaction types, time restrictions, rate limits, multisig approval, capability toggles (`raw_sign`, `swap`, `cross_chain_withdraw`, `payment_check`, and EVM signing `evm_sign` — default-DENY under a policy, set `allowed:true` to permit, with a `raw_tx` sub-flag default-OFF), authorized API keys, webhooks.
 
 **Message to user:**
 > Please configure a security policy for your wallet:
@@ -511,7 +514,7 @@ Response:
 ```
 The NEAR account is the **`address`** field (there is no `account_id` field here — that name only appears on `/wallet/v1/balance`). This is the default setup — your wallet derives from OutLayer's shared vault, nothing to configure. (An optional `vault_id` field appears only for the rare keys bound to a dedicated customer vault.)
 
-Supported chains: `near` only. Passing `chain=ethereum` (or solana, base, arbitrum) returns an `UnsupportedChain` error — multi-chain address derivation is not available in wallet v1. For cross-chain operations, use `/intents/deposit/cross-chain` and `/intents/withdraw` with `chain` param instead — these work without a derived address.
+Supported chains: `near` plus all EVM chains (`ethereum`, `polygon`, `base`, `arbitrum`, `optimism`, `bsc`, `avalanche`, and aliases `eth`/`pol`/`matic`/`arb`/`op`/`avax`). **All EVM chains return ONE shared secp256k1 `0x` address** (the same EOA on every EVM network). `solana`/`bitcoin` are still gated (`UnsupportedChain`). To sign for the EVM address, see "Sign EVM payloads" below; for cross-chain value movement use `/intents/deposit/cross-chain` and `/intents/withdraw` with the `chain` param.
 
 ### Transfer NEAR
 **Before calling:** check NEAR balance covers transfer amount + gas (~0.001 NEAR).
@@ -609,6 +612,39 @@ The NEP-413 signature verifier computes:
 2. SHA-256 hash the serialized payload
 3. Verify ed25519 signature against the `public_key`
 4. For implicit accounts: `account_id == hex(public_key_bytes)` - no RPC needed
+
+---
+
+### Sign EVM payloads (EIP-712 / EIP-191 / raw tx)
+
+Sign for the wallet's EVM address (the `0x` address from `GET /wallet/v1/address?chain=<evm>`; all EVM chains share one secp256k1 key). **Off-chain only** — the response is a 65-byte signature (`0x` `r‖s‖v`, `v ∈ {27,28}`, low-s); **you assemble and broadcast any on-chain transaction yourself** (the keystore never builds, gas-estimates, nonces, or broadcasts). Gated by the `evm_sign` policy capability — **default-DENY under a policy** (set `evm_sign.allowed:true`; a wallet with no policy is unrestricted); raw transactions additionally require `evm_sign.raw_tx` (**default-OFF**). `ecrecover` over the signed digest returns the wallet's EVM address.
+
+**EIP-712 typed data** — the core trading primitive (e.g. a Polymarket CLOB order):
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"chain":"polygon","typed_data":{"domain":{...},"types":{...},"primaryType":"Order","message":{...}}}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/evm/sign-typed-data"
+# → { "signature": "0x..(65 bytes)", "chain": "polygon", "wallet_id": "..." }
+```
+Send the full `eth_signTypedData_v4` object; the digest is computed server-side (no client-supplied hash is trusted). Arbitrary EIP-712 structs work (including EIP-3009 `TransferWithAuthorization` and EIP-2612 `Permit`).
+
+**EIP-191 `personal_sign`** — e.g. deriving a venue CLOB API key:
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"chain":"polygon","message":"Sign in to Polymarket"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/evm/sign-message"
+```
+`message` is signed as a UTF-8 string by default; add `"encoding":"hex"` to sign the decoded bytes of a hex `message` instead (no auto-detection). (Distinct from the NEP-413 `/wallet/v1/sign-message` above — that one is NEAR auth.)
+
+**Raw EVM transaction** — gated by `evm_sign.raw_tx`:
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"chain":"polygon","unsigned_tx":"0x02..."}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/evm/sign-transaction"
+```
+Send the **serialized unsigned transaction** (e.g. viem `serializeTransaction(tx)`); we keccak256-hash and sign it. For EIP-1559 (type-2) txs the `yParity` you need to assemble the final tx is `v - 27`. You build the signed tx and broadcast it via your own RPC.
+
+> **Security.** An EIP-712 signature is itself fund-moving (EIP-3009 ≈ transfer, EIP-2612 ≈ approve), so `evm_sign` grants full authority over whatever you bridge onto the EVM address — the risk is bounded to that float; your NEAR-intents balance is never reachable by an EVM signature. Keep the on-chain float small. `evm_sign.raw_tx` is a separate kill-switch for arbitrary raw transactions; it does NOT contain typed-data drains.
 
 ---
 
