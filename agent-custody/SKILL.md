@@ -100,7 +100,7 @@ Same result, different execution:
 
 ### Async mode — strongly recommended for cross-chain withdrawals
 
-`/intents/withdraw` accepts `"async": true`. In async mode the call returns immediately with `status: "processing"` and a `poll_url`; the withdrawal settles in the background and you poll `GET /wallet/v1/requests/{request_id}` until the row reaches a terminal status (`success` / `failed`).
+`/intents/withdraw` accepts `"async": true`. In async mode the call returns immediately with `status: "processing"` and a `poll_url`; the withdrawal settles in the background and you poll `GET /wallet/v1/requests/{request_id}` until the row reaches a terminal status. **The exact status values are a short, fixed set — see "Status values (exact)" below; do not invent synonym sets, and do not forget `needs_review`.**
 
 - **Cross-chain withdrawals (`chain` ≠ `near`): always prefer `async: true`.** The 1Click bridge almost always takes longer than the synchronous response window — a sync call blocks up to ~90s and then returns `processing` anyway, and can hit the gateway request timeout first. Async is the reliable path; treat it as the default for any non-NEAR `chain`.
 - **Same-chain NEAR (`chain: "near"`)** settles in seconds — a synchronous call is fine and `async` is optional.
@@ -114,10 +114,31 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
 # → { "request_id": "<id>", "status": "processing", "poll_url": "/wallet/v1/requests/<id>" }
 
-# Poll until terminal (processing → success | failed)
+# Poll until terminal (processing → success | failed | needs_review)
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.fastnear.com/wallet/v1/requests/<id>"
 ```
+
+#### Status values (exact)
+
+The `GET /wallet/v1/requests/{id}` row for a withdraw/swap holds **only** these `status` strings — match them exactly (case-sensitive). Do **not** build broad synonym sets (`settled`/`completed`/`confirmed`/`done`/…); none of those are ever emitted, and inventing them gives false confidence while missing the one that matters (`needs_review`).
+
+| `status` | Terminal? | Meaning / how to handle |
+|----------|-----------|--------------------------|
+| `processing` | no | Still settling. Keep polling. |
+| `success` | **yes** | Done. `result` carries `amount_out`, `transfer_intent_hash`, `deposit_address`. |
+| `failed` | **yes** | Execution failed (a 1Click refund/expiry is also normalized to `failed`; the reason is in `result.reason`). Safe to surface as a failure. |
+| `needs_review` | **yes (stop)** | **Execution was interrupted or unresolved; fund state is UNKNOWN.** Surface as "needs manual review / contact support". **Do NOT auto-retry** — the original transfer may have fired, so a retry can double-spend. This is the status integrators most often forget — without it you poll forever. |
+| `pending_approval` / `approved` | no | **Multisig wallets only.** The withdrawal needs the approval flow to complete; it will not settle by polling alone. |
+| `rejected` | **yes** | Multisig: approvers rejected. Treat as failure. |
+
+Notes:
+- `success`/`failure` detection in your client should be: success = `{"success"}`, failure = `{"failed","rejected"}`, plus `needs_review` as a distinct non-retryable outcome.
+- `"bridging"` and `"pending_deposit"` belong to the **deposit** endpoint (`/intents/deposit/cross-chain/status`), **not** to `/requests/{id}` — don't expect them here.
+- **Submit status:** a successful async submit is exactly `"processing"` (never `pending`/`queued`). On a **multisig** wallet the submit returns `"pending_approval"` instead — handle that before assuming you can just poll.
+- **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow bridge can still return `"processing"`** — branch on the status (poll via the returned `request_id`), don't assume the sync body is always terminal.
+- **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
+- **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap`.
 
 ### `/storage-deposit` - register token storage
 
