@@ -26,7 +26,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Preview swap rate before committing | Use `POST /wallet/v1/intents/swap/quote` - read-only, no gas spent |
 | List available tokens for swaps | Use `GET /wallet/v1/tokens` - returns ~200 tokens across 20+ chains |
 | Withdraw native NEAR (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain: "near"` and `token: "near"` (default). Unwraps your wNEAR → native NEAR; receiver needs **no** storage. Recipient account must already exist (or be a 64-char implicit account) |
-| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. For NEAR delivering wNEAR (`token: "nep141:wrap.near"`): receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
+| Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. **For non-NEAR chains pass `"async": true` and poll the result (the bridge rarely finishes in the sync window).** For NEAR delivering wNEAR (`token: "nep141:wrap.near"`): receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
 | Register token storage | Use `POST /wallet/v1/storage-deposit` - needed before withdrawing to accounts without storage |
 | Transfer tokens to another account's intents balance | Use `POST /wallet/v1/intents/transfer` with `{ to, amount, token }` — gasless; stays **inside** `intents.near` (recipient is credited there, not on-chain). NOT a withdrawal — use this when the recipient also holds an intents balance. Recipient need not exist on-chain (64-hex implicit is fine) |
 | Move FT from wallet into Intents | Use `POST /wallet/v1/intents/deposit` - on-chain, needs gas |
@@ -48,7 +48,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Check a check's balance by key | `POST /wallet/v1/payment-check/peek` with `check_key` |
 | Deposit from another chain (Solana, Ethereum, etc.) | `POST /wallet/v1/intents/deposit/cross-chain` (alias `/deposit-intent`) with `source_asset` (defuse asset id from `GET /wallet/v1/tokens`) - get a deposit address, user sends tokens, 1Click bridges to intents |
 | Check cross-chain deposit status | `GET /wallet/v1/intents/deposit/cross-chain/status?id={intent_id}` - poll until `success` |
-| Withdraw to another chain | `POST /wallet/v1/intents/withdraw` with `chain` param (e.g. `"solana"`, `"ethereum"`) - gasless |
+| Withdraw to another chain | `POST /wallet/v1/intents/withdraw` with `chain` param (e.g. `"solana"`, `"ethereum"`) - gasless. **Pass `"async": true` and poll `GET /wallet/v1/requests/{request_id}` — the bridge rarely settles within the synchronous window (see "Async mode")** |
 | List cross-chain deposits | `GET /wallet/v1/intents/deposit/cross-chain/list` (alias `/deposits`) |
 | Move funds into the private (confidential) shard | `POST /wallet/v1/confidential/shield` with `{ token, amount }` — SHIELD from public intents balance; **publicly links your wallet on chain** (entry reveal). Canonical; legacy alias `/wallet/v1/confidential/deposit` still works |
 | Move funds back from private to public | `POST /wallet/v1/confidential/unshield` with `{ token, amount }` — reverse SHIELD (exit reveal) |
@@ -97,6 +97,27 @@ Same result, different execution:
   - **For `chain=near`, the `token` field picks what the recipient gets:** omitted / `near` / `native` (default) delivers **native NEAR** — intents.near unwraps your wNEAR (`native_withdraw` intent), and the receiver needs **no** storage. `nep141:wrap.near` (or any `nep141:<token>`) delivers that NEP-141 instead, and the receiver **must** have storage registered (use `/storage-deposit` first).
   - **Native-NEAR caveat:** the recipient account must already exist (or be a 64-char implicit account). Withdrawing native NEAR to a non-existent named account is rejected up front (the unwrapped wNEAR would otherwise be burned).
 - `/intents/ft-withdraw` - **on-chain**. Calls `ft_withdraw` on `intents.near`. Needs NEAR for gas. NEP-141 only (no native NEAR).
+
+### Async mode — strongly recommended for cross-chain withdrawals
+
+`/intents/withdraw` accepts `"async": true`. In async mode the call returns immediately with `status: "processing"` and a `poll_url`; the withdrawal settles in the background and you poll `GET /wallet/v1/requests/{request_id}` until the row reaches a terminal status (`success` / `failed`).
+
+- **Cross-chain withdrawals (`chain` ≠ `near`): always prefer `async: true`.** The 1Click bridge almost always takes longer than the synchronous response window — a sync call blocks up to ~90s and then returns `processing` anyway, and can hit the gateway request timeout first. Async is the reliable path; treat it as the default for any non-NEAR `chain`.
+- **Same-chain NEAR (`chain: "near"`)** settles in seconds — a synchronous call is fine and `async` is optional.
+- Auth, policy and validation errors are returned **synchronously** in both modes. In async mode only an *execution* failure surfaces as the request's `failed` status (read it from the poll, not the POST response).
+
+```bash
+# Cross-chain withdraw — async (recommended)
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"to":"0x742d35Cc6634C0532925a3b844Bc9e7595f8b4f5","amount":"100000000","token":"nep141:usdt.tether-token.near","chain":"ethereum","async":true}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
+# → { "request_id": "<id>", "status": "processing", "poll_url": "/wallet/v1/requests/<id>" }
+
+# Poll until terminal (processing → success | failed)
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.fastnear.com/wallet/v1/requests/<id>"
+```
 
 ### `/storage-deposit` - register token storage
 
@@ -775,6 +796,8 @@ curl -s -X POST -H "Content-Type: application/json" \
 ```
 
 The `/intents/withdraw` endpoint is **gasless** - it uses NEP-413 signed intents via the solver relay. No NEAR balance is required on the wallet's implicit account.
+
+> For a **non-NEAR** destination chain, add `"async": true` to the withdraw body and poll `GET /wallet/v1/requests/{request_id}` for the terminal status — the 1Click bridge usually outlasts the synchronous response window. See "Async mode — strongly recommended for cross-chain withdrawals" above.
 
 For the on-chain `ft_withdraw` method (requires NEAR for gas on the implicit account), use `/intents/ft-withdraw` instead.
 
