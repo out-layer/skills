@@ -140,6 +140,22 @@ Notes:
 - **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
 - **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap`.
 
+#### Idempotency-Key — one key per operation
+
+State-changing calls (`/intents/withdraw`, `/swap`, `/intents/transfer`, `/intents/deposit`, …) accept an optional `Idempotency-Key` HTTP header. Dedup is **by key only** — scoped to `(wallet, key)`; the request **body is never compared or hashed**. This has two consequences integrators get wrong:
+
+- **A reused key does NOT return the prior result and does NOT re-execute.** It returns **HTTP `200`** (not a 4xx) with an *error* body:
+  ```json
+  { "error": "duplicate_idempotency_key", "message": "Request already processed: <request_id of the FIRST call>" }
+  ```
+  There is no `status` / `request_id` / `poll_url` field here — the original id is only embedded in `message`. Because it's `200`, your HTTP-error handling won't catch it: **check `body.error === "duplicate_idempotency_key"` explicitly.**
+- **Use a distinct key per logical operation. Never share one key across two different operations.** Reusing one key across e.g. a `withdraw` and a later `deliver`/top-up call means the second call is rejected with the duplicate response above — your client sees no pollable `request_id` (the embedded id points at the *first*, different-amount operation) and silently stalls.
+
+Correct usage:
+- **Same key = a retry of the *same* operation** (network blip, re-send). Recover by detecting `body.error`, parsing the id from `message`, and `GET /wallet/v1/requests/{id}` to read the original result.
+- **Different operation = different key.** A fresh UUID per intended state change.
+- **No header at all** → the server generates a fresh UUID per call, so there is no dedup (each call executes).
+
 ### `/storage-deposit` - register token storage
 
 Before withdrawing tokens to an account, that account must have storage registered on the token contract. Use this endpoint to register storage.
