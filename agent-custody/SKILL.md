@@ -33,10 +33,12 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Call a NEAR smart contract | Use `POST /wallet/v1/call` - on-chain, needs gas |
 | Check your balance | Use `GET /wallet/v1/balance?chain=near` or `&token=usdt.tether-token.near` |
 | Check intents deposit balance | Use `GET /wallet/v1/balance?token=wrap.near&source=intents` |
-| Get your NEAR or EVM address | Use `GET /wallet/v1/address?chain=near` (or `?chain=polygon`/`ethereum`/`base`/… — all EVM chains return ONE shared `0x` address); the account is in the `address` field |
+| Get your NEAR, EVM, or Solana address | Use `GET /wallet/v1/address?chain=near` (or `?chain=polygon`/`ethereum`/`base`/… — all EVM chains return ONE shared `0x` address; `?chain=solana` returns the base58 ed25519 address); the account is in the `address` field |
 | Sign an EIP-712 order / typed data (EVM) | `POST /wallet/v1/evm/sign-typed-data` with `{chain, typed_data}` — off-chain; signs Polymarket-style CLOB orders. Gated by `evm_sign` |
 | Sign an EIP-191 message (EVM) | `POST /wallet/v1/evm/sign-message` with `{chain, message}` — e.g. venue L1 auth / CLOB API-key derivation |
 | Sign a raw EVM transaction | `POST /wallet/v1/evm/sign-transaction` with `{chain, unsigned_tx}` — you serialize + broadcast; gated by `evm_sign.raw_tx` (default-OFF) |
+| Sign a Solana off-chain message | `POST /wallet/v1/solana/sign-message` with `{chain:"solana", message}` — Sign-in-with-Solana / venue auth; raw-bytes ed25519, base58 signature. Gated by `solana_sign` |
+| Sign a Solana transaction | `POST /wallet/v1/solana/sign-transaction` with `{chain:"solana", unsigned_tx}` (base64 serialized tx **message**) — you assemble + broadcast; gated by `solana_sign.raw_tx` (default-OFF) |
 | Delete the wallet | Use `POST /wallet/v1/delete` - deletes on-chain account, sends NEAR to beneficiary. Wallet must have NEAR balance |
 | Ask user to fund your wallet | Generate a fund link (see below) or share your NEAR address |
 | Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` - get `check_key` to send |
@@ -84,7 +86,7 @@ Every wallet operation falls into one of three categories:
 | **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/transfer`, `/intents/swap`, `/payment-check/*` |
 | **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
 | **Confidential** | 1Click solver (settles on private shard `intents.far`) | No | `/confidential/shield`, `/confidential/unshield`, `/confidential/withdraw`, `/confidential/transfer`, `/confidential/swap`, `/confidential/deposit/cross-chain` — see "Confidential Intents" section |
-| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/evm/sign-typed-data`, `/evm/sign-message`, `/evm/sign-transaction`, `/deposit-status`, `/deposits`, `/confidential/balance` |
+| **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/evm/sign-typed-data`, `/evm/sign-message`, `/evm/sign-transaction`, `/solana/sign-message`, `/solana/sign-transaction`, `/deposit-status`, `/deposits`, `/confidential/balance` |
 
 **On-chain** - wallet signs a NEAR transaction and broadcasts it. The wallet's implicit account must hold NEAR for gas.
 
@@ -126,7 +128,7 @@ The `GET /wallet/v1/requests/{id}` row for a withdraw/swap holds **only** these 
 | `status` | Terminal? | Meaning / how to handle |
 |----------|-----------|--------------------------|
 | `processing` | no | Still settling. Keep polling. |
-| `success` | **yes** | Done. `result` carries `amount_out`, `transfer_intent_hash`, `deposit_address`. |
+| `success` | **yes** | Done. `result` carries `amount_out`, `transfer_intent_hash`, `deposit_address` — all identifiers, **not a destination-chain tx hash** (see "Result fields are identifiers, NOT tx hashes" below). |
 | `failed` | **yes** | Execution failed (a 1Click refund/expiry is also normalized to `failed`; the reason is in `result.reason`). Safe to surface as a failure. |
 | `needs_review` | **yes (stop)** | **Execution was interrupted or unresolved; fund state is UNKNOWN.** Surface as "needs manual review / contact support". **Do NOT auto-retry** — the original transfer may have fired, so a retry can double-spend. This is the status integrators most often forget — without it you poll forever. |
 | `pending_approval` / `approved` | no | **Multisig wallets only.** The withdrawal needs the approval flow to complete; it will not settle by polling alone. |
@@ -139,6 +141,18 @@ Notes:
 - **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow bridge can still return `"processing"`** — branch on the status (poll via the returned `request_id`), don't assume the sync body is always terminal.
 - **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
 - **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap`.
+
+#### Result fields are identifiers, NOT tx hashes
+
+**`/intents/withdraw` has NO `tx_hash` field, and its `result` never contains a destination-chain transaction hash.** Do not synthesize explorer links from any withdraw/swap field, and do not carry over the `tx_hash` field you saw on `/call`.
+
+- **Exact `result` shape (this is all there is):**
+  - Cross-chain (`chain` ≠ `near`): `{ "to", "amount_out", "transfer_intent_hash", "cross_chain": true, "chain", "deposit_address" }`
+  - Same-chain NEAR (`chain: "near"`): `{ "intent_hash", "delivered" }`
+- **`transfer_intent_hash` / `intent_hash` are NEAR-Intents identifiers** (solver-relay intent hashes), **not** transactions on Base/Arbitrum/Solana/Polygon/etc. The value is NOT an EVM/Solana txid even when it looks like `0x{64}`. Building `basescan.org/tx/…`, `arbiscan.io/tx/…`, `solscan.io/tx/…`, … from it produces dead 404 links. **Never regex a `0x{64}` out of these fields and never guess the destination network to build a link.**
+- **No per-leg destination txid is returned anywhere.** The coordinator does not surface the arrival tx on the destination chain. The settlement signal is `status == "success"` from `GET /wallet/v1/requests/{id}` — a status, not a hash.
+- **Real NEAR `tx_hash` exists only on the on-chain endpoints:** `/wallet/v1/call`, `/transfer`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit`, `/delete`. The gasless/intents endpoints (`/intents/withdraw`, `/intents/swap`, `/intents/transfer`) return intent hashes only — no `tx_hash`.
+- **Receipts:** show `deposit_address` and `request_id` as ids/text; render `transfer_intent_hash`/`intent_hash` as a NEAR-Intents identifier, never as an EVM/Solana explorer link.
 
 #### Idempotency-Key — one key per operation
 
@@ -486,7 +500,7 @@ https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount=10&token=1
 
 A policy defines spending limits, address whitelists, and multisig rules.
 
-**Available policy types:** spending limits, address whitelist/blacklist, allowed tokens, transaction types, time restrictions, rate limits, multisig approval, capability toggles (`raw_sign`, `swap`, `cross_chain_withdraw`, `payment_check`, and EVM signing `evm_sign` — default-DENY under a policy, set `allowed:true` to permit, with a `raw_tx` sub-flag default-OFF), authorized API keys, webhooks.
+**Available policy types:** spending limits, address whitelist/blacklist, allowed tokens, transaction types, time restrictions, rate limits, multisig approval, capability toggles (`raw_sign`, `swap`, `cross_chain_withdraw`, `payment_check`, EVM signing `evm_sign`, and Solana signing `solana_sign` — both default-DENY under a policy, set `allowed:true` to permit, each with a `raw_tx` sub-flag default-OFF), authorized API keys, webhooks.
 
 **Message to user:**
 > Please configure a security policy for your wallet:
@@ -572,7 +586,7 @@ Response:
 ```
 The NEAR account is the **`address`** field (there is no `account_id` field here — that name only appears on `/wallet/v1/balance`). This is the default setup — your wallet derives from OutLayer's shared vault, nothing to configure. (An optional `vault_id` field appears only for the rare keys bound to a dedicated customer vault.)
 
-Supported chains: `near` plus all EVM chains (`ethereum`, `polygon`, `base`, `arbitrum`, `optimism`, `bsc`, `avalanche`, and aliases `eth`/`pol`/`matic`/`arb`/`op`/`avax`). **All EVM chains return ONE shared secp256k1 `0x` address** (the same EOA on every EVM network). `solana`/`bitcoin` are still gated (`UnsupportedChain`). To sign for the EVM address, see "Sign EVM payloads" below; for cross-chain value movement use `/intents/deposit/cross-chain` and `/intents/withdraw` with the `chain` param.
+Supported chains: `near`, all EVM chains (`ethereum`, `polygon`, `base`, `arbitrum`, `optimism`, `bsc`, `avalanche`, and aliases `eth`/`pol`/`matic`/`arb`/`op`/`avax`), and `solana` (alias `sol`). **All EVM chains return ONE shared secp256k1 `0x` address** (the same EOA on every EVM network); `solana` returns the wallet's own base58 ed25519 address (the pubkey IS the address). `bitcoin` is still gated (`UnsupportedChain`). To sign for the EVM address see "Sign EVM payloads", for the Solana address see "Sign Solana payloads" below; for cross-chain value movement use `/intents/deposit/cross-chain` and `/intents/withdraw` with the `chain` param.
 
 ### Transfer NEAR
 **Before calling:** check NEAR balance covers transfer amount + gas (~0.001 NEAR).
@@ -703,6 +717,39 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 Send the **serialized unsigned transaction** (e.g. viem `serializeTransaction(tx)`); we keccak256-hash and sign it. For EIP-1559 (type-2) txs the `yParity` you need to assemble the final tx is `v - 27`. You build the signed tx and broadcast it via your own RPC.
 
 > **Security.** An EIP-712 signature is itself fund-moving (EIP-3009 ≈ transfer, EIP-2612 ≈ approve), so `evm_sign` grants full authority over whatever you bridge onto the EVM address — the risk is bounded to that float; your NEAR-intents balance is never reachable by an EVM signature. Keep the on-chain float small. `evm_sign.raw_tx` is a separate kill-switch for arbitrary raw transactions; it does NOT contain typed-data drains.
+
+---
+
+### Sign Solana payloads (messages / transactions)
+
+Sign for the wallet's Solana address (the base58 ed25519 pubkey from `GET /wallet/v1/address?chain=solana`). Same model as EVM — **off-chain only**: the response is a 64-byte ed25519 signature (**base58**, Solana convention); **you assemble and broadcast the transaction yourself** (the keystore never builds it, never picks a blockhash, never pays fees, never broadcasts). Gated by the `solana_sign` policy capability — **default-DENY under a policy** (set `solana_sign.allowed:true`; a wallet with no policy is unrestricted); transactions additionally require `solana_sign.raw_tx` (**default-OFF**). Signatures verify against the wallet's Solana address with standard tooling (`nacl.sign.detached.verify`, `PublicKey.verify`).
+
+**Off-chain message** — e.g. Sign-in-with-Solana or venue auth. The decoded bytes are signed AS-IS (raw-bytes ed25519 — standard SIWS verification works unchanged):
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"chain":"solana","message":"example.com wants you to sign in with your Solana account:\n..."}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/solana/sign-message"
+# → { "signature": "<base58, 64 bytes>", "chain": "solana", "wallet_id": "..." }
+```
+`message` is signed as a UTF-8 string by default; add `"encoding":"hex"` or `"encoding":"base64"` to sign decoded bytes instead (no auto-detection). **A "message" whose bytes are a valid Solana transaction message is rejected (HTTP 400)** — that's deliberate (the same guard Phantom applies): otherwise a message signature could be broadcast as a transaction, bypassing the `raw_tx` gate. If you hit this 400, you are actually signing a transaction — use `sign-transaction`.
+
+**Solana transaction** — gated by `solana_sign.raw_tx`:
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"chain":"solana","unsigned_tx":"<base64>"}' \
+  "https://api.outlayer.fastnear.com/wallet/v1/solana/sign-transaction"
+```
+Send the **serialized unsigned transaction MESSAGE** (what the signature covers), base64, max 1232 bytes — with `@solana/web3.js` that is `tx.serializeMessage()` (legacy) or `versionedTx.message.serialize()` (v0), NOT the whole transaction. Assemble the signed transaction yourself and broadcast via your own RPC:
+
+```javascript
+// legacy: build tx (feePayer = wallet's solana address, fresh blockhash), then:
+const msgBytes = tx.serializeMessage();
+const { signature } = await signTx({ chain: "solana", unsigned_tx: msgBytes.toString("base64") });
+tx.addSignature(walletPubkey, Buffer.from(bs58.decode(signature)));
+await connection.sendRawTransaction(tx.serialize());
+```
+
+> **Security.** A signed Solana transaction message is itself fund-moving, so `solana_sign` + `raw_tx` grants full authority over whatever you send to the Solana address — the risk is bounded to that float; your NEAR-intents balance is never reachable by a Solana signature. Keep the on-chain float small. The wallet must hold SOL for fees on the native path (no gas abstraction, unlike Intents).
 
 ---
 
@@ -1463,6 +1510,8 @@ Agent2 (buyer, custody)         API                    External Wallet
 | Request status | GET | `/wallet/v1/requests/{request_id}` | - |
 | List requests | GET | `/wallet/v1/requests` | - |
 | Sign message (NEP-413) | POST | `/wallet/v1/sign-message` | - |
+| Sign EVM typed data / message / raw tx | POST | `/wallet/v1/evm/sign-typed-data` · `/evm/sign-message` · `/evm/sign-transaction` | - (off-chain; you broadcast) |
+| Sign Solana message / transaction | POST | `/wallet/v1/solana/sign-message` · `/solana/sign-transaction` | - (off-chain; you broadcast) |
 | Audit log | GET | `/wallet/v1/audit?limit=50` | - |
 | Create payment check | POST | `/wallet/v1/payment-check/create` | gasless |
 | Batch create checks | POST | `/wallet/v1/payment-check/batch-create` | gasless |
