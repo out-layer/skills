@@ -151,7 +151,7 @@ Notes:
   - Same-chain NEAR (`chain: "near"`): `{ "intent_hash", "delivered" }`
 - **`destination_tx_hash` is the one real destination-chain txid** — the delivery transaction on the destination chain, safe to render as an explorer link *on the requested `chain`*. It is **nullable**: `null` while the bridge is still settling (a sync response that returned `"processing"`, or an async row before settlement); the lazy re-poll fills it in, so re-read `GET /wallet/v1/requests/{id}` at `success` (the `request_completed` webhook carries it too). Gasless `/intents/swap` rows gain the same nullable `result.destination_tx_hash` on settlement.
 - **`transfer_intent_hash` / `intent_hash` are NEAR-Intents identifiers** (solver-relay intent hashes), **not** transactions on Base/Arbitrum/Solana/Polygon/etc. The value is NOT an EVM/Solana txid even when it looks like `0x{64}`. Building `basescan.org/tx/…`, `arbiscan.io/tx/…`, `solscan.io/tx/…`, … from it produces dead 404 links. **Never regex a `0x{64}` out of these fields and never guess the destination network to build a link.**
-- **Confidential ops** expose the same information as an array: the request row's `result.swap_details.destination_chain_tx_hashes` (plain hash strings) carries the real destination-chain delivery tx once terminal (see the Confidential section).
+- **Confidential ops** expose the same information as an array: the request row's `result.swap_details.destinationChainTxHashes` (plain hash strings; note the **camelCase** inner keys — the `swap_details` container is snake_case, its contents are 1Click-style camelCase) carries the real destination-chain delivery tx once terminal (see the Confidential section).
 - **Real NEAR `tx_hash` exists only on the on-chain endpoints:** `/wallet/v1/call`, `/transfer`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit`, `/delete`. The gasless/intents endpoints (`/intents/withdraw`, `/intents/swap`, `/intents/transfer`) return intent hashes (plus `destination_tx_hash` where noted) — no `tx_hash` field.
 - **Receipts:** show `deposit_address` and `request_id` as ids/text; render `transfer_intent_hash`/`intent_hash` as a NEAR-Intents identifier, never as an EVM/Solana explorer link; link `destination_tx_hash` on the destination chain's explorer once non-null.
 
@@ -1085,14 +1085,15 @@ sends native). To return funds to your **own** public intents balance use
 - **No `tx_hash`**: confidential ops don't put your signed intent on the
   public chain (the private shard's settlement isn't a public tx). Track by
   `request_id` and `intent_hash`. **One real txid does exist**: once the op is
-  terminal, `result.swap_details.destination_chain_tx_hashes` (plain hash
-  strings) holds the delivery transaction on the destination chain — for a
-  `/confidential/withdraw` this is the tx that paid the recipient, and it IS
-  safe to show as an explorer link on that chain. (`origin_chain_tx_hashes`,
-  `intent_hashes`, `near_tx_hashes` are also arrays of plain strings; they stay
-  private-shard/NEAR identifiers — the explorer-link rule above still applies
-  to them.) Empty until settlement, and may stay empty for shard-internal ops
-  (shield / unshield / transfer / swap).
+  terminal, `result.swap_details.destinationChainTxHashes` (plain hash
+  strings; the `swap_details` container is snake_case but its inner keys are
+  1Click-style **camelCase**) holds the delivery transaction on the
+  destination chain — for a `/confidential/withdraw` this is the tx that paid
+  the recipient, and it IS safe to show as an explorer link on that chain.
+  (`originChainTxHashes`, `intentHashes`, `nearTxHashes` are also arrays of
+  plain strings; they stay private-shard/NEAR identifiers — the explorer-link
+  rule above still applies to them.) Empty until settlement, and may stay
+  empty for shard-internal ops (shield / unshield / transfer / swap).
 
 ### Method reference (body + response, per endpoint)
 
