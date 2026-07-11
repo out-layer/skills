@@ -128,7 +128,7 @@ The `GET /wallet/v1/requests/{id}` row for a withdraw/swap holds **only** these 
 | `status` | Terminal? | Meaning / how to handle |
 |----------|-----------|--------------------------|
 | `processing` | no | Still settling. Keep polling. |
-| `success` | **yes** | Done. `result` carries `amount_out`, `transfer_intent_hash`, `deposit_address` — all identifiers, **not a destination-chain tx hash** (see "Result fields are identifiers, NOT tx hashes" below). |
+| `success` | **yes** | Done. `result` carries `amount_out`, `transfer_intent_hash`, `deposit_address` (identifiers) plus — on cross-chain ops — nullable `destination_tx_hash`, the **one** real destination-chain tx (see "Result fields are identifiers, NOT tx hashes" below). |
 | `failed` | **yes** | Execution failed (a 1Click refund/expiry is also normalized to `failed`; the reason is in `result.reason`). Safe to surface as a failure. |
 | `needs_review` | **yes (stop)** | **Execution was interrupted or unresolved; fund state is UNKNOWN.** Surface as "needs manual review / contact support". **Do NOT auto-retry** — the original transfer may have fired, so a retry can double-spend. This is the status integrators most often forget — without it you poll forever. |
 | `pending_approval` / `approved` | no | **Multisig wallets only.** The withdrawal needs the approval flow to complete; it will not settle by polling alone. |
@@ -142,17 +142,18 @@ Notes:
 - **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
 - **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap`.
 
-#### Result fields are identifiers, NOT tx hashes
+#### Result fields are identifiers, NOT tx hashes — except `destination_tx_hash`
 
-**`/intents/withdraw` has NO `tx_hash` field, and its `result` never contains a destination-chain transaction hash.** Do not synthesize explorer links from any withdraw/swap field, and do not carry over the `tx_hash` field you saw on `/call`.
+**`/intents/withdraw` has NO `tx_hash` field.** The only destination-chain transaction in its `result` is the dedicated `destination_tx_hash` field — do not synthesize explorer links from any *other* withdraw/swap field, and do not carry over the `tx_hash` field you saw on `/call`.
 
 - **Exact `result` shape (this is all there is):**
-  - Cross-chain (`chain` ≠ `near`): `{ "to", "amount_out", "transfer_intent_hash", "cross_chain": true, "chain", "deposit_address" }`
+  - Cross-chain (`chain` ≠ `near`): `{ "to", "amount_out", "transfer_intent_hash", "cross_chain": true, "chain", "deposit_address", "destination_tx_hash" }`
   - Same-chain NEAR (`chain: "near"`): `{ "intent_hash", "delivered" }`
+- **`destination_tx_hash` is the one real destination-chain txid** — the delivery transaction on the destination chain, safe to render as an explorer link *on the requested `chain`*. It is **nullable**: `null` while the bridge is still settling (a sync response that returned `"processing"`, or an async row before settlement); the lazy re-poll fills it in, so re-read `GET /wallet/v1/requests/{id}` at `success` (the `request_completed` webhook carries it too). Gasless `/intents/swap` rows gain the same nullable `result.destination_tx_hash` on settlement.
 - **`transfer_intent_hash` / `intent_hash` are NEAR-Intents identifiers** (solver-relay intent hashes), **not** transactions on Base/Arbitrum/Solana/Polygon/etc. The value is NOT an EVM/Solana txid even when it looks like `0x{64}`. Building `basescan.org/tx/…`, `arbiscan.io/tx/…`, `solscan.io/tx/…`, … from it produces dead 404 links. **Never regex a `0x{64}` out of these fields and never guess the destination network to build a link.**
-- **No per-leg destination txid is returned anywhere.** The coordinator does not surface the arrival tx on the destination chain. The settlement signal is `status == "success"` from `GET /wallet/v1/requests/{id}` — a status, not a hash.
-- **Real NEAR `tx_hash` exists only on the on-chain endpoints:** `/wallet/v1/call`, `/transfer`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit`, `/delete`. The gasless/intents endpoints (`/intents/withdraw`, `/intents/swap`, `/intents/transfer`) return intent hashes only — no `tx_hash`.
-- **Receipts:** show `deposit_address` and `request_id` as ids/text; render `transfer_intent_hash`/`intent_hash` as a NEAR-Intents identifier, never as an EVM/Solana explorer link.
+- **Confidential ops** expose the same information as an array: the request row's `result.swap_details.destination_chain_tx_hashes` (plain hash strings) carries the real destination-chain delivery tx once terminal (see the Confidential section).
+- **Real NEAR `tx_hash` exists only on the on-chain endpoints:** `/wallet/v1/call`, `/transfer`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit`, `/delete`. The gasless/intents endpoints (`/intents/withdraw`, `/intents/swap`, `/intents/transfer`) return intent hashes (plus `destination_tx_hash` where noted) — no `tx_hash` field.
+- **Receipts:** show `deposit_address` and `request_id` as ids/text; render `transfer_intent_hash`/`intent_hash` as a NEAR-Intents identifier, never as an EVM/Solana explorer link; link `destination_tx_hash` on the destination chain's explorer once non-null.
 
 #### Idempotency-Key — one key per operation
 
@@ -1083,7 +1084,15 @@ sends native). To return funds to your **own** public intents balance use
   recording the quote.
 - **No `tx_hash`**: confidential ops don't put your signed intent on the
   public chain (the private shard's settlement isn't a public tx). Track by
-  `request_id` and `intent_hash`.
+  `request_id` and `intent_hash`. **One real txid does exist**: once the op is
+  terminal, `result.swap_details.destination_chain_tx_hashes` (plain hash
+  strings) holds the delivery transaction on the destination chain — for a
+  `/confidential/withdraw` this is the tx that paid the recipient, and it IS
+  safe to show as an explorer link on that chain. (`origin_chain_tx_hashes`,
+  `intent_hashes`, `near_tx_hashes` are also arrays of plain strings; they stay
+  private-shard/NEAR identifiers — the explorer-link rule above still applies
+  to them.) Empty until settlement, and may stay empty for shard-internal ops
+  (shield / unshield / transfer / swap).
 
 ### Method reference (body + response, per endpoint)
 
