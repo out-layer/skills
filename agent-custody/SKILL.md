@@ -3,7 +3,7 @@ name: agent-custody
 description: Multi-chain custody wallet for AI agents with cross-chain swaps and payment checks via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations - transfers, swaps, payment checks, contract calls, or cross-chain movements.
 metadata:
   api:
-    base_url: https://api.outlayer.fastnear.com
+    base_url: https://api.outlayer.ai
     version: v1
     auth: Bearer token
 ---
@@ -55,7 +55,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 | Move funds into the private (confidential) shard | `POST /wallet/v1/confidential/shield` with `{ token, amount }` — SHIELD from public intents balance; **publicly links your wallet on chain** (entry reveal). Canonical; legacy alias `/wallet/v1/confidential/deposit` still works |
 | Move funds back from private to public | `POST /wallet/v1/confidential/unshield` with `{ token, amount }` — reverse SHIELD (exit reveal) |
 | Fund private balance **without** linking your wallet | `POST /wallet/v1/confidential/deposit/cross-chain` with `{ source_asset, amount }` → returns a bridge address on the source chain; send funds there. Your NEAR wallet never touches the public chain. Canonical; legacy alias `/wallet/v1/confidential/deposit-intent` still works |
-| Withdraw private balance to an external chain (no link) | `POST /wallet/v1/confidential/withdraw` with `{ chain, to, amount, token }` — gasless; your wallet stays off the public chain. `chain="near"` delivers **native NEAR** (1Click runs `native_withdraw` on `intents.near`); for sending back to your **own** public balance use `unshield` instead |
+| Withdraw private balance to an external chain (no link) | `POST /wallet/v1/confidential/withdraw` with `{ chain, to, amount, token }` — gasless; your wallet stays off the public chain. `chain` must be the token's **home chain** or `"near"` (mismatch → 400). `chain="near"` delivers **native NEAR** for `wrap.near` (1Click runs `native_withdraw` on `intents.near`) and the **NEP-141 token on NEAR** for omft bridge assets (e.g. ZEC → `zec.omft.near` to a NEAR account); for sending back to your **own** public balance use `unshield` instead |
 | Preview a confidential withdraw | `POST /wallet/v1/confidential/withdraw/dry-run` — same body, no commit |
 | Private transfer to another wallet's private balance | `POST /wallet/v1/confidential/transfer` with `{ to, amount, token }` — no public-chain trace |
 | Swap tokens privately | `POST /wallet/v1/confidential/swap` with `{ token_in, token_out, amount_in, min_amount_out? }` — distinct assets, no public-chain trace |
@@ -72,7 +72,7 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 
 ## Configuration
 
-- **API Base URL**: `https://api.outlayer.fastnear.com`
+- **API Base URL**: `https://api.outlayer.ai`
 - **Dashboard**: `https://outlayer.fastnear.com`
 - **Network**: mainnet
 
@@ -113,12 +113,12 @@ Same result, different execution:
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"0x742d35Cc6634C0532925a3b844Bc9e7595f8b4f5","amount":"100000000","token":"nep141:usdt.tether-token.near","chain":"ethereum","async":true}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
+  "https://api.outlayer.ai/wallet/v1/intents/withdraw"
 # → { "request_id": "<id>", "status": "processing", "poll_url": "/wallet/v1/requests/<id>" }
 
 # Poll until terminal (processing → success | failed | needs_review)
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/requests/<id>"
+  "https://api.outlayer.ai/wallet/v1/requests/<id>"
 ```
 
 #### Status values (exact)
@@ -133,6 +133,13 @@ The `GET /wallet/v1/requests/{id}` row for a withdraw/swap holds **only** these 
 | `needs_review` | **yes (stop)** | **Execution was interrupted or unresolved; fund state is UNKNOWN.** Surface as "needs manual review / contact support". **Do NOT auto-retry** — the original transfer may have fired, so a retry can double-spend. This is the status integrators most often forget — without it you poll forever. |
 | `pending_approval` / `approved` | no | **Multisig wallets only.** The withdrawal needs the approval flow to complete; it will not settle by polling alone. |
 | `rejected` | **yes** | Multisig: approvers rejected. Treat as failure. |
+
+**Multisig limits.** One signing request may carry at most **16** approval votes and **16**
+rejections; more is rejected with HTTP 400 before anything in the ballot is checked. Verifying a
+vote costs a signature check, so the ballot is capped rather than left open-ended. Two consequences
+for an integrator: send only the votes that count toward the threshold rather than every signature
+you have collected, and do not configure a policy with more than 16 approvers — its threshold could
+never be met, because the votes would not fit in the request.
 
 Notes:
 - `success`/`failure` detection in your client should be: success = `{"success"}`, failure = `{"failed","rejected"}`, plus `needs_review` as a distinct non-retryable outcome.
@@ -178,7 +185,7 @@ Before withdrawing tokens to an account, that account must have storage register
 ```bash
 curl -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"token":"wrap.near"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/storage-deposit"
+  "https://api.outlayer.ai/wallet/v1/storage-deposit"
 ```
 
 Idempotent - returns `already_registered: true` if storage already exists. Optional `account_id` field to register storage for a different account (default = wallet's own address). Costs ~0.00125 NEAR.
@@ -190,7 +197,7 @@ Idempotent - returns `already_registered: true` if storage already exists. Optio
 Call the registration endpoint. No auth required.
 
 ```bash
-curl -s -X POST https://api.outlayer.fastnear.com/register
+curl -s -X POST https://api.outlayer.ai/register
 ```
 
 Response:
@@ -259,7 +266,7 @@ curl -s -X POST -H "Content-Type: application/json" \
     "message": "register:user-42:1712000000",
     "signature": "<base58_signature_no_prefix>"
   }' \
-  "https://api.outlayer.fastnear.com/register"
+  "https://api.outlayer.ai/register"
 ```
 
 Signed message format: `"register:<seed>:<unix_timestamp>"`. Timestamp window: **±5 minutes**.
@@ -284,7 +291,7 @@ All wallet endpoints accept `Bearer near:<base64url>` instead of `Bearer wk_...`
 TOKEN=$(echo -n '{"account_id":"my-bot.near","seed":"user-42","pubkey":"ed25519:...","timestamp":1712000000,"signature":"<base58_no_prefix>"}' | base64url)
 
 curl -s -H "Authorization: Bearer near:${TOKEN}" \
-  "https://api.outlayer.fastnear.com/wallet/v1/balance?chain=near"
+  "https://api.outlayer.ai/wallet/v1/balance?chain=near"
 ```
 
 The signed message for Bearer auth is `"auth:<seed>:<timestamp>"` (±30 second window).
@@ -306,7 +313,7 @@ curl -s -X PUT -H "Content-Type: application/json" \
     "message": "api-key:sub-task:1712000000",
     "signature": "<base58_no_prefix>"
   }' \
-  "https://api.outlayer.fastnear.com/wallet/v1/api-key"
+  "https://api.outlayer.ai/wallet/v1/api-key"
 ```
 
 Signed message format: `"api-key:<seed>:<unix_timestamp>"`. Timestamp window: **±5 minutes**.
@@ -319,7 +326,7 @@ Creates wallet if it doesn't exist. Idempotent.
 
 ```bash
 curl -s -X DELETE -H "Authorization: Bearer near:${TOKEN}" \
-  "https://api.outlayer.fastnear.com/wallet/v1/api-key/${KEY_HASH}"
+  "https://api.outlayer.ai/wallet/v1/api-key/${KEY_HASH}"
 ```
 
 Returns 409 Conflict if it's the last active key for the wallet.
@@ -343,6 +350,20 @@ By default every custody wallet's keys derive from OutLayer's shared TEE master.
 | Each wallet | own `wk_`, own `wallet_id`, own derived address | same, plus `vault_id` in DB |
 | Recovery if OutLayer stops | none | 7-day DAO cessation OR 24h-30d unilateral exit |
 
+**The FIRST call against a vault is slow — allow for it.** A per-vault master lives only in the
+keystore's memory, so the first request that touches a vault after a keystore restart or upgrade
+waits on an on-chain MPC derivation. Expect seconds, not milliseconds; a client with a 30-second
+HTTP timeout can give up while the derivation is still in flight. Every later call for that vault
+is served from memory and is as fast as the default master.
+
+Two practical consequences:
+
+- Give vault-bound calls a generous client timeout (a minute or more), or make the first one a
+  cheap warm-up — deriving an address, say — rather than a withdrawal you care about.
+- Abandoning a slow first call does not save anything: the derivation is already on chain and the
+  vault has paid its gas, but a cancelled request never caches the result, so the next attempt
+  derives again. Wait it out rather than retrying tightly.
+
 ### Step 1 — User deploys the vault (off your hands)
 
 The agent **cannot** deploy a vault — it requires an on-chain transaction signed by the user's NEAR account. When the user asks how, point them to either:
@@ -355,7 +376,7 @@ Either flow ends with the vault registered on chain (`is_vault_verified == true`
 ### Step 2 — Mint custody wallets under the vault
 
 ```bash
-curl -s -X POST "https://api.outlayer.fastnear.com/register" \
+curl -s -X POST "https://api.outlayer.ai/register" \
   -H "Content-Type: application/json" \
   -d '{"vault_id": "vault.alice.near"}'
 ```
@@ -397,7 +418,7 @@ Pass your `Bearer wk_...` header to `PUT /wallet/v1/api-key` — no NEAR signatu
 ```python
 import hashlib, requests
 
-API = "https://api.outlayer.fastnear.com"
+API = "https://api.outlayer.ai"
 PARENT_KEY = "wk_..."  # parent's custody wallet key
 HEADERS = {"Authorization": f"Bearer {PARENT_KEY}", "Content-Type": "application/json"}
 
@@ -442,7 +463,7 @@ If you have your own NEAR private key (bot, server), sign directly without `sign
 If you don't need deterministic wallet IDs, just register independent wallets:
 
 ```bash
-curl -s -X POST https://api.outlayer.fastnear.com/register
+curl -s -X POST https://api.outlayer.ai/register
 # Give the new api_key to the sub-agent — independent wallet, no link to parent
 ```
 
@@ -458,7 +479,7 @@ A primary wallet gets **100 free WASI execution calls** (30-day expiry).
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"input": "hello"}' \
-  "https://api.outlayer.fastnear.com/call/{owner}/{project}"
+  "https://api.outlayer.ai/call/{owner}/{project}"
 ```
 
 **Trial limits:** 100 calls, 30-day expiry, 10 req/min, 3s cooldown, 30s execution, 100M instructions, 64MB RAM.
@@ -466,7 +487,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 **Check remaining quota:**
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/trial/status"
+  "https://api.outlayer.ai/trial/status"
 ```
 
 When quota is exhausted (HTTP 402), upgrade to a payment key (see below).
@@ -529,7 +550,7 @@ When trial quota runs out, create a payment key. Wallet must have USDC or NEAR b
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"initial_deposit_usdc": "2.00"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/create-payment-key"
+  "https://api.outlayer.ai/wallet/v1/create-payment-key"
 ```
 
 ### Option B: Pay with NEAR
@@ -537,7 +558,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"initial_deposit_near": "1.0"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/create-payment-key"
+  "https://api.outlayer.ai/wallet/v1/create-payment-key"
 ```
 
 Response includes `payment_key` - save securely. Use via `X-Payment-Key` header for paid WASI calls.
@@ -550,19 +571,19 @@ Response includes `payment_key` - save securely. Use via `X-Payment-Key` header 
 ```bash
 # Native NEAR (for gas: /call, /transfer)
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/balance?chain=near"
+  "https://api.outlayer.ai/wallet/v1/balance?chain=near"
 
 # FT token balance on wallet (e.g. USDT)
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/balance?chain=near&token=usdt.tether-token.near"
+  "https://api.outlayer.ai/wallet/v1/balance?chain=near&token=usdt.tether-token.near"
 
 # Intents balance (for swaps, payment checks, cross-chain withdrawals)
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/balance?token=wrap.near&source=intents"
+  "https://api.outlayer.ai/wallet/v1/balance?token=wrap.near&source=intents"
 
 # Intents balance for USDC
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/balance?token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&source=intents"
+  "https://api.outlayer.ai/wallet/v1/balance?token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&source=intents"
 ```
 
 Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id": "36842e..."}`
@@ -574,7 +595,7 @@ Response: `{"balance": "1000000000000000000000000", "token": "near", "account_id
 ### Get address
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/address?chain=near"
+  "https://api.outlayer.ai/wallet/v1/address?chain=near"
 ```
 Response:
 ```json
@@ -596,7 +617,7 @@ Supported chains: `near`, all EVM chains (`ethereum`, `polygon`, `base`, `arbitr
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"chain":"near","to":"bob.near","amount":"1000000000000000000000000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/transfer"
+  "https://api.outlayer.ai/wallet/v1/transfer"
 ```
 
 The recipient field is `to`. (An older `receiver_id` alias is accepted by the
@@ -611,7 +632,7 @@ Use the generic contract call endpoint with `ft_transfer`. Requires 1 yoctoNEAR 
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"receiver_id":"usdt.tether-token.near","method_name":"ft_transfer","args":{"receiver_id":"bob.near","amount":"1000000"},"gas":"30000000000000","deposit":"1"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/call"
+  "https://api.outlayer.ai/wallet/v1/call"
 ```
 
 ### Call a contract
@@ -619,7 +640,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"receiver_id":"wrap.near","method_name":"near_deposit","args":{},"deposit":"10000000000000000000000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/call"
+  "https://api.outlayer.ai/wallet/v1/call"
 ```
 
 Response: `{"request_id": "uuid", "status": "success", "tx_hash": "...", "result": ...}`
@@ -631,7 +652,7 @@ Response: `{"request_id": "uuid", "status": "success", "tx_hash": "...", "result
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"beneficiary":"receiver.near","chain":"near"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/delete"
+  "https://api.outlayer.ai/wallet/v1/delete"
 ```
 
 ### Sign a message (NEP-413 - for external auth)
@@ -642,7 +663,7 @@ Sign an arbitrary message using the wallet's NEAR private key (NEP-413 standard)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"message":"Login to example.com at 2026-03-14T12:00:00Z","recipient":"example.com"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/sign-message"
+  "https://api.outlayer.ai/wallet/v1/sign-message"
 ```
 
 Response:
@@ -672,7 +693,7 @@ Response:
 ```bash
 curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"purpose":"bearer","seed":"user-42"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/auth-sign"
+  "https://api.outlayer.ai/wallet/v1/auth-sign"
 # Response: {"auth_message":"auth:user-42:1712000000","auth_timestamp":1712000000,"signature":"<base58_no_prefix>","public_key":"ed25519:..."}
 ```
 
@@ -696,7 +717,7 @@ Sign for the wallet's EVM address (the `0x` address from `GET /wallet/v1/address
 ```bash
 curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"chain":"polygon","typed_data":{"domain":{...},"types":{...},"primaryType":"Order","message":{...}}}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/evm/sign-typed-data"
+  "https://api.outlayer.ai/wallet/v1/evm/sign-typed-data"
 # → { "signature": "0x..(65 bytes)", "chain": "polygon", "wallet_id": "..." }
 ```
 Send the full `eth_signTypedData_v4` object; the digest is computed server-side (no client-supplied hash is trusted). Arbitrary EIP-712 structs work (including EIP-3009 `TransferWithAuthorization` and EIP-2612 `Permit`).
@@ -705,7 +726,7 @@ Send the full `eth_signTypedData_v4` object; the digest is computed server-side 
 ```bash
 curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"chain":"polygon","message":"Sign in to Polymarket"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/evm/sign-message"
+  "https://api.outlayer.ai/wallet/v1/evm/sign-message"
 ```
 `message` is signed as a UTF-8 string by default; add `"encoding":"hex"` to sign the decoded bytes of a hex `message` instead (no auto-detection). (Distinct from the NEP-413 `/wallet/v1/sign-message` above — that one is NEAR auth.)
 
@@ -713,7 +734,7 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 ```bash
 curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"chain":"polygon","unsigned_tx":"0x02..."}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/evm/sign-transaction"
+  "https://api.outlayer.ai/wallet/v1/evm/sign-transaction"
 ```
 Send the **serialized unsigned transaction** (e.g. viem `serializeTransaction(tx)`); we keccak256-hash and sign it. For EIP-1559 (type-2) txs the `yParity` you need to assemble the final tx is `v - 27`. You build the signed tx and broadcast it via your own RPC.
 
@@ -729,7 +750,7 @@ Sign for the wallet's Solana address (the base58 ed25519 pubkey from `GET /walle
 ```bash
 curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"chain":"solana","message":"example.com wants you to sign in with your Solana account:\n..."}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/solana/sign-message"
+  "https://api.outlayer.ai/wallet/v1/solana/sign-message"
 # → { "signature": "<base58, 64 bytes>", "chain": "solana", "wallet_id": "..." }
 ```
 `message` is signed as a UTF-8 string by default; add `"encoding":"hex"` or `"encoding":"base64"` to sign decoded bytes instead (no auto-detection). **A "message" whose bytes are a valid Solana transaction message is rejected (HTTP 400)** — that's deliberate (the same guard Phantom applies): otherwise a message signature could be broadcast as a transaction, bypassing the `raw_tx` gate. If you hit this 400, you are actually signing a transaction — use `sign-transaction`.
@@ -738,7 +759,7 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 ```bash
 curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"chain":"solana","unsigned_tx":"<base64>"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/solana/sign-transaction"
+  "https://api.outlayer.ai/wallet/v1/solana/sign-transaction"
 ```
 Send the **serialized unsigned transaction MESSAGE** (what the signature covers), base64, max 1232 bytes — with `@solana/web3.js` that is `tx.serializeMessage()` (legacy) or `versionedTx.message.serialize()` (v0), NOT the whole transaction. Assemble the signed transaction yourself and broadcast via your own RPC:
 
@@ -781,7 +802,7 @@ accepts either format. Everything else uses plain contract ID.
 **1. Find token IDs:**
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/tokens"
+  "https://api.outlayer.ai/wallet/v1/tokens"
 ```
 Response includes `defuse_asset_id` for each token - use this in swap calls.
 
@@ -799,7 +820,7 @@ Response includes `defuse_asset_id` for each token - use this in swap calls.
 **2. Check intents balance (tokens must be in intents):**
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/balance?token=wrap.near&source=intents"
+  "https://api.outlayer.ai/wallet/v1/balance?token=wrap.near&source=intents"
 ```
 
 If tokens are on the NEAR account (not in intents), deposit them first:
@@ -807,7 +828,7 @@ If tokens are on the NEAR account (not in intents), deposit them first:
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"token":"wrap.near","amount":"1000000000000000000000000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/deposit"
+  "https://api.outlayer.ai/wallet/v1/intents/deposit"
 ```
 
 **3. Preview swap rate (optional, no gas):**
@@ -815,7 +836,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"token_in":"nep141:wrap.near","token_out":"nep141:usdt.tether-token.near","amount_in":"1000000000000000000000000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/swap/quote"
+  "https://api.outlayer.ai/wallet/v1/intents/swap/quote"
 ```
 Response: `{"amount_out": "3150000", "min_amount_out": "3118500", "deadline": "...", "time_estimate_seconds": 30}`
 
@@ -824,7 +845,7 @@ Response: `{"amount_out": "3150000", "min_amount_out": "3118500", "deadline": ".
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"token_in":"nep141:wrap.near","token_out":"nep141:usdt.tether-token.near","amount_in":"1000000000000000000000000","min_amount_out":"3000000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/swap"
+  "https://api.outlayer.ai/wallet/v1/intents/swap"
 ```
 Response: `{"request_id": "uuid", "status": "success", "amount_out": "3150000", "intent_hash": "..."}`
 
@@ -862,13 +883,13 @@ For moving tokens to another chain without swapping:
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"token":"wrap.near","amount":"1000000000000000000000000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/deposit"
+  "https://api.outlayer.ai/wallet/v1/intents/deposit"
 
 # 2. Withdraw to destination (gasless - no NEAR needed for gas)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"receiver.near","amount":"1000000000000000000000000","token":"wrap.near","chain":"near"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
+  "https://api.outlayer.ai/wallet/v1/intents/withdraw"
 ```
 
 **Withdraw NATIVE NEAR** (default for `chain=near`) - unwraps your wNEAR and delivers native NEAR; receiver needs no `wrap.near` storage. `amount` is yoctoNEAR (24 decimals; 1 NEAR = `1000000000000000000000000`):
@@ -877,7 +898,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"receiver.near","amount":"1000000000000000000000000","token":"near","chain":"near"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
+  "https://api.outlayer.ai/wallet/v1/intents/withdraw"
 ```
 
 The `/intents/withdraw` endpoint is **gasless** - it uses NEP-413 signed intents via the solver relay. No NEAR balance is required on the wallet's implicit account.
@@ -891,7 +912,7 @@ For the on-chain `ft_withdraw` method (requires NEAR for gas on the implicit acc
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"receiver.near","amount":"1000000000000000000000000","token":"wrap.near","chain":"near"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw/dry-run"
+  "https://api.outlayer.ai/wallet/v1/intents/withdraw/dry-run"
 ```
 
 ### Transfer inside Intents (`/intents/transfer`) vs Withdraw
@@ -907,7 +928,7 @@ NEAR-only: no `chain` field, and `token` is **required** (to send NEAR, transfer
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to":"partner.near","amount":"1000000","token":"nep141:usdt.tether-token.near"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/transfer"
+  "https://api.outlayer.ai/wallet/v1/intents/transfer"
 ```
 
 ### Supported chains
@@ -943,12 +964,12 @@ curl -s -X POST -H "Content-Type: application/json" \
     "source_asset": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
     "amount": "1000000"
   }' \
-  "https://api.outlayer.fastnear.com/wallet/v1/deposit-intent"
+  "https://api.outlayer.ai/wallet/v1/deposit-intent"
 ```
 
 | Param | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `source_asset` | yes | - | Defuse asset id (e.g. `nep141:eth-…omft.near`) from `GET /wallet/v1/tokens`. The source chain is derived from the prefix; supported prefixes cover `near`, `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`. |
+| `source_asset` | yes | - | Defuse asset id (e.g. `nep141:eth-…omft.near`) from `GET /wallet/v1/tokens`. The source chain is derived from the prefix; supported prefixes cover `near`, `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`, plus the omft natives (`zcash`, `dogecoin`, `litecoin`, `bitcoincash`, `xrp`, `dash`, `cardano`, `tron`, `sui`, `aptos`, `aleo`, `gnosis`, `berachain`, `movement`, `plasma`, `starknet`). |
 | `amount` | yes | - | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC). |
 | `refund_address` | no | - | Address on the source chain to refund to if the bridge fails. Required for source chains where the keystore cannot derive a wallet-owned address (e.g. Bitcoin) — without it the request fails with HTTP 400. |
 | `destination_asset` | no | NEAR USDC | Defuse asset id for destination token. Override to receive wNEAR etc. |
@@ -971,7 +992,7 @@ Response:
 **3. Poll status:**
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/deposit/cross-chain/status?id={intent_id}"
+  "https://api.outlayer.ai/wallet/v1/intents/deposit/cross-chain/status?id={intent_id}"
 ```
 
 Status transitions: `pending` → `bridging` → `success`. On `success`, tokens are in intents balance - create payment checks, swap, or withdraw as usual.
@@ -987,7 +1008,7 @@ Status transitions: `pending` → `bridging` → `success`. On `success`, tokens
 **4. List all deposits:**
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/deposits?limit=20"
+  "https://api.outlayer.ai/wallet/v1/deposits?limit=20"
 ```
 
 ### Withdraw from intents → another chain
@@ -998,7 +1019,7 @@ Send tokens from intents balance to any supported chain. Uses `/intents/withdraw
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"to": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", "token": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1", "amount": "1000000", "chain": "solana"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/intents/withdraw"
+  "https://api.outlayer.ai/wallet/v1/intents/withdraw"
 ```
 
 | Param | Required | Description |
@@ -1053,10 +1074,19 @@ offered here", not an error to retry.
 The action endpoints are **asynchronous**: they return
 `{ request_id, status: "pending_deposit", intent_hash, deposit_address }`. Poll
 `GET /wallet/v1/requests/{request_id}` until `status` is `success`, `failed`, or
-`refunded`. `chain="near"` on `/confidential/withdraw` **delivers native NEAR**
-to the named NEAR account (`intents.near native_withdraw` unwraps wNEAR and
-sends native). To return funds to your **own** public intents balance use
-`/confidential/unshield` instead.
+`refunded`. On `/confidential/withdraw`, `chain` must be either the token's
+**home chain** (e.g. `chain="zcash"` for `nep141:zec.omft.near` + a Zcash
+t-address) or `"near"` — any other combination is rejected with 400.
+`chain="near"` delivers to the named NEAR account: **native NEAR** for
+`nep141:wrap.near` (`intents.near native_withdraw` unwraps wNEAR and sends
+native), or the **NEP-141 representation on NEAR** for omft bridge assets
+(e.g. `nep141:zec.omft.near` stays as the bridged ZEC token on NEAR instead
+of being withdrawn to Zcash). NEP-141 delivery is a direct `ft_transfer` to
+the recipient's account (a regular token balance, visible in any NEAR
+wallet) — **no prior storage registration needed**: 1Click auto-registers an
+unregistered recipient and nets the storage cost out of `amount_out` (the
+dry-run quote already reflects it). To return funds to your **own** public
+intents balance use `/confidential/unshield` instead.
 
 ### Conventions (apply to every endpoint below)
 
@@ -1116,7 +1146,7 @@ sends native). To return funds to your **own** public intents balance use
 |---|---|---|---|
 | `POST /wallet/v1/confidential/shield` | `{ token, amount }` | `ConfidentialOpResponse` | SHIELD — wallet must already hold `token` in its **public** intents balance. Canonical; legacy alias `POST /wallet/v1/confidential/deposit` still works |
 | `POST /wallet/v1/confidential/unshield` | `{ token, amount }` | `ConfidentialOpResponse` | Reverse of SHIELD; returns funds to **your own** public intents balance |
-| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain="near"` **is supported** — delivers **native NEAR** to the named `to` account (1Click `native_withdraw` unwraps wNEAR). To return funds to your **own** public intents balance use `/confidential/unshield` instead. Supported chains same as public intents. The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
+| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain` must be the token's **home chain** or `"near"` — a mismatch (e.g. `chain="near"` + a Zcash t-address, or `chain="bitcoin"` + a ZEC token) is rejected with 400. `chain="near"` delivers to the named `to` account: **native NEAR** for `nep141:wrap.near` (1Click `native_withdraw` unwraps wNEAR), or the **NEP-141 token on NEAR** for omft bridge assets (ZEC arrives as `zec.omft.near`, not on Zcash). To return funds to your **own** public intents balance use `/confidential/unshield` instead. Home-chain set covers all omft natives (zcash, dogecoin, litecoin, bitcoincash, xrp, dash, cardano, tron, sui, aptos, aleo, gnosis, berachain, movement, plasma, starknet + the EVM/sol/btc set). The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
 | `POST /wallet/v1/confidential/withdraw/dry-run` | same as `withdraw` | `QuotePreview` | No DB write, no sign/submit. Use to preview spread/eta before the real call |
 | `POST /wallet/v1/confidential/transfer` | `{ to, amount, token }` (no `chain`) | `ConfidentialOpResponse` | `to` = recipient's `intentsUserId` (their 64-hex NEAR implicit address). NEAR-only context. Recipient must also have confidential intents enabled on their deployment |
 | `POST /wallet/v1/confidential/swap` | `{ token_in, token_out, amount_in, min_amount_out? }` | `ConfidentialOpResponse` | `token_in != token_out`; `min_amount_out` enforced before signing (rejects 400 if quote below floor) |
@@ -1245,7 +1275,7 @@ If Agent1 never claims, Agent2 can reclaim the check at any time.
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"1000000","memo":"Payment for song generation","expires_in":86400}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/create"
+  "https://api.outlayer.ai/wallet/v1/payment-check/create"
 ```
 
 | Param | Required | Description |
@@ -1282,7 +1312,7 @@ Create up to 10 checks in a single request.
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"checks":[{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"500000","memo":"Task 1"},{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount":"500000","memo":"Task 2"}]}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/batch-create"
+  "https://api.outlayer.ai/wallet/v1/payment-check/batch-create"
 ```
 
 Response: `{"checks": [<same as single create>, ...]}` - one entry per check, same fields.
@@ -1296,13 +1326,13 @@ Supports **partial claims** - pass `amount` to claim less than the full check. O
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RECIPIENT_API_KEY" \
   -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
+  "https://api.outlayer.ai/wallet/v1/payment-check/claim"
 
 # Partial claim (500000 out of 1000000)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RECIPIENT_API_KEY" \
   -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key","amount":"500000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/claim"
+  "https://api.outlayer.ai/wallet/v1/payment-check/claim"
 ```
 
 | Param | Required | Description |
@@ -1330,7 +1360,7 @@ Claimed funds land in the recipient's **intents balance**. Use `/intents/withdra
 
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/status?check_id=pc_a1b2c3d4e5f6"
+  "https://api.outlayer.ai/wallet/v1/payment-check/status?check_id=pc_a1b2c3d4e5f6"
 ```
 
 Response:
@@ -1363,7 +1393,7 @@ Response:
 
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/list?status=unclaimed&limit=50"
+  "https://api.outlayer.ai/wallet/v1/payment-check/list?status=unclaimed&limit=50"
 ```
 
 Returns `{"checks": [...]}` - all checks created by the authenticated wallet.
@@ -1377,13 +1407,13 @@ Supports **partial reclaims** - pass `amount` to reclaim less than the remaining
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"check_id":"pc_a1b2c3d4e5f6"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/reclaim"
+  "https://api.outlayer.ai/wallet/v1/payment-check/reclaim"
 
 # Partial reclaim (300000 out of remaining 500000)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"check_id":"pc_a1b2c3d4e5f6","amount":"300000"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/reclaim"
+  "https://api.outlayer.ai/wallet/v1/payment-check/reclaim"
 ```
 
 | Param | Required | Description |
@@ -1414,7 +1444,7 @@ Check the on-chain balance and status of a check using its key. Requires wallet 
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key"}' \
-  "https://api.outlayer.fastnear.com/wallet/v1/payment-check/peek"
+  "https://api.outlayer.ai/wallet/v1/payment-check/peek"
 ```
 
 Response:
@@ -1534,7 +1564,7 @@ Agent2 (buyer, custody)         API                    External Wallet
 **Gas column:** `on-chain` = wallet pays gas (needs NEAR), `gasless` = solver relay pays, `cross-chain` = 1Click bridge (fee ~0.2%), `confidential` = 1Click solver settles on the private shard (no wallet gas, no wallet on the public chain except for SHIELD/UNSHIELD edges), `-` = no transaction.
 
 All endpoints except `/register` and `PUT /wallet/v1/api-key` require `Authorization: Bearer <api_key>` or `Bearer near:<base64url>` header.
-Base URL: `https://api.outlayer.fastnear.com`
+Base URL: `https://api.outlayer.ai`
 
 ---
 
@@ -1581,6 +1611,8 @@ Base URL: `https://api.outlayer.fastnear.com`
 | `insufficient_balance` | Not enough funds |
 | `unsupported_token` | Token not supported - check `/tokens` |
 | `pending_approval` | Needs multisig approval (not an error) |
+| `"too many approval votes"` | More than **16** approvals or rejections in one signing request (HTTP 400). Send only the votes that count toward the threshold — see "Multisig limits" below |
+| HTTP **402** on a vault-bound wallet | The **vault** cannot pay for its on-chain key derivation (this is the vault's gas, not the wallet's balance). The body carries the amount to top up. Distinct from `insufficient_balance`, which is the wallet's own funds |
 | `"token_in must use defuse asset format"` | Missing `nep141:` prefix in swap |
 | `"1Click swap was refunded"` | Solver couldn't fill - tokens returned to wallet |
 | `check_already_claimed` | Payment check was already claimed by recipient |
@@ -1653,7 +1685,7 @@ After wallet-key login, these commands work transparently:
 
 ```bash
 # 1. Agent registers a custody wallet via API
-# POST https://api.outlayer.fastnear.com/register → gets wk_...
+# POST https://api.outlayer.ai/register → gets wk_...
 
 # 2. Login to CLI with wallet key
 outlayer login --wallet-key wk_15807dbda...

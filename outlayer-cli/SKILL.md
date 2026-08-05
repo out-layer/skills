@@ -106,6 +106,16 @@ outlayer deploy my-agent --no-activate          # deploy without activating
 
 GitHub deploy reads `origin` remote URL and current HEAD commit from the local git repo. The WASM is compiled on OutLayer workers from source.
 
+**Deploying a commit that is NOT the head of a branch, from a repo with more than 5 branches, is
+refused** (HTTP 422, "Repository has N branches (limit 5)"). To find which branch contains an
+arbitrary commit, OutLayer would have to compare it against every branch, one GitHub API call
+each — enough to exhaust the shared unauthenticated quota for everyone.
+
+The normal `outlayer deploy` is unaffected: your checked-out HEAD *is* a branch head, and that
+resolves in a single call. You only meet this when deploying an older or detached commit. Then
+either push that commit as the head of a branch, or build the WASM yourself and deploy it as a
+URL — `outlayer deploy my-agent <wasm-url>` skips repository resolution entirely.
+
 ## Run (Execute Agent)
 
 Two modes: **HTTPS** (if payment key available) or **on-chain** (fallback via NEAR transaction).
@@ -138,7 +148,7 @@ outlayer run --wasm https://example.com/file.wasm --hash abc123... '{}'
 When a payment key is configured, `outlayer run` sends:
 
 ```
-POST https://api.outlayer.fastnear.com/call/{owner}/{project}
+POST https://api.outlayer.ai/call/{owner}/{project}
 X-Payment-Key: owner:nonce:secret
 Content-Type: application/json
 
@@ -357,7 +367,7 @@ outlayer secrets update '{"NEW_SECRET":"value"}' --project alice.near/my-agent
 
 ```bash
 # Agent registers a custody wallet via API
-# POST https://api.outlayer.fastnear.com/register → gets wk_...
+# POST https://api.outlayer.ai/register → gets wk_...
 
 # Login with the wallet key
 outlayer login --wallet-key wk_15807dbda...

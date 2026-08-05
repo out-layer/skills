@@ -12,7 +12,7 @@ Read these rules before starting any OutLayer project. They prevent the most com
 # Network configuration
 NEXT_PUBLIC_NETWORK_ID=mainnet
 NEXT_PUBLIC_OUTLAYER_CONTRACT=outlayer.near
-NEXT_PUBLIC_OUTLAYER_API_URL=https://api.outlayer.fastnear.com
+NEXT_PUBLIC_OUTLAYER_API_URL=https://api.outlayer.ai
 
 # Project identification
 NEXT_PUBLIC_PROJECT_OWNER=your-account.near
@@ -35,7 +35,7 @@ NEXT_PUBLIC_FASTNEAR_API_URL=https://api.fastnear.com
 // CORRECT: Use environment variables
 const NETWORK_ID = process.env.NEXT_PUBLIC_NETWORK_ID || 'mainnet';
 const OUTLAYER_CONTRACT = process.env.NEXT_PUBLIC_OUTLAYER_CONTRACT || 'outlayer.near';
-const API_URL = process.env.NEXT_PUBLIC_OUTLAYER_API_URL || 'https://api.outlayer.fastnear.com';
+const API_URL = process.env.NEXT_PUBLIC_OUTLAYER_API_URL || 'https://api.outlayer.ai';
 
 // WRONG: Hardcoded values
 const OUTLAYER_CONTRACT = 'outlayer.near';  // Don't do this!

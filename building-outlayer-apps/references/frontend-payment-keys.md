@@ -18,7 +18,7 @@ Users create Payment Keys at the OutLayer Dashboard.
 
 ```bash
 # .env.local
-NEXT_PUBLIC_OUTLAYER_API_URL=https://api.outlayer.fastnear.com
+NEXT_PUBLIC_OUTLAYER_API_URL=https://api.outlayer.ai
 NEXT_PUBLIC_PROJECT_OWNER=your-account.near
 NEXT_PUBLIC_PROJECT_NAME=your-project
 ```
@@ -82,7 +82,7 @@ export function isPaymentKeyEnabled(): boolean {
 ### HTTPS API Call
 
 ```typescript
-const API_URL = process.env.NEXT_PUBLIC_OUTLAYER_API_URL || 'https://api.outlayer.fastnear.com';
+const API_URL = process.env.NEXT_PUBLIC_OUTLAYER_API_URL || 'https://api.outlayer.ai';
 const PROJECT_OWNER = process.env.NEXT_PUBLIC_PROJECT_OWNER;
 const PROJECT_NAME = process.env.NEXT_PUBLIC_PROJECT_NAME;
 
