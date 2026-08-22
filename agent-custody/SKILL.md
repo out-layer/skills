@@ -124,7 +124,7 @@ refused a user's request.
 **Testnet caveat:** NEAR Intents do not exist there — no solvers. Swaps,
 cross-chain withdrawals and intents balances are mainnet-only, and the
 coordinator answers `503` for them on testnet. Everything else — wallets,
-policies, payment keys, connectors, Agent Connect — works on both.
+policies, payment keys, connectors, account binding — works on both.
 
 The USDT you see in the wallet examples further down is just an example of a
 token a wallet can hold and move; it is not what OutLayer charges in.
