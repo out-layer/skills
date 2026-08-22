@@ -100,14 +100,34 @@ Two rules for all four:
 
 ## Configuration
 
-- **API Base URL**: `https://api.outlayer.ai`
-- **Dashboard**: `https://app.outlayer.ai`
-- **Network**: mainnet
-- **Stablecoin** (payment keys, top-ups, subscriptions): **USDC**,
-  `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`, 6 decimals.
-  Everything you pay US is in this token — `10000000` is $10.00. The USDT you
-  see in the wallet examples further down is just an example of a token a wallet
-  can hold and move; it is not what OutLayer charges in.
+**Both networks work.** Every example below uses the mainnet host; on testnet
+substitute the base URL and nothing else — the paths, headers and bodies are
+identical.
+
+| | mainnet | testnet |
+|---|---|---|
+| API base | `https://api.outlayer.ai` | `https://testnet-api.outlayer.ai` |
+| Dashboard | `https://app.outlayer.ai` | same, switch the network in the UI |
+| Contract | `outlayer.near` | `outlayer.testnet` |
+| Curated connectors | `connectors.outlayer.near` | `connectors.outlayer.testnet` |
+| Stablecoin (what you pay US in) | USDC `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1` | `usdc.fakes.testnet` |
+| Decimals | 6 — `10000000` is $10.00 | 6 |
+
+There is no network PARAMETER anywhere. The host is the choice: a `wk_` minted
+on one network means nothing on the other, and so does a wallet address.
+
+**Do not guess the testnet host.** It is `testnet-api.outlayer.ai` — not
+`api-testnet.` and not `testnet.api.`. Those do not resolve, and an agent that
+tried them once concluded from the failure that testnet was unsupported and
+refused a user's request.
+
+**Testnet caveat:** NEAR Intents do not exist there — no solvers. Swaps,
+cross-chain withdrawals and intents balances are mainnet-only, and the
+coordinator answers `503` for them on testnet. Everything else — wallets,
+policies, payment keys, connectors, Agent Connect — works on both.
+
+The USDT you see in the wallet examples further down is just an example of a
+token a wallet can hold and move; it is not what OutLayer charges in.
 
 ## Gas Model
 
@@ -227,11 +247,21 @@ Idempotent - returns `already_registered: true` if storage already exists. Optio
 
 ## 1. Register Wallet
 
-Call the registration endpoint. No auth required.
+Call the registration endpoint. **No auth, no signature, no CLI, no wallet of
+your own** — an empty POST is the whole thing, and the network is decided by
+which host you send it to.
 
 ```bash
+# mainnet
 curl -s -X POST https://api.outlayer.ai/register
+
+# testnet — the same call, and the ONLY thing that differs
+curl -s -X POST https://testnet-api.outlayer.ai/register
 ```
+
+The `wk_` that comes back belongs to that network and means nothing on the
+other one. Registering on testnet first is the cheap way to rehearse a flow —
+binding, policies, connectors and payment keys all work there.
 
 Response:
 ```json
@@ -2152,6 +2182,13 @@ Agents with custody wallets can use the OutLayer CLI directly - no NEAR private 
 outlayer login --wallet-key wk_15807dbda492636df5280629d7617c3ea80f915ba960389b621e420ca275e545
 outlayer login testnet --wallet-key wk_...
 ```
+
+The CLI is a CONVENIENCE, never a prerequisite: everything it does is an HTTP
+call you can make yourself, and nothing in this skill needs it. The network
+argument here is the same axis as the API host — credentials are kept per
+network in `~/.outlayer/{network}/credentials.json`, and a testnet `wk_` is a
+testnet wallet. It is not a separate "platform" setting layered over a mainnet
+wallet.
 
 This calls `/wallet/v1/sign-message` to derive the account ID and public key, then stores the wallet key in `~/.outlayer/{network}/credentials.json` with `auth_type: "wallet_key"`.
 
