@@ -14,12 +14,40 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 
 ## When to Use This Skill
 
+## Things only the user can do — hand them a link
+
+Four steps need a human: they need a NEAR key you do not have, or money you
+cannot spend. For each there is a page. **Send the link with a sentence saying
+what it is for** — a bare URL from an agent asking for account access is what a
+phishing attempt looks like.
+
+| You want | Say this, with this link |
+|---|---|
+| **Act under their account** | "Open this and sign once — it lets me act as `alice.near` instead of a hex address: `https://app.outlayer.ai/wallet/connect?key={api_key}`" |
+| **A credential for a connector** | "The <service> connector needs its API token. Store it here — it is encrypted in your browser and I never see it: `https://app.outlayer.ai/secrets?project={connector_project_id}&name={VAR_NAME}`" |
+| **A limit on what you may spend** | "I can spend from your account now. Set a cap, an address list, or an approval threshold here: `https://app.outlayer.ai/wallet?key={api_key}`" |
+| **Money to work with** | "Fund me here: `https://app.outlayer.ai/wallet/fund?to={near_account_id}&amount={amount}&token={token}&msg={message}&dest=intents`" |
+
+Two rules for all four:
+
+* **Never ask for the secret itself in chat.** Not the token, not the seed
+  phrase, not the private key. The pages encrypt in the browser precisely so
+  that nobody — you, us, the page — holds the value.
+* **Raise the policy one yourself, before you are asked.** After a binding goes
+  active you can move everything in that account until a policy says otherwise.
+  You are the party that benefits from the limit being absent, so you are the
+  party who has to mention it.
+
 | You need... | Action |
 |-------------|--------|
-| A crypto wallet for your agent | Register via `POST /register` - includes 100 free WASI calls |
-| Run a WASI module for free | Use `POST /call/{owner}/{project}` with `Authorization: Bearer wk_...` (trial quota — primary `/register` wallets only) |
-| Check remaining free calls | Use `GET /trial/status` |
+| A crypto wallet for your agent | Register via `POST /register` |
+| Try the connectors for free | Claim a trial key with `POST /trial-key`, then send it as `X-Payment-Key` |
+| Check what is left on any key | `GET /payment-keys/balance` with `X-Payment-Key` |
+| Run your own WASI module | No free tier — create and fund a payment key |
 | Upgrade to paid execution | Use `POST /wallet/v1/create-payment-key` (USDC or NEAR) |
+| Give an agent a key to spend | Claim the trial (`POST /trial-key`) or create one (`POST /wallet/v1/create-payment-key`), then hand it the string |
+| Stop paying per call for connectors | Buy a subscription for the key the agent presents — see section 6 |
+| Check the agent's allowance and expiry | `GET /subscription/status` with `Authorization: Bearer wk_` |
 | Send NEAR to someone | Use `POST /wallet/v1/transfer` with `chain: "near"` |
 | Send FT tokens (USDT, wNEAR) to someone | Use `POST /wallet/v1/call` with `ft_transfer` (see FT transfer section) |
 | Swap tokens (e.g. wNEAR to USDT) | Use `POST /wallet/v1/intents/swap` - gasless swap via 1Click. Tokens must be in intents balance first |
@@ -73,8 +101,13 @@ Multi-chain custody wallet for AI agents. Supports NEAR transfers, smart contrac
 ## Configuration
 
 - **API Base URL**: `https://api.outlayer.ai`
-- **Dashboard**: `https://outlayer.fastnear.com`
+- **Dashboard**: `https://app.outlayer.ai`
 - **Network**: mainnet
+- **Stablecoin** (payment keys, top-ups, subscriptions): **USDC**,
+  `17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`, 6 decimals.
+  Everything you pay US is in this token — `10000000` is $10.00. The USDT you
+  see in the wallet examples further down is just an example of a token a wallet
+  can hold and move; it is not what OutLayer charges in.
 
 ## Gas Model
 
@@ -206,10 +239,14 @@ Response:
   "api_key": "wk_15807dbda492636df5280629d7617c3ea80f915ba960389b621e420ca275e545",
   "wallet_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "near_account_id": "36842e2f73d0b7b2f2af6e0d94a7a997398c2c09d9cf09ca3fa23b5426fccf88",
-  "handoff_url": "https://outlayer.fastnear.com/wallet?key=wk_...",
+  "handoff_url": "https://outlayer.fastnear.com/wallet?key=wk_...",  // as returned; both hosts serve the same dashboard
   "trial": {
-    "calls_remaining": 100,
-    "expires_at": "2026-04-10T00:00:00Z",
+    "available": true,
+    "allowance_usd": "1000000",
+    "days": 7,
+    "claim_within_days": 7,
+    "claim_url": "POST /trial-key",
+    "scope": "connectors.outlayer.near/*",
     "limits": { "max_instructions": 100000000, "max_execution_seconds": 30, "max_memory_mb": 64 }
   }
 }
@@ -276,7 +313,7 @@ Response:
 {
   "wallet_id": "uuid-string",
   "near_account_id": "hex64-implicit-account",
-  "trial": { "calls_remaining": 100, "expires_at": "...", "limits": {...} }
+  "trial": { "available": true, "allowance_usd": "1000000", "days": 7, "claim_within_days": 7, "claim_url": "POST /trial-key", "limits": {...} }
 }
 ```
 
@@ -368,7 +405,7 @@ Two practical consequences:
 
 The agent **cannot** deploy a vault — it requires an on-chain transaction signed by the user's NEAR account. When the user asks how, point them to either:
 
-- **Dashboard**: <https://outlayer.fastnear.com/vault>
+- **Dashboard**: <https://app.outlayer.ai/vault>
 - **CLI**: `outlayer vault init` (after `outlayer login`)
 
 Either flow ends with the vault registered on chain (`is_vault_verified == true` on keystore-DAO). The vault account id (e.g. `vault.alice.near`, name is user-chosen) is what you'll pass to `/register`.
@@ -381,7 +418,7 @@ curl -s -X POST "https://api.outlayer.ai/register" \
   -d '{"vault_id": "vault.alice.near"}'
 ```
 
-Response is the standard `/register` shape — `api_key`, `wallet_id`, `near_account_id`, trial quota. The `near_account_id` derives from the per-vault master (not OutLayer's shared master), and `GET /wallet/v1/address` responses for this key include `"vault_id"`. Call this endpoint multiple times to get **independent wallets under the same vault** — each has its own `wallet_id`, `wk_`, and address (different `wallet_id` salt on the same per-vault master).
+Response is the standard `/register` shape — `api_key`, `wallet_id`, `near_account_id`, and the trial offer. The `near_account_id` derives from the per-vault master (not OutLayer's shared master), and `GET /wallet/v1/address` responses for this key include `"vault_id"`. Call this endpoint multiple times to get **independent wallets under the same vault** — each has its own `wallet_id`, `wk_`, and address (different `wallet_id` salt on the same per-vault master).
 
 ### Step 3 — Use the wk_ normally
 
@@ -397,7 +434,7 @@ A single user can mix vault-bound and default-master wallets:
 
 ### What this is NOT
 
-- **Not "Create Sub-Agents"** — that flow (further below) splits a single parent `wk_` into deterministic child keys using `PUT /wallet/v1/api-key`. Sub-agent wallets do inherit the parent's vault binding, but the use case is "delegate a slice of an existing wallet with reproducible IDs", not "get a fresh wallet under a vault". Sub-agents also don't get a trial quota (only primary `/register` wallets do).
+- **Not "Create Sub-Agents"** — that flow (further below) splits a single parent `wk_` into deterministic child keys using `PUT /wallet/v1/api-key`. Sub-agent wallets do inherit the parent's vault binding, but the use case is "delegate a slice of an existing wallet with reproducible IDs", not "get a fresh wallet under a vault". Sub-agents also cannot claim a trial key (only primary `/register` wallets can).
 - **Not deterministic registration** — the `POST /register` with NEAR-signature fields (`account_id`, `seed`, `pubkey`, `message`, `signature`) does **not** accept `vault_id`. Only the random-wallet path of `/register` supports the vault binding.
 
 ### Same parent, multiple vaults
@@ -445,7 +482,7 @@ balance = requests.get(f"{API}/wallet/v1/balance?chain=near",
 
 Same `(parent_wallet_id, seed, vault_scope)` always produces the same sub-wallet — call again to re-derive the key without storage. Different vault scopes under the same `(parent_wallet_id, seed)` mint **independent sub-wallets** with their own addresses (this is intentional — each scope is its own identity).
 
-**Sub-agents do not get trial quota.** Trial is reserved for primary `/register` wallets. A sub-agent calling `/call/{owner}/{project}` without `X-Payment-Key` will see `TrialQuotaExhausted`. To run WASI from a sub-agent, attach a payment key.
+**Sub-agents cannot claim a trial key.** The trial belongs to the primary `/register` wallet. A sub-agent has to be given a key to spend — the parent's trial key, or a funded payment key.
 
 No `sign-message`, no NEAR signatures, no crypto libraries. Just derive a key, register its hash, hand it to the sub-agent.
 
@@ -469,28 +506,108 @@ curl -s -X POST https://api.outlayer.ai/register
 
 ---
 
-## 2. Free Trial: Run WASI Without Payment
+## 2. Free Trial: Try the Connectors
 
-Trial is granted to **primary wallets only** — those minted via `POST /register` (random or deterministic). Sub-agents created via `PUT /wallet/v1/api-key` and stateless `Bearer near:` callers do **not** receive a trial quota; they must use `X-Payment-Key` (paid path) or be granted a primary wallet's `wk_` to access trial.
+The trial is a **payment key we give you**, holding a small allowance. You ask
+for it, you receive a real key, and you spend it exactly like a key you paid for
+— same header, same balance endpoint, same refusals. Nothing is billed to you
+implicitly and nothing happens without you asking.
 
-A primary wallet gets **100 free WASI execution calls** (30-day expiry).
+**It pays for connectors only.** Plain WASI modules have no free tier: to run
+your own code, create and fund a payment key (section 5). The trial exists so you
+can try the connectors before subscribing.
+
+### Claim it
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.ai/trial-key"
+```
+
+```json
+{
+  "payment_key": "a1b2…8f90:0:4c1d…9ab3",
+  "owner": "a1b2…8f90",
+  "nonce": 0,
+  "allowance_usd": "1000000",
+  "days": 7,
+  "project_ids": ["connectors.outlayer.near/*"],
+  "note": "Send this as the X-Payment-Key header. It is shown once…"
+}
+```
+
+**Store `payment_key` immediately.** It is shown once and cannot be recovered or
+re-issued. If you lose it, your only route forward is a funded payment key.
+
+Registration tells you in advance whether there is anything to claim — the
+`trial` object in the `/register` response carries `available`, `allowance_usd`,
+`days` and `claim_within_days`.
+
+### Spend it
+
+It is an ordinary payment key, so use it as one — and a connector is an ordinary
+project, called through the ordinary call route:
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $API_KEY" \
-  -d '{"input": "hello"}' \
-  "https://api.outlayer.ai/call/{owner}/{project}"
+  -H "X-Payment-Key: $TRIAL_KEY" \
+  -d '{"input": {"operation": "send", "to": "someone@example.com", "subject": "hi", "body": "…"}}' \
+  "https://api.outlayer.ai/call/connectors.outlayer.near/near-email"
 ```
 
-**Trial limits:** 100 calls, 30-day expiry, 10 req/min, 3s cooldown, 30s execution, 100M instructions, 64MB RAM.
+**Two things to get right, and they are the same two for every connector:**
 
-**Check remaining quota:**
+* the path is `/call/connectors.outlayer.near/{connector}`. Every connector we
+  curate lives under that one account, so its project id is just the namespace
+  and its name. There is no separate connector endpoint;
+* the body is the ordinary `{"input": {...}}` wrapper, and inside it the
+  operation is named by a top-level **`operation`** string. That one field is
+  what is priced, billed and dispatched on — a request without it is refused
+  before anything runs, and so is one that spells it `op`.
+
+Prices are per operation and public: `GET /subscription/status` lists every
+connector, its operations and what each costs. Free operations are priced at
+`0` and are genuinely free — they still need a key that could pay.
+
+And check what is left the same way any paying caller does:
+
 ```bash
-curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.ai/trial/status"
+curl -s -H "X-Payment-Key: $TRIAL_KEY" \
+  "https://api.outlayer.ai/payment-keys/balance"
 ```
 
-When quota is exhausted (HTTP 402), upgrade to a payment key (see below).
+### What it will and will not do
+
+| | |
+|---|---|
+| Pays for | connector calls — the operation's fee plus the compute it uses |
+| Cannot call | anything outside `connectors.outlayer.near/*` → `project_not_allowed` |
+| Cannot be withdrawn | it is an allowance, not money: it was never yours to take out |
+| Cannot pay a developer | `X-Attached-Deposit` on a trial call → `402 allowance_no_deposit` |
+| Cannot move your funds | a trial call gets no wallet host functions at all |
+| Ends | after `days`, whatever is left burns |
+
+### Claiming rules
+
+* **One per account.** A second `POST /trial-key` returns `409 trial_already_claimed`.
+* **Only while the wallet is new.** Past `claim_within_days` from registration:
+  `403 trial_window_closed`.
+* **A ceiling per network address**, so bulk claiming is tedious:
+  `429 trial_ip_limit`.
+* **Sub-agents and `Bearer near:` callers** claim nothing — the trial belongs to
+  the primary `/register` wallet.
+
+### When it runs out
+
+Two refusals mean the trial is over, and both say `terminal: true` — do not
+retry, and do not treat them as an outage:
+
+| Reason | What happened | What to do |
+|---|---|---|
+| `expires_too_soon` | the trial ends sooner than this call could finish | it is about to end; get a real key |
+| `out_of_funds` | the allowance is spent or has burned | fund a payment key (section 5), or buy a subscription |
+
+Both name the numbers, so you can tell the user how much was left and how long.
 
 ## 3. Request Funding from User
 
@@ -498,7 +615,7 @@ NEAR balance is needed for on-chain operations (`/call`, `/transfer`). Intents b
 
 **Fund link format:**
 ```
-https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount={amount}&token={token}&msg={message}&dest=intents
+https://app.outlayer.ai/wallet/fund?to={near_account_id}&amount={amount}&token={token}&msg={message}&dest=intents
 ```
 
 | Param | Required | Description |
@@ -515,7 +632,7 @@ The page includes a toggle so the user can switch between direct transfer and In
 
 **Example - request 10 USDC to Intents balance:**
 ```
-https://outlayer.fastnear.com/wallet/fund?to={near_account_id}&amount=10&token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&msg=Fund+my+trading+balance&dest=intents
+https://app.outlayer.ai/wallet/fund?to={near_account_id}&amount=10&token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&msg=Fund+my+trading+balance&dest=intents
 ```
 
 ## 4. Request Policy from User (Optional)
@@ -526,14 +643,14 @@ A policy defines spending limits, address whitelists, and multisig rules.
 
 **Message to user:**
 > Please configure a security policy for your wallet:
-> https://outlayer.fastnear.com/wallet?key={api_key}
+> https://app.outlayer.ai/wallet?key={api_key}
 
 ## Key Recovery
 
 If you lost your wallet API key and the user previously set a policy, the key is saved in their browser.
 
 **Message to user:**
-> I lost access to your wallet API key. Please go to: https://outlayer.fastnear.com/wallet/manage
+> I lost access to your wallet API key. Please go to: https://app.outlayer.ai/wallet/manage
 > Find your wallet, click **show** next to the API Key, then copy and paste it here.
 > The key looks like: `wk_15807d...e545`
 
@@ -543,7 +660,7 @@ If recovery is not possible (no policy set, browser data cleared), register a ne
 
 ## 5. Upgrade to Paid (Payment Key)
 
-When trial quota runs out, create a payment key. Wallet must have USDC or NEAR balance.
+When the trial is spent or expired — or to run your own WASI, which the trial does not cover — create a payment key. Wallet must have USDC or NEAR balance.
 
 ### Option A: Pay with USDC
 ```bash
@@ -562,6 +679,148 @@ curl -s -X POST -H "Content-Type: application/json" \
 ```
 
 Response includes `payment_key` - save securely. Use via `X-Payment-Key` header for paid WASI calls.
+
+### Every key is a key you hold
+
+There is no keyless variant. A payment key always comes back as a string, and a
+call always presents it as `X-Payment-Key`. `wk_` is how a wallet authenticates
+to `/wallet/v1/*` — it names the wallet, it does not pay.
+
+Old code that sends `{"agent": true}` to `/wallet/v1/create-payment-key` is
+**refused with 400**, before the balance is even read — the request cannot be
+satisfied at any funding level, so it is answered rather than quietly given an
+ordinary key it did not ask for.
+
+That means an agent needs a key of its own, and there are two ways to give it
+one:
+
+* **claim the trial** (section 2) — `POST /trial-key` with the wallet's `wk_`
+  returns a real key string, shown once;
+* **create and fund one** — Option A or B above, then hand the string to the
+  agent.
+
+Store the string. Losing it means creating another key, exactly as it would for
+a key you bought.
+
+### Reading a refusal from `/call`
+
+Every refusal carries a machine-readable `reason` next to the human sentence.
+**Branch on `reason`.** The sentence is written for a person and gets reworded;
+the reason is the contract.
+
+```json
+{ "error": "Project not allowed for this payment key", "reason": "project_not_allowed" }
+```
+
+Note the shape differs from `/wallet/v1/*`, which puts the code in `error` and
+the sentence in `message`:
+
+| door | machine-readable | human |
+|---|---|---|
+| `/call/{owner}/{project}` | `reason` | `error` |
+| `/wallet/v1/*` | `error` | `message` |
+
+Reasons worth handling by name:
+
+| `reason` | what to do |
+|---|---|
+| `missing_payment_key` | you sent no payment credential |
+| `wk_is_not_a_payer` | you sent your `wk_`. It names your wallet; it buys nothing. Send `X-Payment-Key` with a key that wallet owns |
+| `project_not_allowed` | the key's scope does not reach this project — a trial reaches connectors only. Funding it changes nothing |
+| `insufficient_balance`, `out_of_funds` | top the key up |
+| `connector_quota_exceeded` | wait; the daily allowance grows with wallet age |
+| `operation_limit_reached`, `rate_limit_exceeded` | back off and retry |
+| `unknown_operation` | the operation has no price, so it can never run — fix the name |
+| `wallet_not_yours` | `X-Wallet-Id` named a wallet your credential does not identify |
+
+---
+
+## 6. Subscription: A Flat Rate for Connector Calls
+
+Paying per call is the default: every call takes the compute it used, plus the
+connector's price for the operation, out of a key's balance. A **subscription**
+replaces that with an **allowance** — one price for the period the plan runs,
+spent by the same calls, with nothing to top up in between.
+
+### It belongs to a KEY, not to a wallet
+
+A subscription sits on whichever payment key you bought it for, addressed by
+`owner` and `nonce`. There is no special key to create first: the key an agent
+already presents is the key a subscription is bought for.
+
+That is also why the purchase is an on-chain payment rather than an API call —
+it names the key instead of presenting it:
+
+```bash
+# Read the agent's key first: `owner` and `nonce` are what the payment names.
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.ai/subscription/status"
+# → { "owner": "<agent account>", "nonce": 1, "wallet_account": "<agent account>",
+#     "has_subscription": false, "allowance_available_usd": "0", ... }
+
+# Then anyone — usually the human who owns the agent — pays for it.
+# The token is USDC (see Configuration); `amount` is in its minimal units.
+near call 17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 ft_transfer_call '{
+  "receiver_id": "outlayer.near",
+  "amount": "10000000",
+  "msg": "{\"action\":\"buy_subscription\",\"nonce\":1,\"owner\":\"<agent account>\",\"plan\":0}"
+}' --depositYocto 1 --gas 100000000000000 --accountId payer.near
+```
+
+`owner` defaults to the sender, so spell it out: the subscription belongs to the
+AGENT, and the sender is the person paying. The allowance is granted against the
+event the contract emits, so it appears a moment after the transaction — read
+`GET /subscription/status` again rather than assuming.
+
+### What the `wk_` can and cannot do
+
+| With `Authorization: Bearer wk_` | |
+|---|---|
+| Read the subscription — allowance, expiry, which connectors are in scope | Yes |
+| Spend the allowance by calling a connector | Yes |
+| **Buy or extend the subscription** | **No** |
+
+Buying is the owner's act, not the agent's: a compromised agent must not be able
+to spend money on your behalf. The same applies to choosing where expiry
+warnings are sent.
+
+### Rules worth knowing before you buy
+
+* the allowance is **spent before any balance** the key also holds, so a key with
+  both keeps working after the allowance runs out;
+* **buying again never shortens** what is already paid for — validity extends
+  from whichever is later, today or the current expiry, and the allowance adds;
+* paying **above** a plan's price leaves the difference as spendable balance
+  rather than absorbing it;
+* new calls stop being admitted slightly **before** the expiry, so a call already
+  running is never cut off mid-flight;
+* what is left when the period ends **does not carry over**;
+* **one call at a time** while the allowance is paying. A subscription is a flat
+  rate, so what bounds it is how much can be in flight. A second concurrent call
+  is answered out of the key's BALANCE if it has one, and refused with
+  `429 call_already_in_flight` (`"terminal": false`) if it does not — the move
+  there is to wait for the call in flight, or to fund the key.
+
+### One subscription per agent
+
+A subscription is not a separate class of key — an ordinary payment key can
+carry one too, and the same plans apply. But an account can hold many ordinary
+keys, and each could carry its own subscription: nothing merges them and nothing
+warns, so two subscribed keys is paying twice for one agent's worth of work.
+
+Several subscriptions across several agents are possible and sometimes wanted —
+one per agent, one budget each — but at today's prices that rarely pays for
+itself. If you are not sure, subscribe the agent that does the work and leave the
+others paying per call.
+
+### The connector quota is separate
+
+Connector calls are also rate-limited per wallet, on a ladder that widens with
+the wallet's age (10 a day in the first 24 hours, 50 after a day, 500 after a
+week, at the time of writing). **A subscription does not raise it and does not
+lower it.** The quota is about protecting the workers and the connectors'
+reputation; the subscription is about how a call is paid for. Two different
+questions.
 
 ---
 
@@ -1041,6 +1300,232 @@ Response: `{"request_id": "uuid", "status": "success"}`
 
 ---
 
+## Acting as a Named Account (Account Binding)
+
+By default the wallet acts as its own implicit account — a 64-character hex
+string. **Binding** lets it act as a named account instead: spending from it
+under the owner's policy, and sending email as `alice.near@near.email`.
+
+There are two modes and they are NOT interchangeable. Pick by who owns the
+account:
+
+| | `personal_account` | `hos_lease` |
+|---|---|---|
+| Whose account | The user's own `alice.near` | A leased, keyless agent account (`agent.tla`) |
+| Who installs the contract | The user, with one transaction you hand them | The provider, before you ever see it |
+| `impl_version` in `PUT` | **REJECTED** — versioned by the account's code hash | **REQUIRED** |
+| `owner_account_id` in `PUT` | Optional; if sent, must equal `asset_account_id` | Required |
+| Spending limits | The owner's policy only | The owner's policy **and** an on-chain spend grant |
+| Setup kit endpoint | Yes | No — answers 400 |
+
+### Binding a user's own account
+
+## Ask the user for a secret the connector needs
+
+A connector often needs a credential that is **yours to use but not yours to
+hold** — an API token for the service it talks to. It is stored under YOUR
+agent account, sealed to the keystore, and a connector reads it only when the
+call asks for it. You never see the value, and neither does the browser page
+that stores it: it is encrypted before it leaves.
+
+You cannot store it yourself. Your wallet has no NEAR to pay for the write, and
+the key that authorises it never leaves the TEE — so the coordinator prepares
+the transaction and a **human sends and pays for it**.
+
+Send them the link:
+
+> The <service> connector needs its API token. Store it here — it is encrypted
+> in your browser and I never see it:
+> https://app.outlayer.ai/secrets?project={connector_project_id}&name={VAR_NAME}
+
+The link may propose WHICH secret to create — `project`, `name`, `profile`,
+`generate` — and deliberately **cannot** carry its value or your key: those
+would end up in browser history, referrers and proxy logs. On the page they
+paste your `wk_` (or pick it, if that browser already saved it), choose the
+scope, and sign one call. Cost is ~0.1 NEAR, the excess refunded.
+
+Then ask for it per call with `x-use-owner-secret: true` — without that header
+nothing is fetched, because most calls need no secret and a lookup that always
+runs is a keystore round trip on every call:
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "X-Payment-Key: $PAYMENT_KEY" -H "x-use-owner-secret: true" \
+  -d '{"input":{"operation":"send", ...}}' \
+  "https://api.outlayer.ai/call/connectors.outlayer.near/<connector>"
+```
+
+**Say what you are asking for and why.** "I need your SendGrid key to send the
+mail you asked for" is a sentence a person can refuse. A bare link is not.
+
+**Step 1.** Record it. This returns the `executor_account_id` the user is about
+to authorize. It authorizes nothing by itself: `binding_status` stays `pending`
+until that executor is actually in the account's extension set.
+
+```bash
+curl -s -X PUT -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"asset_account_id":"alice.near","kind":"personal_account"}' \
+  "https://api.outlayer.ai/wallet/v1/binding"
+```
+
+**Step 2.** The user signs, from their own account. You cannot do this part —
+you have no key for their account and never will.
+
+**Send them a link, not a curl command.** The dashboard has a page for exactly
+this step:
+
+> Your account is ready to bind. Open this and sign once:
+> https://app.outlayer.ai/wallet/connect?key={api_key}
+
+That page reads the pending binding with the key, shows every action in the
+transaction before anything is signed, refuses to continue if the connected
+wallet is not the account being bound, and links to the policy editor once it
+goes active. Prefer it for anyone who is not going to run `near` themselves.
+
+If they would rather use the CLI, the same kit is behind:
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.ai/wallet/v1/binding/setup?kind=personal_account"
+```
+
+A `409` here means the account already runs a contract. **Do not try to work
+around it** — deploying over an existing contract does not clear its state, and
+the usual victim is the user's own 2FA/multisig wallet. Ask for a different
+account.
+
+Tell the user the cost honestly: installation references a network-wide global
+contract by hash, so they never pay to store the code. Their transaction costs
+a little state, two 1-yoctoNEAR markers and gas — well under 0.1 NEAR.
+
+**Step 3.** Poll `GET /wallet/v1/binding` until `binding_status` is `active`.
+
+### Two accounts, two sets of endpoints
+
+A bound wallet has **two** NEAR accounts, and they hold different money. Get
+this wrong and you will read one balance and try to spend the other.
+
+| | the wallet's own account | the bound account |
+|---|---|---|
+| what it holds | gas, and anything you sent it | the user's money — the point of binding |
+| read balance | `GET /wallet/v1/balance` | `GET /wallet/v1/binding/balance` |
+| spend | `POST /wallet/v1/transfer`, `/withdraw`, `/swap` | `POST /wallet/v1/binding/transfer` |
+| intents balances | here, always | never — deposits credit the signer |
+
+One rule covers all of it: **everything under `/wallet/v1/binding/` is the
+bound account; everything else is the wallet itself.** No flags, no defaults
+that change once a binding activates.
+
+```bash
+# What does the user's account hold?
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.ai/wallet/v1/binding/balance?token=usdc.near"
+
+# Send 5 USDC from it. `to` is the RECIPIENT, not the token contract.
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"to":"bob.near","amount":"5000000","token":"usdc.near"}' \
+  "https://api.outlayer.ai/wallet/v1/binding/transfer"
+```
+
+`/binding/transfer` is a shortcut, not a loophole: it builds exactly the
+`w_execute_extension` you could post yourself, and the same policy, pre-flight,
+spend-grant and approval rules apply. Use it unless you need something it does
+not express.
+
+### Running under the binding
+
+For anything `/binding/transfer` does not cover, call `w_execute_extension` on
+the account via `POST /wallet/v1/call`. Everything inside that call is decoded
+and checked against the owner's policy — every recipient, every amount, every
+refund destination — before anything is signed.
+
+Rules that will refuse you outright, whatever the policy says:
+
+- **Never** put `internal` operations in the request (`add_extension`,
+  `remove_extension`, `set_signature_mode`). That is rewiring the account, not
+  spending from it, and it is denied with no way to opt in.
+- Anything the decoder cannot state is denied: `ft_transfer_call`, unknown
+  methods, mangled arguments. Use plain `ft_transfer` / `nft_transfer`.
+- Under `hos_lease` the grant is stricter still: a call must stand alone in its
+  promise, carry exactly 1 yoctoNEAR, set no `refund_to`, and name no
+  `approval_id`.
+
+Read the outcome from `result.promises[]`, not from the status alone — see
+"Reading Transaction Statuses" for `partially_failed`.
+
+### Acting under the user's name
+
+By default your calls run under **your own** name: a WASI guest sees
+`NEAR_SENDER_ID` = your wallet account, exactly as before any binding existed.
+That is deliberate — a binding gives you a capability, it does not silently
+rename you, because connectors derive real things from that name (near-email
+turns it into the mailbox it sends from).
+
+When you want the user's name, ask for it per call:
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "X-Payment-Key: $PAYMENT_KEY" \
+  -d '{"input":{"operation":"send", ...}, "use_bound_identity": true}' \
+  "https://api.outlayer.ai/call/connectors.outlayer.near/near-email"
+```
+
+The binding must be `active`; the worker re-checks it against the chain inside
+the TEE and refuses the job if the chain disagrees. Billing never follows it —
+the call is still paid by your key.
+
+**The flag is enough on its own.** Do not add `X-Wallet-Id`: the wallet is taken
+from the credential you already sent. (A period in 2026-08 required that header
+by accident, so older integrations carry it; sending your own wallet's id is
+harmless, sending anyone else's is refused as `wallet_not_yours`.)
+
+**It works on the on-chain door too, and that is the point.** `request_execution`
+takes the same flag in `params`, so one module gives the same answer about who
+it is whether it was started by an HTTPS call or by a transaction:
+
+```jsonc
+// params of request_execution
+{ "attached_usd": "10000", "use_bound_identity": true }
+```
+
+On that door the binding is matched by the **caller of the transaction**, which
+is your wallet's own implicit account — so the transaction has to be sent by the
+wallet, through `POST /wallet/v1/call`, not from a personal keychain. A
+transaction signed by some other account of yours finds no binding.
+
+Asked for and unavailable is a **refusal**, never a quiet fallback: a request
+that named a bound identity is never run under your own name instead. You get a
+failed job with the reason rather than mail sent from the wrong address.
+
+### Tell the user what the policy is for
+
+On a **personal_account** binding, the owner's policy is the **only** limit on
+what you can spend. There is no on-chain grant behind it as there is for
+`hos_lease`. A binding with no policy means you can move everything in that
+account, which is almost never what the user pictured when they clicked sign.
+
+So when a user binds their own account, say so and offer the fix:
+
+> Your account is bound and I can now spend from it. Right now there is no
+> limit on that beyond the balance itself. If you want one — a daily cap, a
+> list of addresses I may send to, or approval required above some amount —
+> set a policy here: https://app.outlayer.ai/wallet?key={api_key}
+
+Do not wait to be asked. You are the party that benefits from the limit being
+absent, so you are the party that has to raise it.
+
+### Keeping it alive
+
+- The **executor** pays gas for every call. Watch `gas_balance_low` in
+  `GET /wallet/v1/binding` and top the executor up before it stops — that
+  read is the only notification, there is no low-gas webhook.
+- The user can end it at any time by removing the executor from their extension
+  set — one transaction, no permission from OutLayer. Your next call is refused.
+- `DELETE /wallet/v1/binding` ends OutLayer's side and cancels approvals still
+  waiting on that account.
+
 ## Confidential Intents
 
 Move balances between your **public** intents shard, the **confidential**
@@ -1518,14 +2003,20 @@ Agent2 (buyer, custody)         API                    External Wallet
 | Register (deterministic) | POST | `/register` (with NEAR sig body) | - |
 | Register delegate key | PUT | `/wallet/v1/api-key` (Bearer or NEAR sig) | - |
 | Revoke delegate key | DELETE | `/wallet/v1/api-key/{key_hash}` | - |
-| Execute WASI (trial) | POST | `/call/{owner}/{project}` | - |
-| Trial status | GET | `/trial/status` | - |
+| Claim the trial key | POST | `/trial-key` | - |
+| Payment key balance | GET | `/payment-keys/balance` | - |
 | Create payment key | POST | `/wallet/v1/create-payment-key` | on-chain |
 | Get address | GET | `/wallet/v1/address?chain={chain}` | - |
 | Get balance | GET | `/wallet/v1/balance?chain={chain}&token={token}` | - |
 | Get intents balance | GET | `/wallet/v1/balance?token={token}&source=intents` | - |
 | Transfer NEAR | POST | `/wallet/v1/transfer` | on-chain |
 | Call contract | POST | `/wallet/v1/call` | on-chain |
+| Record account binding | PUT | `/wallet/v1/binding` | - |
+| Read account binding | GET | `/wallet/v1/binding` | - |
+| End account binding | DELETE | `/wallet/v1/binding` | - |
+| Installation kit (personal_account) | GET | `/wallet/v1/binding/setup?kind=personal_account` | - |
+| Bound account balance | GET | `/wallet/v1/binding/balance` | - |
+| Spend from bound account | POST | `/wallet/v1/binding/transfer` | `to`, `amount`, `token?`, `memo?` |
 | Delete wallet | POST | `/wallet/v1/delete` | on-chain |
 | Register token storage | POST | `/wallet/v1/storage-deposit` | on-chain |
 | Move FT: wallet → intents.near | POST | `/wallet/v1/intents/deposit` | on-chain |
@@ -1599,6 +2090,7 @@ Base URL: `https://api.outlayer.ai`
 | `pending_approval` | Needs multisig | Inform user, provide dashboard link |
 | `pending_deposit` | Confidential op accepted by 1Click, waiting for solver settlement | Poll `GET /wallet/v1/requests/{id}` (typical 5–30s) |
 | `refunded` | Confidential op failed mid-flight; funds refunded inside the confidential balance | Inspect `result.swap_details.refundReason`; safe to retry |
+| `partially_failed` | Only for `w_execute_extension` on a bound account: some promises in the request succeeded and some did not. **Not an error** — the wallet runs its promises independently, so the ones that succeeded moved real money | Read `result.promises[]`: each has `index`, `receiver`, `status` (`success` / `failed` / `unknown`) and the chain's `failure`. Retry only the failed ones |
 
 ## Error Handling
 
@@ -1627,7 +2119,11 @@ Base URL: `https://api.outlayer.ai`
 | `"Ambiguous auth"` | PUT /api-key received both Bearer header and signature fields in body — use one or the other |
 | `"seed: 1-256 chars required"` | Empty or oversized seed in register or api-key |
 | `"seed: only [a-zA-Z0-9._-] allowed"` | Seed contains forbidden characters (NUL, colon, whitespace, Unicode, etc) — use SHA-256 hex or alphanumeric |
-| `TrialQuotaExhausted` | Sub-agent or stateless Bearer-near tried `/call` without `X-Payment-Key`; trial is only available on primary `/register` wk_ |
+| `trial_already_claimed` | This account has already had its trial key, and it is shown only once |
+| `trial_window_closed` | The wallet is older than `claim_within_days`; create and fund a payment key instead |
+| `trial_ip_limit` | Too many trial keys claimed from this network address |
+| `out_of_funds` | The allowance is spent or has burned. TERMINAL — fund a payment key or buy a subscription |
+| `agent_connect_denied` | The account-binding pre-flight refused the call BEFORE signing, so no gas was spent. The body carries `class`, `promise_index` and **`terminal`** — read `terminal` first: `true` means retrying is pointless and the owner must act (issue a new grant, re-provision the executor, fund the account, rewrite the request); `false` means the same request may work later unchanged (a freeze lifted, recognized code restored) |
 
 ## Guidelines
 
