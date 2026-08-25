@@ -1546,6 +1546,34 @@ So when a user binds their own account, say so and offer the fix:
 Do not wait to be asked. You are the party that benefits from the limit being
 absent, so you are the party that has to raise it.
 
+**Then tell them what a policy on a BOUND wallet has to contain, because the
+obvious one kills your access entirely.** Spending from a bound account goes
+through a single contract call (`w_execute_extension`) on the account itself,
+and after the contents of that call are checked against the rules, the call
+itself faces them too. So a policy governing a bound wallet must, on top of
+whatever limits the user wants:
+
+- list `call` in `transaction_types` — a policy of `["transfer"]` says exactly
+  what the user means and refuses the only route that does it;
+- list **the bound account itself** in the address rules (or use
+  `mode: "none"`) — the call goes *through* that account, so a whitelist of
+  payees alone refuses everything;
+- allow `native` in `allowed_tokens` (or `"*"`) — a call is denominated in NEAR
+  whatever token moves inside it, so a list of one stablecoin stops native sends.
+
+Whatever NEAR that outer call attaches is metered against the native limits like
+any other spend; only the 1-yoctoNEAR marker a payable method demands is left
+out, because it proves key ownership rather than paying anyone.
+
+A refusal tells you which of the three it was, and that the OUTER destination of
+the call is judged as well as its contents. So do not read
+`Address 'alice.near' is not in whitelist` as the user having mis-listed a payee:
+when you aimed the call at their bound account — which is what spending from a
+bound wallet is — the name in that refusal IS the bound account, and it belongs
+in the address rules alongside the payees. (If you aimed an extension call
+somewhere else, the name is that other contract, and adding it to a whitelist is
+a real decision about a third party, not a formality.)
+
 ### Keeping it alive
 
 - The **executor** pays gas for every call. Watch `gas_balance_low` in
