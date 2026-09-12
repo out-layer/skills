@@ -1348,6 +1348,13 @@ account:
 | Spending limits | The owner's policy only | The owner's policy **and** an on-chain spend grant |
 | Setup kit endpoint | Yes | No — answers 400 |
 
+**A binding moves the name, not the access.** Your wallet still pays, and
+everything decided about who you are for money and for secrets is decided about
+the wallet's own 64-character account: spending limits, quotas, and whether a
+secret's access condition admits you. A credential the owner wants you to read
+must therefore name that account. Naming the bound account instead
+(`alice.near`) looks right and admits nothing.
+
 ### Binding a user's own account
 
 ## Ask the user for a secret the connector needs
@@ -1384,6 +1391,29 @@ curl -s -X POST -H "Content-Type: application/json" \
   -d '{"input":{"operation":"send", ...}}' \
   "https://api.outlayer.ai/call/connectors.outlayer.near/<connector>"
 ```
+
+**The other route: a credential the owner keeps.** Instead of storing it under
+you, the owner may store it once under THEIR OWN account and name your wallet as
+a reader of that row. Nothing is then stored under you, and you name their row
+per call instead of sending the header:
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "X-Payment-Key: $PAYMENT_KEY" \
+  -d '{"input":{"operation":"send", ...},
+       "secrets_ref":{"account_id":"alice.near","profile":"gmail"}}' \
+  "https://api.outlayer.ai/call/connectors.outlayer.near/<connector>"
+```
+
+Which route you get is the owner's choice, not yours. For a leased account
+(`hos_lease`) it is the only one available: storing a secret under your wallet
+needs that wallet's `wk_`, and the human holding the lease does not have it.
+
+Two things follow from it. The grant names the account that PAYS for your calls,
+your wallet's own 64-character account, never the name you act as under a
+binding. And it may carry an expiry, so a call that worked yesterday can be
+refused today with the date it lapsed on; the fix is a new grant, not a repeat
+of the old one.
 
 **Say what you are asking for and why.** "I need your SendGrid key to send the
 mail you asked for" is a sentence a person can refuse. A bare link is not.
@@ -2181,6 +2211,9 @@ Base URL: `https://api.outlayer.ai`
 | `trial_window_closed` | The wallet is older than `claim_within_days`; create and fund a payment key instead |
 | `trial_ip_limit` | Too many trial keys claimed from this network address |
 | `out_of_funds` | The allowance is spent or has burned. TERMINAL — fund a payment key or buy a subscription |
+| `Access denied by access condition` | A secret exists, but its condition does not admit your wallet's own 64-character account. Ask the owner to name that account, or name a row that already admits you |
+| `… its time limit passed at <date>` | You WERE admitted and the grant has expired. Ask for a new grant with a later date; being named again without one changes nothing |
+| `invalid_secrets_ref` | The `secrets_ref` names a row that cannot exist: the account is not a NEAR account id, or the profile is empty or longer than 64 characters |
 | `agent_connect_denied` | The account-binding pre-flight refused the call BEFORE signing, so no gas was spent. The body carries `class`, `promise_index` and **`terminal`** — read `terminal` first: `true` means retrying is pointless and the owner must act (issue a new grant, re-provision the executor, fund the account, rewrite the request); `false` means the same request may work later unchanged (a freeze lifted, recognized code restored) |
 
 ## Guidelines
