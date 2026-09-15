@@ -66,11 +66,11 @@
 </head>
 <body>
   <h1>OutLayer Skills</h1>
-  <p class="subtitle">3 skills available &mdash; <code>skills.outlayer.ai</code></p>
+  <p class="subtitle">8 skills available &mdash; <code>skills.outlayer.ai</code></p>
   
     <div class="skill-card">
       <h2><a href="/agent-custody/">agent-custody</a></h2>
-      <p class="desc">Multi-chain custody wallet for AI agents with cross-chain swaps via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations — transfers, swaps, contract calls, or cross-chain movements.</p>
+      <p class="desc">Multi-chain custody wallet for AI agents with cross-chain swaps and payment checks via NEAR Intents. Register a gasless wallet, swap tokens across 20+ chains, send/receive on NEAR, Ethereum, Bitcoin, Solana, and more. Use when an agent needs crypto operations - transfers, swaps, payment checks, contract calls, or cross-chain movements.</p>
       <div class="files"><a href="/agent-custody/SKILL.md" class="file-link">SKILL.md</a> </div>
     </div>
     <div class="skill-card">
@@ -79,10 +79,35 @@
       <div class="files"><a href="/building-outlayer-apps/SKILL.md" class="file-link">SKILL.md</a> </div>
     </div>
     <div class="skill-card">
+      <h2><a href="/gmail-connector/">gmail-connector</a></h2>
+      <p class="desc">Send email from the owner's own Gmail address through the `gmail` connector — to the recipients the owner's policy allows, with attachments if it allows them. Use when an agent with an OutLayer wallet needs to write to someone by email as its owner. It cannot read the mailbox.</p>
+      <div class="files"><a href="/gmail-connector/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+    <div class="skill-card">
+      <h2><a href="/hyperliquid-connector/">hyperliquid-connector</a></h2>
+      <p class="desc">Trade Hyperliquid perpetuals from an OutLayer custody wallet through the `hyperliquid` connector — leverage, limit and market orders, cancels, positions — under the wallet owner's policy. Use when an agent with an OutLayer wallet needs to open, manage or close perp positions on Hyperliquid.</p>
+      <div class="files"><a href="/hyperliquid-connector/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+    <div class="skill-card">
+      <h2><a href="/mercury-connector/">mercury-connector</a></h2>
+      <p class="desc">Operate the wallet owner's Mercury business bank account through the `mercury` connector — pay a recipient, issue and cancel invoices, read accounts, recipients, transactions and payment status — under the owner's spending policy. Use when an agent with an OutLayer wallet must move USD out of, or invoice into, a Mercury account.</p>
+      <div class="files"><a href="/mercury-connector/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+    <div class="skill-card">
       <h2><a href="/outlayer-cli/">outlayer-cli</a></h2>
-      <p class="desc">Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents — project scaffolding, GitHub/WASM deploys, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.</p>
+      <p class="desc">Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents - project scaffolding, GitHub/WASM deploys, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.</p>
       <div class="files"><a href="/outlayer-cli/SKILL.md" class="file-link">SKILL.md</a> </div>
     </div>
-  <p class="meta">Built 2026-03-12 15:56 UTC</p>
+    <div class="skill-card">
+      <h2><a href="/outlayer-connectors/">outlayer-connectors</a></h2>
+      <p class="desc">The OutLayer connector library — how an agent calls any connector (auth, the `operation` field, secrets, fees, quotas, refusal codes) and what each connector does. Use when an agent with an OutLayer custody wallet needs to reach a bank, a trading venue or another outside service, or when a connector call is refused and the reason has to be read.</p>
+      <div class="files"><a href="/outlayer-connectors/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+    <div class="skill-card">
+      <h2><a href="/polymarket-connector/">polymarket-connector</a></h2>
+      <p class="desc">Trade Polymarket prediction markets from an OutLayer custody wallet through the `polymarket` connector — find markets, buy and sell outcome shares, manage positions, claim resolved markets, fund and withdraw — under the wallet owner's policy. Use when an agent with an OutLayer wallet needs to take or close a position on a real-world outcome.</p>
+      <div class="files"><a href="/polymarket-connector/SKILL.md" class="file-link">SKILL.md</a> </div>
+    </div>
+  <p class="meta">Built 2026-09-15 10:50 UTC</p>
 </body>
 </html>
