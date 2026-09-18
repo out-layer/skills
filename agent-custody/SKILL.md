@@ -1875,7 +1875,11 @@ Response:
 
 **`check_key` is shown only once** - this is the check itself. Send it to the recipient. The `check_id` is for your own status tracking and reclaims.
 
-If the wallet has insufficient intents balance but enough wallet balance, the API auto-deposits to intents before creating the check.
+The check is paid from the **intents** balance, and a short one is refused
+(`400 insufficient_balance`) rather than topped up: move funds in first with
+`POST /wallet/v1/intents/deposit`, or have the user fund you with `dest=intents`.
+The balance is checked BEFORE the policy, so a wallet with nothing in intents
+answers `insufficient_balance` whatever its policy says.
 
 ### Batch create payment checks
 

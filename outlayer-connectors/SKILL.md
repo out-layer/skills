@@ -14,20 +14,31 @@ its name and its prices.
 ## The call
 
 ```
-POST https://api.outlayer.ai/call/connectors.outlayer.near/<connector>
-X-Payment-Key: <a payment key the custody wallet owns>
-X-Wallet-Id: <the wallet id>
-X-Use-Owner-Secret: 1
+POST https://{api_host}/call/{connectors_account}/<connector>
+X-Payment-Key: <a payment key the calling wallet owns>
 Content-Type: application/json
 
 {"input": {"operation": "<name>", ...}}
 ```
+
+| | mainnet | testnet |
+|---|---|---|
+| `{api_host}` | `api.outlayer.ai` | `testnet-api.outlayer.ai` |
+| `{connectors_account}` | `connectors.outlayer.near` | `connectors.outlayer.testnet` |
+
+The two move together. A testnet key against `connectors.outlayer.near` is not a
+half-configured call — nothing about it works, and the refusal will talk about
+the project rather than the network.
 
 * **`operation` is mandatory and is the unit of price.** The contract, the
   coordinator and the worker all read that one field; a call without it is
   refused before anything runs and costs nothing.
 * **`X-Payment-Key` must be a key the wallet itself owns** (create it from the
   wallet's own `wk_`), or the connector cannot see the secrets stored for you.
+* **`X-Wallet-Id` is optional.** The wallet is taken from the credential; the
+  header, when sent, is only compared against it and a mismatch is refused with
+  `wallet_not_yours` (terminal). You do not need to look a wallet id up to make
+  a call.
 * **`X-Use-Owner-Secret: 1`** brings the secrets stored under your own wallet
   (policy, API tokens) into the run. To use a credential your owner stored under
   THEIR account and whitelisted you for, name it instead:
@@ -35,9 +46,56 @@ Content-Type: application/json
   Such a grant may carry an expiry, so a call that worked yesterday can be
   refused today with the date it lapsed on. With neither, the connector starts
   with no secrets and says so.
-* Testnet: `https://testnet-api.outlayer.ai/call/connectors.outlayer.testnet/<connector>`.
 
 The answer is always `{"success": bool, "output": {...}, "error": "...", "logs": []}`.
+
+## Which key pays
+
+Every connector call needs `X-Payment-Key`, free operations included: a free
+operation still reserves compute, and a key with nothing behind it is refused
+with `402`. There are two sources, and for a new agent it is almost always the
+first.
+
+| Your situation | Take |
+|---|---|
+| the wallet was registered recently (the window is in `/register`'s answer) | **the trial** — `POST /trial-key` with the wallet's `wk_`. A real key, scoped to connectors, and what connectors are meant to be called with |
+| the trial is spent or expired, or the wallet is older than the window | a funded key — `POST /wallet/v1/create-payment-key` |
+| you need to run your own WASI module, not a connector | a funded key; the trial does not reach anything else |
+
+**Claim the trial in the same breath as `POST /register`, not later.** The window
+is counted from registration and the refusal is terminal — a wallet registered
+three weeks ago cannot get one, and retrying changes nothing. An agent that
+expects to live a while claims at birth and keeps the string.
+
+### What a trial actually buys, and why the dollars mislead
+
+A trial holds **$1.00 and lives 7 days**, and neither is the limit you will meet.
+The limit is the **daily connector quota**: a wallet minted today gets about ten
+calls a day, per connector, and the allowance grows with the wallet's age.
+
+Count in calls per day, not in money. At roughly a cent a call, a dollar is some
+ninety calls — nine days of quota against a key that expires in seven. The
+balance will still read almost $1.00 when the agent has been stuck for a week.
+
+Three things make the count go faster than it looks:
+
+* **free operations still count.** `status` costs no fee and still spends a tick,
+  which is what makes "just poll `status` until it works" the expensive mistake;
+* **refusals count.** The counter moves before the limit is compared, so an
+  attempt that was denied has spent the same tick as one that worked;
+* **a run that started is charged** even when the service then refuses it, so a
+  loop retrying a terminal refusal burns fee and quota together and converges on
+  nothing.
+
+Read the refusal before retrying it. `connector_quota_exceeded` names both
+numbers ("11 of 10 calls") and clears at the day's end; nothing else about it is
+worth waiting through.
+
+Two refusals here are terminal and worth recognising rather than retrying:
+`trial_already_claimed` (this wallet has had its one) and `trial_ip_limit` (the
+network address has had its few). Neither passes with time, and registering
+another wallet from the same address does not move the second one. The way
+forward from either is a funded key.
 
 ## Reading a refusal
 
@@ -77,6 +135,56 @@ out has its operation fee refunded.
   address funding legs pass through). They are your wallet's addresses under
   the owner's policy, and no other connector can reach them. The wallet's own
   EVM key is never signable from inside a connector.
+
+## Asking an owner to let you read their credential
+
+The usual arrangement for a connector that acts on somebody's account — their
+mailbox, their bank, their exchange — is that the OWNER stores the credential
+once under their own account and names your wallet as a reader. You then name
+their row in `secrets_ref`. The credential itself never reaches you: the
+connector reads it inside the enclave.
+
+**They cannot guess which account to name, and you must tell them.** Naming the
+wrong one is refused in words identical to the secret not existing at all, so a
+vague request costs a round trip at best and a wrong diagnosis at worst.
+
+**Step 1 — read your own account.** It is the 64-character account of the wallet
+that will PAY, i.e. the one that owns the `X-Payment-Key` you will send:
+
+```
+GET https://{api_host}/wallet/v1/address?chain=near
+Authorization: Bearer <that wallet's wk_>
+→ { "address": "0baa071c…56a1", "wallet_id": "…" }
+```
+
+It is the `address`. Not the `wallet_id`, which is a UUID and names nothing on
+chain. Not a bound name like `alice.near`, which is the identity you ACT as and
+never the one a grant names. Not another wallet you also hold — if you have
+several, the payer is the one that matters.
+
+**Step 2 — ask in a sentence a person can evaluate.** An identifier on its own
+is not a request:
+
+> To send that mail I need to read your Gmail credential. I never see its value —
+> the connector opens it inside the enclave. Please grant read access to my
+> wallet account `0baa071c…56a1` on the secret you stored for project
+> `connectors.outlayer.testnet/gmail`, profile `gmail`.
+
+**Step 3 — call, naming their row:**
+
+```json
+{"input": {"operation": "status"}, "secrets_ref": {"account_id": "owner.testnet", "profile": "gmail"}}
+```
+
+`profile` is a label the owner chose when storing the row. It is not derived
+from anything and cannot be guessed; each connector's skill names the
+conventional one, and if a call is refused it is worth asking which they used.
+
+**A grant issued seconds ago can still be refused.** The condition is read from
+the chain, and a refusal immediately after the owner says "done" proves nothing.
+Wait a minute, repeat the free `status`, and only then conclude they named the
+wrong account. Both cases say `Access denied by access condition` in the same
+words.
 
 ## The library
 
