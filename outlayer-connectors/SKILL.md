@@ -1,6 +1,6 @@
 ---
 name: outlayer-connectors
-description: The OutLayer connector library — how an agent calls any connector (auth, the `operation` field, secrets, fees, quotas, refusal codes) and what each connector does. Use when an agent with an OutLayer custody wallet needs to reach a bank, a trading venue or another outside service, or when a connector call is refused and the reason has to be read.
+description: The OutLayer connector library — how an agent calls any connector (auth, the `operation` field, secrets, fees, the trial, refusal codes) and what each connector does. Use when an agent with an OutLayer custody wallet needs to reach a bank, a trading venue or another outside service, or when a connector call is refused and the reason has to be read.
 ---
 
 # OutLayer connectors
@@ -58,44 +58,49 @@ first.
 
 | Your situation | Take |
 |---|---|
-| the wallet was registered recently (the window is in `/register`'s answer) | **the trial** — `POST /trial-key` with the wallet's `wk_`. A real key, scoped to connectors, and what connectors are meant to be called with |
-| the trial is spent or expired, or the wallet is older than the window | a funded key — `POST /wallet/v1/create-payment-key` |
+| the wallet is less than a week old and has not had its trial | **the trial** — `POST /trial-key` with the wallet's `wk_`: ten connector calls, free |
+| the trial is spent or the week is over | a funded key — `POST /wallet/v1/create-payment-key`. **A key with money on it has no call limit** |
 | you need to run your own WASI module, not a connector | a funded key; the trial does not reach anything else |
 
-**Claim the trial in the same breath as `POST /register`, not later.** The window
-is counted from registration and the refusal is terminal — a wallet registered
-three weeks ago cannot get one, and retrying changes nothing. An agent that
-expects to live a while claims at birth and keeps the string.
+## The trial: ten calls, in the wallet's first week
 
-### What a trial actually buys, and why the dollars mislead
+That is the whole rule. `POST /trial-key` answers with the key, `calls` (ten) and
+`expires_at`; send the key as `X-Payment-Key`.
 
-A trial holds **$1.00 and lives 7 days**, and neither is the limit you will meet.
-The limit is the **daily connector quota**: a wallet minted today gets about ten
-calls a day, per connector, and the allowance grows with the wallet's age.
+* **The week is counted from the wallet's registration, not from the claim.** A
+  trial claimed on day six works for one day; on day seven there is nothing left
+  to claim (`trial_window_closed`, terminal). Claim it in the same breath as
+  `POST /register` and keep the string — it is shown once.
+* **Ten calls means ten calls that were accepted.** Any operation counts, the free
+  `status` included, and so does a run that then fails or times out. A call
+  refused up front (a 4xx answer) does not.
+* **The eleventh answers `402 trial_exhausted`, and any call after the week
+  `402 trial_expired`. Both are terminal** — waiting changes nothing. The next
+  step is a funded key.
+* **There is no balance to watch.** A trial is not measured in money. To see what
+  is left, `GET /subscription/status` with the key: `trial.calls_left`.
+* It reaches connectors only; anything else is `project_not_allowed`.
 
-Count in calls per day, not in money. At roughly a cent a call, a dollar is some
-ninety calls — nine days of quota against a key that expires in seven. The
-balance will still read almost $1.00 when the agent has been stuck for a week.
+Spend them on purpose: one `status` to see that the credential works, then the
+calls the task needs. Polling `status` in a loop is how a trial disappears
+without having done anything.
 
-Three things make the count go faster than it looks:
+Two more refusals are terminal and worth recognising rather than retrying:
+`trial_already_claimed` (this wallet has had its one) and `trial_unavailable` (no
+trial is offered to this caller). The way forward from either is a funded key.
 
-* **free operations still count.** `status` costs no fee and still spends a tick,
-  which is what makes "just poll `status` until it works" the expensive mistake;
-* **refusals count.** The counter moves before the limit is compared, so an
-  attempt that was denied has spent the same tick as one that worked;
-* **a run that started is charged** even when the service then refuses it, so a
-  loop retrying a terminal refusal burns fee and quota together and converges on
-  nothing.
+## Paying: no quota
 
-Read the refusal before retrying it. `connector_quota_exceeded` names both
-numbers ("11 of 10 calls") and clears at the day's end; nothing else about it is
-worth waiting through.
+A caller who pays is not limited by any count of calls. A funded key is bounded
+by the money on it, a subscription by its allowance. No quota counts a paying
+caller's connector calls — so if a task needs more than the trial, fund a key; do
+not look for a way to wait the limit out, because there is none to wait for.
 
-Two refusals here are terminal and worth recognising rather than retrying:
-`trial_already_claimed` (this wallet has had its one) and `trial_ip_limit` (the
-network address has had its few). Neither passes with time, and registering
-another wallet from the same address does not move the second one. The way
-forward from either is a funded key.
+The one ceiling that remains is each connector's own technical cap on a single
+operation (Gmail: 500 sends a day per wallet), there against a runaway loop. It
+answers `operation_limit_reached` with `retry_after_seconds`, and is far above
+ordinary use. An attempt it refuses still counts toward it — wait out
+`retry_after_seconds` rather than retrying into it.
 
 ## Reading a refusal
 
@@ -104,7 +109,9 @@ forward from either is a funded key.
 | `policy_denied:` | the owner's policy refused (cap, coin, method, missing policy) | do not retry; change the request inside the caps, or ask the owner |
 | `invalid_label:` / `sub_key_unavailable:` | a sub-key label was malformed, or this project has none | fix the label; only connectors have sub-keys |
 | `wallet_busy` | another operation holds the wallet | poll `in_flight_request_id` if present, then retry once |
-| `Daily connector quota reached` | the wallet's daily call budget is spent (refused calls count too) | wait; the budget grows with wallet age |
+| `trial_exhausted` | the trial key has made its ten calls — **terminal** | create a funded key (`POST /wallet/v1/create-payment-key`); it has no call limit |
+| `trial_expired` | the trial key is past the wallet's first week — **terminal**, calls left or not | same |
+| `operation_limit_reached` | a connector's own technical cap on one operation | wait `retry_after_seconds`; it is far above ordinary use, so look for a loop |
 | `unknown_operation` / "does not sell operation" | the operation is not priced | read the connector's skill for the list |
 | `invalid_secrets_ref` | the `secrets_ref` names no possible row: the account id is not one, or the profile is not 1–64 bytes or holds an ASCII character other than a letter, digit, `-` or `_` | fix the reference — `{"account_id": "<owner>", "profile": "<name>"}` |
 | `Access denied by access condition` | the row exists but its condition does not admit your wallet | ask the owner to whitelist your wallet's 64-character account (`outlayer secrets access`), or name a row that does |
@@ -117,7 +124,7 @@ forward from either is a funded key.
 Compute (about $0.001 a call) plus the operation's fee on top. A run that
 started is charged even when it answers an error — that is how a refusal by a
 bank or a venue stays visible. Only a platform refusal before the guest runs
-(no `operation`, quota, unpriced) costs nothing. A module that traps or times
+(no `operation`, unpriced, a spent trial) costs nothing. A module that traps or times
 out has its operation fee refunded.
 
 ## Secrets and keys

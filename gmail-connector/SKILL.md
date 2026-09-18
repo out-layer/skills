@@ -284,18 +284,17 @@ blank cheque:
 before the run, so a message rejected for a malformed address, an unpermitted
 recipient or a dead credential still spends $0.011 — measured, not estimated.
 Check `status` first, and read which refusals below are terminal before retrying
-any of them; a loop on a refusal that cannot clear will empty a trial key on
+any of them. On a trial key every call that was accepted is one of your ten, the
+free `status` included — a loop on a refusal that cannot clear spends the trial on
 nothing.
 
-Two caps apply besides the owner's policy, both counted **per calling wallet**
-and both counting attempts, refusals included: this connector allows **400 sends
-and 1000 `status` calls** in a rolling day from your first such call, and the
-platform's own connector quota — described in the connectors skill — is usually
-the one you reach first.
-
-The owner's `max_per_day` is the one counter that works differently: a send
-refused before it leaves gives its place back, so only mail that actually left is
-counted there, and it runs in UTC calendar days rather than a rolling window.
+How much you may send is the owner's to decide, through `max_per_day` in their
+policy: a send refused before it leaves gives its place back, so only mail that
+actually left is counted there, in UTC calendar days. The platform adds no quota
+for a caller who pays. The connector itself carries one technical ceiling against
+a runaway loop — **500 sends in a rolling day per calling wallet** — answered as
+`operation_limit_reached` with `retry_after_seconds`. An attempt that ceiling
+refuses still counts toward it: wait, do not retry into it.
 
 ## When it refuses
 
@@ -321,5 +320,5 @@ retries will change it — somebody has to do something.
 
 An operation name this connector does not sell is refused by the platform before
 the run, with the list: `Unknown operation "read" for this connector. Known
-operations: send, status.` Nothing runs, so there is no fee and no compute to
-pay — but it is still an attempt against the platform's quota.
+operations: send, status.` Nothing runs, so there is no fee and no compute to pay, and on a trial key it is
+not one of your ten.
