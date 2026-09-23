@@ -39,7 +39,7 @@ the project rather than the network.
   header, when sent, is only compared against it and a mismatch is refused with
   `wallet_not_yours` (terminal). You do not need to look a wallet id up to make
   a call.
-* **`X-Use-Owner-Secret: 1`** brings the secrets stored under your own wallet
+* **`X-Use-Owner-Secret: 1`** (a switch: any value but empty, `0` or `false`) brings the secrets stored under your own wallet
   (policy, API tokens) into the run. To use a credential your owner stored under
   THEIR account and whitelisted you for, name it instead:
   `{"input": {...}, "secrets_ref": {"account_id": "owner.near", "profile": "gmail"}}`.
@@ -67,9 +67,29 @@ first.
 That is the whole rule. `POST /trial-key` answers with the key, `calls` (ten) and
 `expires_at`; send the key as `X-Payment-Key`.
 
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.ai/trial-key"
+```
+
+```json
+{
+  "payment_key": "a1b2…8f90:0:4c1d…9ab3",
+  "owner": "a1b2…8f90",
+  "nonce": 0,
+  "calls": 10,
+  "expires_at": "2026-09-25T19:01:00Z",
+  "project_ids": ["connectors.outlayer.near/*"],
+  "note": "Send this as the X-Payment-Key header. It is shown once…"
+}
+```
+
+**Store `payment_key` immediately.** It is shown once and cannot be recovered or
+re-issued. If you lose it, your only route forward is a funded payment key.
+
 * **The week is counted from the wallet's registration, not from the claim.** A
   trial claimed on day six works for one day; on day seven there is nothing left
-  to claim (`trial_window_closed`, terminal). Claim it in the same breath as
+  to claim (`403 trial_window_closed`, terminal). Claim it in the same breath as
   `POST /register` and keep the string — it is shown once.
 * **Ten calls means ten calls that were accepted.** Any operation counts, the free
   `status` included, and so does a run that then fails or times out. A call
@@ -80,13 +100,17 @@ That is the whole rule. `POST /trial-key` answers with the key, `calls` (ten) an
 * **There is no balance to watch.** A trial is not measured in money. To see what
   is left, `GET /subscription/status` with the key: `trial.calls_left`.
 * It reaches connectors only; anything else is `project_not_allowed`.
+* It cannot pay a developer: `X-Attached-Deposit` on a trial call → `403 no_deposit`.
+  It cannot be withdrawn or topped up — it is not money.
+* **`Bearer near:` callers** claim nothing — a trial is claimed with a `wk_`.
+* A trial stops starting calls shortly before `expires_at`, so none is cut off mid-run.
 
 Spend them on purpose: one `status` to see that the credential works, then the
 calls the task needs. Polling `status` in a loop is how a trial disappears
 without having done anything.
 
 Two more refusals are terminal and worth recognising rather than retrying:
-`trial_already_claimed` (this wallet has had its one) and `trial_unavailable` (no
+`409 trial_already_claimed` (this wallet has had its one) and `403 trial_unavailable` (no
 trial is offered to this caller). The way forward from either is a funded key.
 
 ## Paying: no quota
@@ -104,8 +128,30 @@ ordinary use. An attempt it refuses still counts toward it — wait out
 
 ## Reading a refusal
 
-| prefix | meaning | what to do |
+Every refusal carries a machine-readable `reason` next to the human sentence.
+**Branch on `reason`.** The sentence is written for a person and gets reworded;
+the reason is the contract.
+
+```json
+{ "error": "Project not allowed for this payment key", "reason": "project_not_allowed" }
+```
+
+Note the shape differs from `/wallet/v1/*`, which puts the code in `error` and
+the sentence in `message`:
+
+| door | machine-readable | human |
 |---|---|---|
+| `/call/{owner}/{project}` | `reason` | `error` |
+| `/wallet/v1/*` | `error` | `message` |
+
+| `reason` / prefix | meaning | what to do |
+|---|---|---|
+| `missing_payment_key` | you sent no payment credential | send `X-Payment-Key` |
+| `wk_is_not_a_payer` | you sent your `wk_`. It names your wallet; it buys nothing | send `X-Payment-Key` with a key that wallet owns |
+| `project_not_allowed` | the key's scope does not reach this project — a trial reaches connectors only | funding it changes nothing; use a key whose scope does |
+| `insufficient_balance`, `out_of_funds` | the key has no money left | top the key up |
+| `rate_limit_exceeded` | too many calls in a window | back off and retry |
+| `wallet_not_yours` | `X-Wallet-Id` named a wallet your credential does not identify — terminal | drop the header, or send your own wallet's id |
 | `policy_denied:` | the owner's policy refused (cap, coin, method, missing policy) | do not retry; change the request inside the caps, or ask the owner |
 | `invalid_label:` / `sub_key_unavailable:` | a sub-key label was malformed, or this project has none | fix the label; only connectors have sub-keys |
 | `wallet_busy` | another operation holds the wallet | poll `in_flight_request_id` if present, then retry once |
@@ -118,6 +164,14 @@ ordinary use. An attempt it refuses still counts toward it — wait out
 | `… its time limit passed at <date>` | you WERE granted and the grant has expired | ask the owner to grant again with a later date; being named again without one does not help |
 | `… its AccountPattern \`…\` cannot be compiled as a regular expression` | the owner's condition holds a pattern the engine will not compile; the row refuses everyone, whatever its other branches say, until the owner fixes it | ask the owner to fix the pattern (`outlayer secrets access`) |
 | the venue's own text | the outside service refused | act on it; the platform did its part |
+
+## Subscription: a flat rate for connector calls
+
+A subscription replaces per-call payment with an allowance on one payment key.
+How it is bought (an on-chain payment naming the key's `owner` and `nonce`), what
+the `wk_` can and cannot do about it, and the rules on spending order, renewal,
+concurrency (`429 call_already_in_flight`) and one-per-agent are in
+[`references/subscription.md`](references/subscription.md).
 
 ## What a call costs
 
@@ -142,6 +196,48 @@ out has its operation fee refunded.
   address funding legs pass through). They are your wallet's addresses under
   the owner's policy, and no other connector can reach them. The wallet's own
   EVM key is never signable from inside a connector.
+
+## Asking the user to store a credential under your wallet
+
+A connector often needs a credential that is **yours to use but not yours to
+hold** — an API token for the service it talks to. It is stored under YOUR
+agent account, sealed to the keystore, and a connector reads it only when the
+call asks for it. You never see the value, and neither does the browser page
+that stores it: it is encrypted before it leaves.
+
+You cannot store it yourself. Your wallet has no NEAR to pay for the write, and
+the key that authorises it never leaves the TEE — so the coordinator prepares
+the transaction and a **human sends and pays for it**.
+
+Send them the link:
+
+> The <service> connector needs its API token. Store it here — it is encrypted
+> in your browser and I never see it:
+> https://app.outlayer.ai/secrets?project={connector_project_id}&name={VAR_NAME}
+
+The link may propose WHICH secret to create — `project`, `name`, `profile`,
+`generate` — and deliberately **cannot** carry its value or your key: those
+would end up in browser history, referrers and proxy logs. On the page they
+paste your `wk_` (or pick it, if that browser already saved it), choose the
+scope, and sign one call. Cost is ~0.1 NEAR, the excess refunded.
+
+Then ask for it per call with `x-use-owner-secret: true` — without that header
+nothing is fetched, because most calls need no secret and a lookup that always
+runs is a keystore round trip on every call:
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "X-Payment-Key: $PAYMENT_KEY" -H "x-use-owner-secret: true" \
+  -d '{"input":{"operation":"send", ...}}' \
+  "https://api.outlayer.ai/call/connectors.outlayer.near/<connector>"
+```
+
+Which route you get is the owner's choice, not yours. For a leased account
+(`hos_lease`) it is the only one available: storing a secret under your wallet
+needs that wallet's `wk_`, and the human holding the lease does not have it.
+
+**Say what you are asking for and why.** "I need your SendGrid key to send the
+mail you asked for" is a sentence a person can refuse. A bare link is not.
 
 ## Asking an owner to let you read their credential
 

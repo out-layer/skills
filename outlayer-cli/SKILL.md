@@ -67,6 +67,33 @@ Active network: `~/.outlayer/default-network` (auto-detected if not set).
 
 When logged in with `--wallet-key`, all commands that need transaction signing (deploy, run, keys, secrets, earnings, versions) use the coordinator wallet API instead of local signing. Upload (FastFS) requires `near_key` auth for now.
 
+The CLI is a CONVENIENCE, never a prerequisite: everything it does is an HTTP
+call you can make yourself. The network argument is the same axis as the API
+host — credentials are kept per network in `~/.outlayer/{network}/credentials.json`,
+and a testnet `wk_` is a testnet wallet. It is not a separate "platform" setting
+layered over a mainnet wallet.
+
+Login with `--wallet-key` calls `/wallet/v1/sign-message` to derive the account ID and public key, then stores the wallet key in `~/.outlayer/{network}/credentials.json` with `auth_type: "wallet_key"`.
+
+| Command | How it works with wallet_key |
+|---------|------------------------------|
+| `outlayer deploy` | Routes `add_version`/`create_project` via `/wallet/v1/call` |
+| `outlayer run` (on-chain) | Routes `request_execution` via `/wallet/v1/call` |
+| `outlayer keys create/topup/delete` | Routes `store_secrets`/`top_up_payment_key_with_near`/`delete_payment_key` via `/wallet/v1/call` |
+| `outlayer secrets set/delete` | Routes `store_secrets`/`delete_secrets` via `/wallet/v1/call` |
+| `outlayer secrets update` | Signs NEP-413 via `/wallet/v1/sign-message`, then stores via `/wallet/v1/call` |
+| `outlayer earnings withdraw` | Routes `withdraw_developer_earnings` via `/wallet/v1/call` |
+| `outlayer versions activate/remove` | Routes contract calls via `/wallet/v1/call` |
+| `outlayer run` (HTTPS) | Works if payment key is set (signing not needed) |
+| `outlayer whoami` | Shows `Auth: wallet_key` |
+
+Not supported with `wallet_key`:
+
+| Command | Reason |
+|---------|--------|
+| Limit orders | HTTP API (and SDK) only, like payment checks — no CLI command and no WASI host function until a user asks for one. Use `POST /wallet/v1/limit-orders` |
+| `outlayer upload` (FastFS) | Uses raw Borsh-encoded transaction args - `/wallet/v1/call` only accepts JSON. Use `outlayer login` with a NEAR private key for uploads. |
+
 `whoami` output includes `Auth: near_key` or `Auth: wallet_key`.
 
 ## Project Scaffolding

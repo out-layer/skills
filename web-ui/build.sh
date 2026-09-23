@@ -2,28 +2,34 @@
 set -euo pipefail
 
 # Build script for skills.outlayer.ai
-# Scans outlayer-skills/ for skill directories, generates index.html,
-# and symlinks all skill files into the web root.
+# Scans outlayer-skills/ for skill directories, symlinks each into the web
+# root, and generates index.html: one card per skill, every .md file in the
+# skill linked directly (SKILL.md first, then references/… and rules/…).
+# The `outlayer` skill is the entry point and is listed first.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_ROOT="$(dirname "$SCRIPT_DIR")"
 WEB_ROOT="$SCRIPT_DIR/public"
+ENTRY="outlayer"
 
 # Clean previous build
 rm -rf "$WEB_ROOT"
 mkdir -p "$WEB_ROOT"
 
-# Collect skills (all dirs except web-ui)
+# Collect skills: every directory with a SKILL.md, except web-ui
 skills=()
 for dir in "$SKILLS_ROOT"/*/; do
   name="$(basename "$dir")"
   [[ "$name" == "web-ui" ]] && continue
-  [[ -d "$dir" ]] || continue
+  [[ -f "$dir/SKILL.md" ]] || continue
   skills+=("$name")
 done
 
-# Sort skills
+# Sort, then move the entry skill to the front
 IFS=$'\n' skills=($(sort <<<"${skills[*]}")); unset IFS
+if printf '%s\n' "${skills[@]}" | grep -qx "$ENTRY"; then
+  skills=("$ENTRY" $(printf '%s\n' "${skills[@]}" | grep -vx "$ENTRY"))
+fi
 
 # Symlink each skill directory into public/
 for skill in "${skills[@]}"; do
@@ -33,7 +39,6 @@ done
 # Extract description from SKILL.md frontmatter
 get_description() {
   local skill_md="$SKILLS_ROOT/$1/SKILL.md"
-  [[ -f "$skill_md" ]] || return
   awk '
     BEGIN { in_front=0 }
     /^---$/ { in_front++; next }
@@ -49,16 +54,17 @@ get_description() {
 skill_cards=""
 for skill in "${skills[@]}"; do
   desc="$(get_description "$skill")"
-  # List files in skill directory
-  file_links=""
-  for f in "$SKILLS_ROOT/$skill"/*; do
-    [[ -f "$f" ]] || continue
-    fname="$(basename "$f")"
-    file_links+="<a href=\"/$skill/$fname\" class=\"file-link\">$fname</a> "
-  done
+  # Every .md file in the skill, SKILL.md first, then the rest by path
+  file_links="<a href=\"/$skill/SKILL.md\" class=\"file-link\">SKILL.md</a> "
+  while IFS= read -r rel; do
+    [[ "$rel" == "SKILL.md" ]] && continue
+    file_links+="<a href=\"/$skill/$rel\" class=\"file-link\">$rel</a> "
+  done < <(cd "$SKILLS_ROOT/$skill" && find . -type f -name '*.md' | sed 's|^\./||' | sort)
+  card_class="skill-card"
+  [[ "$skill" == "$ENTRY" ]] && card_class="skill-card entry"
   skill_cards+="
-    <div class=\"skill-card\">
-      <h2><a href=\"/$skill/\">$skill</a></h2>
+    <div class=\"$card_class\">
+      <h2><a href=\"/$skill/SKILL.md\">$skill</a></h2>
       <p class=\"desc\">${desc:-<em>No description</em>}</p>
       <div class=\"files\">$file_links</div>
     </div>"
@@ -92,6 +98,7 @@ cat > "$WEB_ROOT/index.html" <<HTMLEOF
       margin-bottom: 2rem;
       font-size: 0.95rem;
     }
+    .subtitle code { color: #c9d1d9; }
     .skill-card {
       background: #161b22;
       border: 1px solid #30363d;
@@ -99,6 +106,7 @@ cat > "$WEB_ROOT/index.html" <<HTMLEOF
       padding: 1.2rem 1.5rem;
       margin-bottom: 1rem;
     }
+    .skill-card.entry { border-color: #58a6ff; }
     .skill-card h2 {
       font-size: 1.15rem;
       margin-bottom: 0.4rem;
@@ -134,7 +142,7 @@ cat > "$WEB_ROOT/index.html" <<HTMLEOF
 </head>
 <body>
   <h1>OutLayer Skills</h1>
-  <p class="subtitle">${#skills[@]} skills available &mdash; <code>skills.outlayer.ai</code></p>
+  <p class="subtitle">${#skills[@]} skills &mdash; point an agent at <code>https://skills.outlayer.ai/$ENTRY/SKILL.md</code> and it finds the rest</p>
   ${skill_cards}
   <p class="meta">Built $(date -u '+%Y-%m-%d %H:%M UTC')</p>
 </body>
