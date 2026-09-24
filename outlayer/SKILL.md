@@ -1,6 +1,6 @@
 ---
 name: outlayer
-description: Entry point to the OutLayer skills — which skill to load for a task. OutLayer gives an AI agent a TEE-held multi-chain custody wallet, connectors to outside services (GitHub, Gmail, Mercury, Hyperliquid, Polymarket) under the owner's policy, and verifiable off-chain compute callable over HTTPS or from a NEAR contract. Use when an agent needs to hold or move money, act on an outside service as its owner, or build, deploy and run OutLayer applications.
+description: Entry point to the OutLayer skills — which skill to load for a task. OutLayer gives an AI agent a TEE-held multi-chain custody wallet, connectors to outside services (GitHub, Gmail, Mercury, Hyperliquid, Polymarket) under the owner's policy, and verifiable off-chain compute callable over HTTPS or from a NEAR contract. Use when an agent needs to hold or move money, act on an outside service as its owner, find out what it could do for its owner, or build, deploy and run OutLayer applications.
 ---
 
 # OutLayer skills
@@ -23,6 +23,7 @@ points to are relative to that URL.
 |---|---|
 | Hold, move, swap or sign for money: register a wallet, balances, transfers, cross-chain, confidential, limit orders, payment checks, account binding, payment keys | [`agent-custody`](https://skills.outlayer.ai/agent-custody/SKILL.md) |
 | Call any connector: auth, the `operation` field, secrets, fees, the free trial, refusal codes — and what each connector does | [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md) |
+| Find out what you could do for your owner with the connectors, and how to offer it without acting unasked | [`outlayer-connectors/references/offering.md`](https://skills.outlayer.ai/outlayer-connectors/references/offering.md) |
 | Act on GitHub as the owner: issues, comments, pull requests, commits, gists | [`github-connector`](https://skills.outlayer.ai/github-connector/SKILL.md) |
 | Send email from the owner's Gmail address | [`gmail-connector`](https://skills.outlayer.ai/gmail-connector/SKILL.md) |
 | Move USD out of, or invoice into, the owner's Mercury bank account | [`mercury-connector`](https://skills.outlayer.ai/mercury-connector/SKILL.md) |

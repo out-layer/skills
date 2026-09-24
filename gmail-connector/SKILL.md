@@ -19,10 +19,10 @@ connected account.
 | network | `{api_host}` | `{connectors_account}` | state |
 |---|---|---|---|
 | testnet | `testnet-api.outlayer.ai` | `connectors.outlayer.testnet` | live |
-| mainnet | `api.outlayer.ai` | `connectors.outlayer.near` | **not published yet** — the project does not exist, and a call is refused before it runs |
+| mainnet | `api.outlayer.ai` | `connectors.outlayer.near` | live |
 
-The two halves of a row move together. Use the pair for the network your payment
-key belongs to; a key of one network cannot pay on the other.
+Use the pair for the network your payment key belongs to; a key of one network
+cannot pay on the other.
 
 ## Call shape
 

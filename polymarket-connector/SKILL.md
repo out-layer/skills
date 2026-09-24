@@ -18,12 +18,16 @@ says "seen", that is what happened.
 ```
 POST https://api.outlayer.ai/call/connectors.outlayer.near/polymarket
 X-Payment-Key: <a payment key the custody wallet owns>
-X-Wallet-Id: <the wallet id>
-X-Use-Owner-Secret: 1
 Content-Type: application/json
 
-{"input": {"operation": "<op>", ...}}
+{"input": {"operation": "<op>", ...},
+ "secrets_ref": {"account_id": "<owner's account>", "profile": "polymarket"}}
 ```
+
+`secrets_ref` names the owner's row: the policy, stored under the owner's
+account with your wallet in its access rule. Every call carries it, reads
+included — without it the connector sees no policy and can only read and
+cancel.
 
 Two envelopes come back. The platform's: `{call_id, status, output,
 compute_cost, time_ms}`. Inside its `output`, the connector's: `{success,
@@ -46,8 +50,14 @@ after it names the rule or the number. Mainnet only.
 * **USDC on the wallet's intents balance** — that is what `deposit_start`
   draws from, and where withdrawals return. The plain balance is a different
   pot. Ask the owner for funds with `dest=intents`.
-* **The owner's policy**, `POLYMARKET_POLICY`, stored under your wallet for
-  this connector. Without it only reads and `cancel` work. `status` shows it.
+* **The owner's policy**, `POLYMARKET_POLICY`, in a row under the OWNER's
+  account that names your wallet. Without it only reads and `cancel` work;
+  `status` shows it. The owner stores it at
+  **<https://app.outlayer.ai/connect/polymarket>**: a form for the caps, a field
+  for your wallet's account, one wallet transaction. Send them there with your
+  account (`GET /wallet/v1/address?chain=near`, the `address`) and say what you
+  need: orders open only when both `max_order_usd` and `max_daily_volume_usd`
+  are set. Then name their row in `secrets_ref`.
 
 ## First calls, in order
 

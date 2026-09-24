@@ -19,12 +19,15 @@ says "seen", that is what happened.
 ```
 POST https://api.outlayer.ai/call/connectors.outlayer.near/hyperliquid
 X-Payment-Key: <a payment key the custody wallet owns>
-X-Wallet-Id: <the wallet id>
-X-Use-Owner-Secret: 1
 Content-Type: application/json
 
-{"input": {"operation": "<op>", ...}}
+{"input": {"operation": "<op>", ...},
+ "secrets_ref": {"account_id": "<owner's account>", "profile": "hyperliquid"}}
 ```
+
+`secrets_ref` names the owner's row: the policy, stored under the owner's
+account with your wallet in its access rule. Every call carries it, reads
+included — without it the connector sees no policy and is read-only.
 
 Two envelopes come back. The platform's: `{call_id, status, output,
 compute_cost, time_ms}`. Inside its `output`, the connector's: `{success,
@@ -34,9 +37,9 @@ the contract — `policy_denied`, `invalid`, `signature_mismatch` — and a venu
 refusal reads `Hyperliquid rejected …` / `Hyperliquid refused …` with the
 venue's own sentence.
 
-Testnet: `https://testnet-api.outlayer.ai/call/connectors.outlayer.testnet/hyperliquid`
-with `HYPERLIQUID_TESTNET=1` stored next to the policy. Trading works there;
-funding does not (1Click has no testnet).
+Testnet: `https://testnet-api.outlayer.ai/call/connectors.outlayer.testnet/hyperliquid`;
+the owner's page stores `HYPERLIQUID_TESTNET=1` in the same row there. Trading
+works on testnet; funding does not (1Click has no testnet).
 
 ## What you need before the first call
 
@@ -47,8 +50,14 @@ funding does not (1Click has no testnet).
 * **USDC on the wallet's intents balance** — what `deposit_start` draws from
   and where withdrawals return. The plain balance is a different pot. Ask the
   owner to fund with `dest=intents`.
-* **The owner's policy**, `HYPERLIQUID_POLICY`, stored under your wallet for
-  this connector. Without it you are read-only. `status` shows it.
+* **The owner's policy**, `HYPERLIQUID_POLICY`, in a row under the OWNER's
+  account that names your wallet. Without it you are read-only; `status` shows
+  it. The owner stores it at **<https://app.outlayer.ai/connect/hyperliquid>**:
+  a form for the caps, a field for your wallet's account, one wallet
+  transaction. Send them there with your account (`GET /wallet/v1/address?chain=near`,
+  the `address`) and say what you need: orders open only when all three of
+  `max_order_usd`, `max_daily_volume_usd` and `max_leverage` are set. Then name
+  their row in `secrets_ref`.
 
 ## Funding the wallet — how to ask for it
 

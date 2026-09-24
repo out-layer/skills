@@ -1,15 +1,23 @@
 ---
 name: outlayer-connectors
-description: The OutLayer connector library — how an agent calls any connector (auth, the `operation` field, secrets, fees, the trial, refusal codes) and what each connector does. Use when an agent with an OutLayer custody wallet needs to reach a bank, a trading venue or another outside service, or when a connector call is refused and the reason has to be read.
+description: The OutLayer connector library — how an agent calls any connector (auth, the `operation` field, secrets, fees, the trial, refusal codes), what each connector does, and what an agent can offer its owner with them. Use when an agent with an OutLayer custody wallet needs to reach a bank, a trading venue or another outside service, when a connector call is refused and the reason has to be read, or when an agent wants to know what it could do for its owner.
 ---
 
 # OutLayer connectors
 
-A connector is a curated WASI module that runs inside the same TEE as your
-wallet. It holds the credential for an outside service, it is priced per named
-operation, and it can only reach the hosts its signed manifest declares. You
-call it like any project; what makes it a connector is that the platform knows
-its name and its prices.
+A connector is a WASI module curated by the OutLayer team — reviewed, priced
+and kept working — that runs inside the same TEE as your wallet. It gives an
+agent a capability of an ordinary web service with the security model of the
+wallet: the credential is sealed in the enclave, the owner's policy is checked
+on every call, and the module can only reach the hosts its signed manifest
+declares. You call it like any project; the platform knows its name, its
+prices, and that it works.
+
+## What you could offer your owner
+
+When a conversation touches something a connector does, you can offer it.
+What to offer, what to check first and how to say it:
+[`references/offering.md`](references/offering.md). Offer, never act unasked.
 
 ## The call
 
@@ -39,13 +47,15 @@ the project rather than the network.
   header, when sent, is only compared against it and a mismatch is refused with
   `wallet_not_yours` (terminal). You do not need to look a wallet id up to make
   a call.
-* **`X-Use-Owner-Secret: 1`** (a switch: any value but empty, `0` or `false`) brings the secrets stored under your own wallet
-  (policy, API tokens) into the run. To use a credential your owner stored under
-  THEIR account and whitelisted you for, name it instead:
+* **`secrets_ref` names the owner's row** — the credential or policy your owner
+  stored under THEIR account, with your wallet in its access rule:
   `{"input": {...}, "secrets_ref": {"account_id": "owner.near", "profile": "gmail"}}`.
-  Such a grant may carry an expiry, so a call that worked yesterday can be
-  refused today with the date it lapsed on. With neither, the connector starts
-  with no secrets and says so.
+  The profile is the connector's id unless the owner chose another. A grant
+  may carry an expiry,
+  so a call that worked yesterday can be refused today with the date it lapsed
+  on. Without `secrets_ref` the connector starts with no secrets and says so.
+  (`X-Use-Owner-Secret: 1` loads a row under your own wallet instead — for a
+  module of your own, not a connector.)
 
 The answer is always `{"success": bool, "output": {...}, "error": "...", "logs": []}`.
 
@@ -183,12 +193,10 @@ out has its operation fee refunded.
 
 ## Secrets and keys
 
-* **Your secrets** (policies, venue tokens) are stored by the wallet owner for
-  one connector and reach only that connector's runs — either under your wallet
-  (`outlayer secrets set-for-agent '{"KEY":"value"}' --project connectors.outlayer.near/<connector> --api-key wk_…`)
-  or under the owner's own account with a whitelist naming your wallet, which
-  you then name in `secrets_ref`. What you may read is decided by the row's
-  on-chain access condition.
+* **The owner's row** (a credential, a policy) is stored by the wallet owner
+  for one connector, under their own account, with your wallet in its access
+  rule; you name it in `secrets_ref`, and it reaches only that connector's runs.
+  What you may read is decided by the row's on-chain access condition.
 * **The connector author's own credential** is named in its manifest and is
   never yours to see or set.
 * **Sub-keys.** A venue connector signs with a distinct key of your wallet per
@@ -199,9 +207,10 @@ out has its operation fee refunded.
 
 ## Asking the user to store a credential under your wallet
 
-A connector often needs a credential that is **yours to use but not yours to
-hold** — an API token for the service it talks to. It is stored under YOUR
-agent account, sealed to the keystore, and a connector reads it only when the
+Not for a connector — its row is the owner's, above. This is for a module of
+your OWN that needs a credential **yours to use but not yours to hold** — an
+API token for the service it talks to. It is
+stored under YOUR agent account, sealed to the keystore, and read only when the
 call asks for it. You never see the value, and neither does the browser page
 that stores it: it is encrypted before it leaves.
 
