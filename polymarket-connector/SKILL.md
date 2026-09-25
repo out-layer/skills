@@ -39,10 +39,11 @@ after it names the rule or the number. Mainnet only.
 ## What you need before the first call
 
 * **A payment key the wallet owns.** The trial key (`POST /trial-key` with the
-  wallet's `wk_`) gives 10 connector calls in the wallet's first week — and
-  **the free operations count**: `status` spends one. Ten is `status`, `setup`
-  ×3, `deposit_start`, `deposit_status`, `markets`, `order` and two spare, not
-  enough to also cancel, read positions and withdraw. A funded key has no call
+  wallet's `wk_`) gives 50 connector calls in the wallet's first week (`calls`
+  in its answer is the number to trust) — and **the free operations count**:
+  `status` spends one. Fifty covers a full round trip — `setup` ×3, a deposit
+  and its polls, a few orders, positions, a withdrawal — but not a polling
+  loop: poll when something should have changed. A funded key has no call
   limit. Creating one (`POST /wallet/v1/create-payment-key
   {"initial_deposit_usdc": "0.50"}`) takes USDC from the wallet's **plain**
   balance and needs the wallet's NEAR account to hold **≥ 0.3 NEAR** — with 0.2
@@ -301,7 +302,7 @@ not a hash to paste somewhere.
 | relayer | every `setup` step, deposit, withdrawal and redeem is a relayer operation, capped per day by the builder's tier (reported: 100/day unverified, 10,000 verified) | `setup`/`deposit_*`/`withdraw_*` refused by the relayer |
 | order | `max_order_usd`, `max_open_notional_usd`, `max_daily_volume_usd` (counts what you asked, filled or not) | `policy_denied:` before signing, still billed |
 | deposit / withdraw | `allow_deposit`, `max_deposit_usd`, `allow_withdraw`, `withdraw_to` | `policy_denied:` |
-| calls | trial: 10 incl. free ones, 7 days; paid: the key's balance | `402` |
+| calls | trial: 50 incl. free ones, 7 days; paid: the key's balance | `402` |
 | region | `POST /order` from US nodes | `region_blocked` |
 | withdrawal size | > $50,000: split, the bridge's pool is finite | slippage |
 

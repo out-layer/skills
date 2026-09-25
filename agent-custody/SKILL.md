@@ -147,7 +147,7 @@ Response:
   "handoff_url": "https://app.outlayer.ai/wallet?key=wk_...",
   "trial": {
     "available": true,
-    "calls": 10,
+    "calls": 50,
     "days": 7,
     "claim_url": "POST /trial-key",
     "scope": "connectors.outlayer.near/*"

@@ -57,7 +57,7 @@ Response:
 {
   "wallet_id": "uuid-string",
   "near_account_id": "hex64-implicit-account",
-  "trial": { "available": true, "calls": 10, "days": 7, "claim_url": "POST /trial-key", "scope": "connectors.outlayer.near/*" }
+  "trial": { "available": true, "calls": 50, "days": 7, "claim_url": "POST /trial-key", "scope": "connectors.outlayer.near/*" }
 }
 ```
 

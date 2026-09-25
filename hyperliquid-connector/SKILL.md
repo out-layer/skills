@@ -44,8 +44,8 @@ works on testnet; funding does not (1Click has no testnet).
 ## What you need before the first call
 
 * **A payment key the wallet owns.** The trial key (`POST /trial-key` with
-  the wallet's `wk_`) gives 10 connector calls in the wallet's first week,
-  free operations included. A funded key has no call limit; creating one
+  the wallet's `wk_`) gives 50 connector calls in the wallet's first week
+  (`calls` in its answer is the number to trust), free operations included. A funded key has no call limit; creating one
   needs the wallet's NEAR account to hold **≥ 0.3 NEAR**.
 * **USDC on the wallet's intents balance** — what `deposit_start` draws from
   and where withdrawals return. The plain balance is a different pot. Ask the
@@ -241,7 +241,7 @@ HyperCore spot transfer sends the amount to the quoted address. Destinations:
 | withdrawal to the wallet | 2 USDC sent; 1Click takes 0.2 flat | refused before anything moves |
 | order (policy) | `max_order_usd`, `max_position_notional_usd`, `max_daily_volume_usd` (counts what you asked) | `policy_denied:` before signing, still billed |
 | deposit / withdraw (policy) | `allow_deposit`, `max_deposit_usd`, `allow_withdraw`, `withdraw_to` | `policy_denied:` |
-| calls | trial: 10 incl. free ones, 7 days; paid: the key's balance; `order` 500/day, `leverage` 100/day per wallet | `402` / refused |
+| calls | trial: 50 incl. free ones, 7 days; paid: the key's balance; `order` 500/day, `leverage` 100/day per wallet | `402` / refused |
 
 ## Costs
 

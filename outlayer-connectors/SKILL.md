@@ -68,13 +68,13 @@ first.
 
 | Your situation | Take |
 |---|---|
-| the wallet is less than a week old and has not had its trial | **the trial** — `POST /trial-key` with the wallet's `wk_`: ten connector calls, free |
+| the wallet is less than a week old and has not had its trial | **the trial** — `POST /trial-key` with the wallet's `wk_`: fifty connector calls, free |
 | the trial is spent or the week is over | a funded key — `POST /wallet/v1/create-payment-key`. **A key with money on it has no call limit** |
 | you need to run your own WASI module, not a connector | a funded key; the trial does not reach anything else |
 
-## The trial: ten calls, in the wallet's first week
+## The trial: fifty calls, in the wallet's first week
 
-That is the whole rule. `POST /trial-key` answers with the key, `calls` (ten) and
+That is the whole rule. `POST /trial-key` answers with the key, `calls` (fifty) and
 `expires_at`; send the key as `X-Payment-Key`.
 
 ```bash
@@ -87,7 +87,7 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" \
   "payment_key": "a1b2…8f90:0:4c1d…9ab3",
   "owner": "a1b2…8f90",
   "nonce": 0,
-  "calls": 10,
+  "calls": 50,
   "expires_at": "2026-09-25T19:01:00Z",
   "project_ids": ["connectors.outlayer.near/*"],
   "note": "Send this as the X-Payment-Key header. It is shown once…"
@@ -101,10 +101,10 @@ re-issued. If you lose it, your only route forward is a funded payment key.
   trial claimed on day six works for one day; on day seven there is nothing left
   to claim (`403 trial_window_closed`, terminal). Claim it in the same breath as
   `POST /register` and keep the string — it is shown once.
-* **Ten calls means ten calls that were accepted.** Any operation counts, the free
+* **Fifty calls means fifty calls that were accepted.** Any operation counts, the free
   `status` included, and so does a run that then fails or times out. A call
   refused up front (a 4xx answer) does not.
-* **The eleventh answers `402 trial_exhausted`, and any call after the week
+* **The fifty-first answers `402 trial_exhausted`, and any call after the week
   `402 trial_expired`. Both are terminal** — waiting changes nothing. The next
   step is a funded key.
 * **There is no balance to watch.** A trial is not measured in money. To see what
@@ -165,7 +165,7 @@ the sentence in `message`:
 | `policy_denied:` | the owner's policy refused (cap, coin, method, missing policy) | do not retry; change the request inside the caps, or ask the owner |
 | `invalid_label:` / `sub_key_unavailable:` | a sub-key label was malformed, or this project has none | fix the label; only connectors have sub-keys |
 | `wallet_busy` | another operation holds the wallet | poll `in_flight_request_id` if present, then retry once |
-| `trial_exhausted` | the trial key has made its ten calls — **terminal** | create a funded key (`POST /wallet/v1/create-payment-key`); it has no call limit |
+| `trial_exhausted` | the trial key has made its fifty calls — **terminal** | create a funded key (`POST /wallet/v1/create-payment-key`); it has no call limit |
 | `trial_expired` | the trial key is past the wallet's first week — **terminal**, calls left or not | same |
 | `operation_limit_reached` | a connector's own technical cap on one operation | wait `retry_after_seconds`; it is far above ordinary use, so look for a loop |
 | `unknown_operation` / "does not sell operation" | the operation is not priced | read the connector's skill for the list |

@@ -165,7 +165,7 @@ Base URL: `https://api.outlayer.ai`
 | `trial_already_claimed` | This account has already had its trial key, and it is shown only once |
 | `trial_window_closed` | The wallet is past its first week (`trial.days` in `/register`); create and fund a payment key instead |
 | `trial_unavailable` | No trial is offered to this caller. Terminal — create and fund a payment key |
-| `trial_exhausted` | The trial's ten calls are made. Terminal; a funded key has no call limit |
+| `trial_exhausted` | The trial's calls (`trial.calls` in `/register`, fifty today) are made. Terminal; a funded key has no call limit |
 | `trial_expired` | The trial key is past the wallet's first week. Terminal; create and fund a payment key |
 | `out_of_funds` | The allowance is spent or has burned. TERMINAL — fund a payment key or buy a subscription |
 | `Access denied by access condition` | A secret exists, but its condition does not admit your wallet's own 64-character account. Ask the owner to name that account, or name a row that already admits you |
