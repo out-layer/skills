@@ -34,9 +34,8 @@ Content-Type: application/json
 | `{api_host}` | `api.outlayer.ai` | `testnet-api.outlayer.ai` |
 | `{connectors_account}` | `connectors.outlayer.near` | `connectors.outlayer.testnet` |
 
-The two move together. A testnet key against `connectors.outlayer.near` is not a
-half-configured call — nothing about it works, and the refusal will talk about
-the project rather than the network.
+The two move together: a testnet key against `connectors.outlayer.near` fails
+entirely, and the refusal names the project, not the network.
 
 * **`operation` is mandatory and is the unit of price.** The contract, the
   coordinator and the worker all read that one field; a call without it is
@@ -94,21 +93,23 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" \
 }
 ```
 
-**Store `payment_key` immediately.** It is shown once and cannot be recovered or
-re-issued. If you lose it, your only route forward is a funded payment key.
+**Store `payment_key` immediately.** It is shown once and cannot be recovered
+or re-issued; lost, the only route forward is a funded payment key.
 
 * **The week is counted from the wallet's registration, not from the claim.** A
   trial claimed on day six works for one day; on day seven there is nothing left
   to claim (`403 trial_window_closed`, terminal). Claim it in the same breath as
-  `POST /register` and keep the string — it is shown once.
+  `POST /register`.
 * **Fifty calls means fifty calls that were accepted.** Any operation counts, the free
   `status` included, and so does a run that then fails or times out. A call
   refused up front (a 4xx answer) does not.
 * **The fifty-first answers `402 trial_exhausted`, and any call after the week
-  `402 trial_expired`. Both are terminal** — waiting changes nothing. The next
-  step is a funded key.
-* **There is no balance to watch.** A trial is not measured in money. To see what
-  is left, `GET /subscription/status` with the key: `trial.calls_left`.
+  `402 trial_expired`. Both are terminal** — the next step is a funded key.
+* **No balance to watch** — what is left is `trial.calls_left` in
+  `GET /subscription/status`.
+* **OutLayer may turn this key into a subscription** (keep the key): no
+  `trial` block, `has_subscription: true`, no call count. Only OutLayer
+  extends it — never buy on nonce 0.
 * It reaches connectors only; anything else is `project_not_allowed`.
 * It cannot pay a developer: `X-Attached-Deposit` on a trial call → `403 no_deposit`.
   It cannot be withdrawn or topped up — it is not money.
@@ -159,7 +160,7 @@ the sentence in `message`:
 | `missing_payment_key` | you sent no payment credential | send `X-Payment-Key` |
 | `wk_is_not_a_payer` | you sent your `wk_`. It names your wallet; it buys nothing | send `X-Payment-Key` with a key that wallet owns |
 | `project_not_allowed` | the key's scope does not reach this project — a trial reaches connectors only | funding it changes nothing; use a key whose scope does |
-| `insufficient_balance`, `out_of_funds` | the key has no money left | top the key up |
+| `insufficient_balance`, `out_of_funds` | the key has no money left | top the key up; the trial key (nonce 0) takes no top-up — create a funded payment key |
 | `rate_limit_exceeded` | too many calls in a window | back off and retry |
 | `wallet_not_yours` | `X-Wallet-Id` named a wallet your credential does not identify — terminal | drop the header, or send your own wallet's id |
 | `policy_denied:` | the owner's policy refused (cap, coin, method, missing policy) | do not retry; change the request inside the caps, or ask the owner |
@@ -177,10 +178,9 @@ the sentence in `message`:
 
 ## Subscription: a flat rate for connector calls
 
-A subscription replaces per-call payment with an allowance on one payment key.
-How it is bought (an on-chain payment naming the key's `owner` and `nonce`), what
-the `wk_` can and cannot do about it, and the rules on spending order, renewal,
-concurrency (`429 call_already_in_flight`) and one-per-agent are in
+An allowance on one payment key (nonce ≥ 1, never the trial) in place of
+per-call payment. Buying it (`POST /subscription/purchase` from the key's
+balance, or on chain), when the agent may, OutLayer's gift, and the rules are in
 [`references/subscription.md`](references/subscription.md).
 
 ## What a call costs

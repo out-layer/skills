@@ -10,7 +10,7 @@
 | Run your own WASI module | No free tier — create and fund a payment key |
 | Upgrade to paid execution | Use `POST /wallet/v1/create-payment-key` (USDC or NEAR) |
 | Give an agent a key to spend | Claim the trial (`POST /trial-key`) or create one (`POST /wallet/v1/create-payment-key`), then hand it the string |
-| Stop paying per call for connectors | Buy a subscription for the key the agent presents — see the `outlayer-connectors` skill |
+| Stop paying per call for connectors | Buy a subscription for the key the agent presents — unless it is the trial (`nonce` 0): then create a payment key and buy on that one. See the `outlayer-connectors` skill |
 | Check the agent's allowance and expiry | `GET /subscription/status` with `X-Payment-Key` — the key reports on itself |
 | Send NEAR to someone | Use `POST /wallet/v1/transfer` with `chain: "near"` |
 | Send FT tokens (USDT, wNEAR) to someone | Use `POST /wallet/v1/call` with `ft_transfer` (see `wallet-ops.md`) |
@@ -75,6 +75,8 @@
 | Revoke delegate key | DELETE | `/wallet/v1/api-key/{key_hash}` | - |
 | Claim the trial key | POST | `/trial-key` | - |
 | Payment key balance | GET | `/payment-keys/balance` | - |
+| Turn a key's balance into a subscription (`X-Payment-Key`, nonce ≥ 1) | POST | `/subscription/purchase` | - |
+| Which purchase step the wallet is on | GET | `/wallet/v1/subscription/purchase-info` | - |
 | Create payment key | POST | `/wallet/v1/create-payment-key` | on-chain |
 | Get address | GET | `/wallet/v1/address?chain={chain}` | - |
 | Get balance | GET | `/wallet/v1/balance?chain={chain}&token={token}` | - |
@@ -168,6 +170,7 @@ Base URL: `https://api.outlayer.ai`
 | `trial_exhausted` | The trial's calls (`trial.calls` in `/register`, fifty today) are made. Terminal; a funded key has no call limit |
 | `trial_expired` | The trial key is past the wallet's first week. Terminal; create and fund a payment key |
 | `out_of_funds` | The allowance is spent or has burned. TERMINAL — fund a payment key or buy a subscription |
+| `trial_key_not_purchasable` | `POST /subscription/purchase` with the trial key (`nonce` 0), converted or not (HTTP 400). Terminal for that key — create a payment key (nonce ≥ 1), fund it, buy on it |
 | `Access denied by access condition` | A secret exists, but its condition does not admit your wallet's own 64-character account. Ask the owner to name that account, or name a row that already admits you |
 | `… its time limit passed at <date>` | You WERE admitted and the grant has expired. Ask for a new grant with a later date; being named again without one changes nothing |
 | `invalid_secrets_ref` | The `secrets_ref` names a row that cannot exist: the account is not a NEAR account id, or the profile is empty or longer than 64 characters |

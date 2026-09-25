@@ -103,6 +103,12 @@ If `deposit_start` answers with a `warning` that the wallet did not confirm
 in time, the transfer may still be in flight: poll `deposit_status` for a few
 minutes before starting another. Seen once — the money had moved.
 
+**Money operations run one at a time, never in parallel.** Wait for the
+answer to one `deposit_*`, `withdraw_*` or `class_transfer` before sending the
+next, and do not re-send a call that timed out: poll its `*_status` instead.
+Two `deposit_continue` calls at once can move the same amount from perp to
+spot twice.
+
 ## Trading
 
 | do | call |
@@ -214,6 +220,12 @@ HyperCore spot transfer sends the amount to the quoted address. Destinations:
 * **At least 2 USDC** to the wallet: 1Click answers a bare server error under
   that, and the connector refuses first with `invalid:`. The transfer inside
   HyperCore is exact, so the floor is on what you send.
+* **If the answer carries a `warning` that the transfer was not confirmed**,
+  it may still have gone out: poll `withdraw_status` — it reads the account's
+  ledger and settles the record (`sending` → `bridging`, or `done` for a
+  HyperCore address, or `failed` when
+  nothing left). Until it is settled no other withdrawal starts, so a retry
+  does not send twice.
 * `withdraw_start` returns `remainder_usd` — what stays in the account — and
   a `warning` when it is under the floor: it cannot leave on its own, but it
   is still collateral you can trade. Plan the LAST withdrawal to be ≥ 2 USDC
