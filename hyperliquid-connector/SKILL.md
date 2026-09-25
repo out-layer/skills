@@ -87,13 +87,22 @@ adds a fee and an amount-matching rule for nothing.
    today's volume, and `limits` — the floors below.
 2. `{"operation": "deposit_start", "amount": "15"}` — moves USDC from the
    wallet's intents balance to your Hyperliquid account through 1Click.
-   **At least 2 USDC**; the flat fee is ~0.32 (seen: 15 → 14.683633).
+   **At least 2 USDC**; the fee is a flat ~0.33 USDC whatever the amount
+   (seen: 15 → 14.683633; quoted 5 → 4.68, 50 → 49.67, 100 → 99.66). So
+   fund once with what you need — one deposit of 20 costs half of two of 10,
+   and a 5 USDC deposit loses over 6 %.
    The money lands on **perp**, ready to trade, in about a minute. Poll
-   `{"operation": "deposit_status", "id": "<id>"}` (a read) until `step:
-   "done"`; it carries `landed_usdc`, `landed_in`, `account_existed`. The
+   `{"operation": "deposit_status", "id": "<id>"}` (a read) until `step` is
+   `done` or `unlanded`; it carries `landed_usdc`, `landed_in`,
+   `account_existed`. A deposit that has not landed within three days closes
+   as `unlanded` at the next poll (or when the next deposit starts). The
    deposit is what creates a new account — nothing else is needed.
    `"to": "spot"` parks it on spot instead (`deposit_continue` then does the
-   class transfer).
+   class transfer). USDC on the **confidential** (shielded) balance works
+   too: `"source": "confidential"` here, `"destination": "confidential"` on
+   `withdraw_start` — the NEAR wallet never shows on HyperCore. Pick the one
+   that holds the money; a wallet policy, if the owner set one, must allow
+   the `confidential` capability.
 3. `{"operation": "leverage", "coin": "ETH", "leverage": 2}` — **required
    once per coin before the first order in it**: a fresh account trades at
    the market's maximum otherwise, and the connector refuses an order
@@ -226,6 +235,10 @@ HyperCore spot transfer sends the amount to the quoted address. Destinations:
   HyperCore address, or `failed` when
   nothing left). Until it is settled no other withdrawal starts, so a retry
   does not send twice.
+* **A route 1Click fails is refunded on HyperCore**, to the wallet's own EVM
+  address rather than your trading account: `withdraw_status` stays
+  `bridging` past `expires_at` with the balance unchanged. Bring it back with
+  [references/refund-recovery.md](references/refund-recovery.md).
 * `withdraw_start` returns `remainder_usd` — what stays in the account — and
   a `warning` when it is under the floor: it cannot leave on its own, but it
   is still collateral you can trade. Plan the LAST withdrawal to be ≥ 2 USDC

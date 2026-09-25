@@ -1,6 +1,6 @@
 ---
 name: building-outlayer-apps
-description: Build verifiable off-chain applications on NEAR OutLayer platform. Covers WASI module development in Rust, frontend integration with wallet-selector, Payment Keys, and NEP-413 authentication. Use when creating WASI containers, integrating with NEAR wallets, or building OutLayer-powered applications.
+description: Build verifiable off-chain applications on NEAR OutLayer platform. Covers WASI module development in Rust, ed25519 signing keys, frontend integration with wallet-selector, Payment Keys, and NEP-413 authentication. Use when creating WASI containers, integrating with NEAR wallets, or building OutLayer-powered applications.
 ---
 
 # Building OutLayer Apps
@@ -21,6 +21,7 @@ OutLayer is a verifiable off-chain computation platform for NEAR. Your code runs
 | No-popup API calls | Payment Keys | [frontend-payment-keys.md](references/frontend-payment-keys.md) |
 | Off-chain authentication | NEP-413 signing | [frontend-nep413.md](references/frontend-nep413.md) |
 | Available env vars in WASM | Environment | [wasi-env-vars.md](references/wasi-env-vars.md) |
+| Sign with an ed25519 key bound to the caller and the project or code; NEP-413 | WASI P2 + `signing_keys` | [signing-keys.md](references/signing-keys.md) |
 
 **CRITICAL**: Read [rules/critical-rules.md](rules/critical-rules.md) before starting!
 

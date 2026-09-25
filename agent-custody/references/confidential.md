@@ -29,9 +29,15 @@ offered here", not an error to retry.
 The action endpoints are **asynchronous**: they return
 `{ request_id, status: "pending_deposit", intent_hash, deposit_address }`. Poll
 `GET /wallet/v1/requests/{request_id}` until `status` is `success`, `failed`, or
-`refunded`. On `/confidential/withdraw`, `chain` must be either the token's
-**home chain** (e.g. `chain="zcash"` for `nep141:zec.omft.near` + a Zcash
-t-address) or `"near"` — any other combination is rejected with 400.
+`refunded`. On `/confidential/withdraw`, `chain` is the token's **home
+chain** (e.g. `chain="zcash"` for `nep141:zec.omft.near` + a Zcash
+t-address), `"near"`, or another chain that lists the same symbol — there the
+token arrives as that listing, swapped on the way (NEAR USDC with
+`chain="hypercore"` arrives as HIP-1 USDC, with `chain="polygon"` as Polygon
+USDC). A token with no such listing is rejected with 400.
+`/confidential/deposit/cross-chain` credits USDC from any chain as **NEAR
+USDC** unless `destination_asset` says otherwise; other tokens arrive as the
+same asset, bridged.
 `chain="near"` delivers to the named NEAR account: **native NEAR** for
 `nep141:wrap.near` (`intents.near native_withdraw` unwraps wNEAR and sends
 native), or the **NEP-141 representation on NEAR** for omft bridge assets
@@ -101,7 +107,7 @@ intents balance use `/confidential/unshield` instead.
 |---|---|---|---|
 | `POST /wallet/v1/confidential/shield` | `{ token, amount }` | `ConfidentialOpResponse` | SHIELD — wallet must already hold `token` in its **public** intents balance. Canonical; legacy alias `POST /wallet/v1/confidential/deposit` still works |
 | `POST /wallet/v1/confidential/unshield` | `{ token, amount }` | `ConfidentialOpResponse` | Reverse of SHIELD; returns funds to **your own** public intents balance |
-| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain` must be the token's **home chain** or `"near"` — a mismatch (e.g. `chain="near"` + a Zcash t-address, or `chain="bitcoin"` + a ZEC token) is rejected with 400. `chain="near"` delivers to the named `to` account: **native NEAR** for `nep141:wrap.near` (1Click `native_withdraw` unwraps wNEAR), or the **NEP-141 token on NEAR** for omft bridge assets (ZEC arrives as `zec.omft.near`, not on Zcash). To return funds to your **own** public intents balance use `/confidential/unshield` instead. Home-chain set covers all omft natives (zcash, dogecoin, litecoin, bitcoincash, xrp, dash, cardano, tron, sui, aptos, aleo, gnosis, berachain, movement, plasma, starknet + the EVM/sol/btc set). The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
+| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain` is the token's **home chain**, `"near"`, or another chain listing the same symbol (delivered as that listing, swapped on the way); a token with no listing there (e.g. `chain="bitcoin"` + a ZEC token) or an address of the wrong chain is rejected with 400. `chain="near"` delivers to the named `to` account: **native NEAR** for `nep141:wrap.near` (1Click `native_withdraw` unwraps wNEAR), or the **NEP-141 token on NEAR** for omft bridge assets (ZEC arrives as `zec.omft.near`, not on Zcash). To return funds to your **own** public intents balance use `/confidential/unshield` instead. Home-chain set covers all omft natives (zcash, dogecoin, litecoin, bitcoincash, xrp, dash, cardano, tron, sui, aptos, aleo, gnosis, berachain, movement, plasma, starknet + the EVM/sol/btc set). The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
 | `POST /wallet/v1/confidential/withdraw/dry-run` | same as `withdraw` | `QuotePreview` | No DB write, no sign/submit. Use to preview spread/eta before the real call |
 | `POST /wallet/v1/confidential/transfer` | `{ to, amount, token }` (no `chain`) | `ConfidentialOpResponse` | `to` = recipient's `intentsUserId` (their 64-hex NEAR implicit address). NEAR-only context. Recipient must also have confidential intents enabled on their deployment |
 | `POST /wallet/v1/confidential/swap` | `{ token_in, token_out, amount_in, min_amount_out? }` | `ConfidentialOpResponse` | `token_in != token_out`; `min_amount_out` enforced before signing (rejects 400 if quote below floor) |

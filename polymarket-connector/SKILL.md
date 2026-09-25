@@ -50,7 +50,12 @@ after it names the rule or the number. Mainnet only.
   the chain refuses the transaction, with 0 the account does not exist yet.
 * **USDC on the wallet's intents balance** — that is what `deposit_start`
   draws from, and where withdrawals return. The plain balance is a different
-  pot. Ask the owner for funds with `dest=intents`.
+  pot. Ask the owner for funds with `dest=intents`. USDC already on the
+  **confidential** (shielded) balance works too: `"source": "confidential"`
+  on `deposit_start`, `"destination": "confidential"` on `withdraw_start` —
+  the NEAR wallet never shows on Polygon. Pick the one that holds the money.
+  If the owner set a wallet policy, it must allow the `confidential`
+  capability.
 * **The owner's policy**, `POLYMARKET_POLICY`, in a row under the OWNER's
   account that names your wallet. Without it only reads and `cancel` work;
   `status` shows it. The owner stores it at
@@ -72,7 +77,8 @@ after it names the rule or the number. Mainnet only.
    between calls; three calls is normal. Nobody pays gas: the relayer does.
 3. `{"operation": "deposit_start", "amount": "2.5"}` — moves USDC from the
    wallet's intents balance into collateral. **At least $2.10**: the bridge's
-   floor is $2 judged on what arrives, and the one-click leg takes ~0.3 %.
+   floor is $2 judged on what arrives, and the one-click leg takes a few
+   cents whatever the amount (quoted 5 → 4.98, 100 → 99.96).
    The call itself takes ~30 s (it waits for the intents withdrawal to be
    accepted); the collateral appeared within 75 s after that. Then
    `{"operation": "deposit_status", "id": "<id>"}` → `step: "done"` with
