@@ -302,7 +302,7 @@ words.
 
 | connector | what it is | skill |
 |---|---|---|
-| `hyperliquid` | Hyperliquid perpetuals: markets, leverage, limit and market orders, cancels, positions; funding over CCTP from the intents or the confidential balance | https://skills.outlayer.ai/hyperliquid-connector/SKILL.md |
+| `hyperliquid` | Hyperliquid perpetuals: markets, leverage, limit and market orders, cancels, positions; funding through 1Click from the intents or the confidential balance | https://skills.outlayer.ai/hyperliquid-connector/SKILL.md |
 | `polymarket` | Polymarket prediction markets: find markets, buy and sell outcome shares, positions, claim resolved markets, fund from the wallet and back | https://skills.outlayer.ai/polymarket-connector/SKILL.md |
 | `gmail` | send mail from the owner's own Gmail address, under the owner's recipient policy; it cannot read the mailbox | https://skills.outlayer.ai/gmail-connector/SKILL.md |
 | `github` | work in the owner's GitHub account, as the owner: issues, comments, files, commits, pull requests, reviews and gists, under the owner's policy | https://skills.outlayer.ai/github-connector/SKILL.md |
@@ -310,8 +310,8 @@ words.
 | `connector-probe` | the platform's own test connector: pricing, limits, secrets, the outbound allowlist, traps and timeouts | https://github.com/out-layer/outlayer/blob/main/connectors/connector-probe/README.md |
 | `subkey-probe` | EVM sub-keys end to end, for testing the signing path | https://github.com/out-layer/outlayer/blob/main/connectors/subkey-probe/README.md |
 
-`polymarket` and the funding legs of `hyperliquid` run on mainnet only; the
-probes are testnet only.
+`polymarket`, `hyperliquid`: mainnet only. Probes: testnet only. `gmail`,
+`github`, `mercury`: both.
 
 ## Working with any connector
 

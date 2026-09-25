@@ -58,6 +58,37 @@ for skill_md in "$ROOT"/*/SKILL.md; do
     || say "$ENTRY/SKILL.md has no row for $name"
 done
 
+# a connector skill names every operation its manifest declares, and no other.
+# The manifest (the `describe` block inside the wasm) is the source of truth
+# for what a connector does; the skill is prose about it and may not lag or
+# invent. Compared only when the connector checkout is beside this repo
+# (CONNECTORS_ROOT overrides); a bare clone warns and moves on.
+CONNECTORS_ROOT="${CONNECTORS_ROOT:-$ROOT/../../near-offshore/connectors}"
+for skill_md in "$ROOT"/*-connector/SKILL.md; do
+  name="$(basename "$(dirname "$skill_md")")"
+  manifest="$CONNECTORS_ROOT/$name/manifest.json"
+  if [[ ! -f "$manifest" ]]; then warn "$name: no manifest at $manifest — operations not compared"; continue; fi
+  if ! command -v python3 >/dev/null; then warn "$name: python3 missing — operations not compared"; continue; fi
+  python3 - "$manifest" "$(dirname "$skill_md")" "$name" <<'PY' || fail=1
+import json, os, re, sys
+manifest, skill_dir, name = sys.argv[1:]
+ops = json.load(open(manifest))["operations"]
+text = ""
+for root, _, files in os.walk(skill_dir):
+    for f in files:
+        if f.endswith(".md"):
+            text += open(os.path.join(root, f)).read()
+missing = [o for o in ops if not re.search(r"`" + re.escape(o) + r"`|\"" + re.escape(o) + r"\"", text)]
+invented = sorted(set(re.findall(r"\"operation\":\s*\"([a-z_]+)\"", text)) - set(ops))
+bad = False
+if missing:
+    print(f"FAIL  {name}: the manifest declares operations the skill never names: {missing}"); bad = True
+if invented:
+    print(f"FAIL  {name}: the skill calls operations the manifest does not declare: {invented}"); bad = True
+sys.exit(1 if bad else 0)
+PY
+done
+
 # nothing generated is tracked
 if git -C "$ROOT" ls-files --error-unmatch web-ui/public >/dev/null 2>&1; then
   say "web-ui/public is tracked in git — it is a build artifact"
