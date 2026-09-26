@@ -194,7 +194,7 @@ use outlayer::storage;
 storage::set_worker("key", b"value")?;
 let data: Option<Vec<u8>> = storage::get_worker("key")?;
 
-// Public storage (readable by other projects)
+// Per-caller storage, encrypted by the keystore (only this caller, in this project)
 storage::set("key", b"value")?;
 let data: Option<Vec<u8>> = storage::get("key")?;
 
@@ -217,14 +217,52 @@ let new_val: i64 = storage::decrement("counter", 1)?;
 storage::set_if_absent("key", b"value")?;
 storage::set_if_equals("key", b"old", b"new")?;
 
-// Cross-project reads
-let data = storage::get_worker_from_project("key", Some("project-uuid"))?;
+// Another project's PUBLIC worker data, by name or by uuid
+let data = storage::get_worker_from_project("key", Some("oracle.near/price-feed"))?;
+let data = storage::get_worker_from_project("key", Some("p0000000000000001"))?;
+
+// A previous version's data
 let data = storage::get_by_version("key", "wasm-hash")?;
 
 // Cleanup
 storage::clear_all()?;
 storage::clear_version("wasm-hash")?;
 ```
+
+**Cross-project reads.** `get_worker_from_project` reads only what the other
+project stored with `set_worker_with_options(key, value, Some(false))`. The
+project is its name `owner.near/project-name` or its uuid (`p` + 16 lowercase
+hex, `OUTLAYER_PROJECT_UUID` in that project's runs). `Ok(None)`: no such key,
+or no such project. `Err`: the key is stored encrypted, or the string is in
+neither form. Outside a module, `GET https://api.outlayer.ai/public/storage/get?project=<name or uuid>&key=<key>`
+and `POST https://api.outlayer.ai/public/storage/batch` `{"project": …, "keys": [...]}`
+(at most 50) read the same data; `project_uuid` is accepted as an alias of
+`project`, in either form.
+
+**Whose storage.** `set`/`get` and every other function outside the `*_worker`
+ones read and write one account's cell of the project. The module never names
+the account; the manifest's `storage_account` picks it:
+
+| `storage_account` | On chain | Over HTTPS |
+|---|---|---|
+| `signer` (default) | the transaction's signer | the payment key's owner |
+| `predecessor` | the account that called the contract (a relaying contract, not the user who signed) | the payment key's owner |
+
+Under `predecessor`, a run with no predecessor is refused before it executes.
+Any other value makes the manifest unreadable, and the run is refused. Worker
+storage is not affected. A module that seals records under a
+`caller: "predecessor"` encryption key declares `storage_account: "predecessor"`
+too ([encryption-keys.md](encryption-keys.md)).
+
+**Raw storage.** The host interface `near:storage` also has `set-raw`,
+`get-raw`, `set-if-absent-raw` and `set-if-equals-raw`: the bytes as given, in
+the same account's cell of the project and the same key namespace, with no keystore on
+the path. The operator can read a raw record's key name and bytes, so encrypt
+the value first with an encryption key and name the record by its `mac`. A key
+holds one record in one mode: the other mode's functions refuse it, and no write
+converts it (delete it first). `has`, `delete` and `list-keys` work on both
+modes; `increment`/`decrement` only on encrypted records. The recipe and a
+complete module: [encryption-keys.md](encryption-keys.md), "Sealed storage".
 
 ### `outlayer::vrf` - Verifiable Random Function
 

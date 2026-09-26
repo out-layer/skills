@@ -1,6 +1,6 @@
 ---
 name: building-outlayer-apps
-description: Build verifiable off-chain applications on NEAR OutLayer platform. Covers WASI module development in Rust, ed25519 signing keys, frontend integration with wallet-selector, Payment Keys, and NEP-413 authentication. Use when creating WASI containers, integrating with NEAR wallets, or building OutLayer-powered applications.
+description: Build verifiable off-chain applications on NEAR OutLayer platform. Covers WASI module development in Rust, ed25519 and secp256k1 (EVM) signing keys, encryption keys and sealed (raw) storage, frontend integration with wallet-selector, Payment Keys, and NEP-413 authentication. Use when creating WASI containers, integrating with NEAR wallets, or building OutLayer-powered applications.
 ---
 
 # Building OutLayer Apps
@@ -21,7 +21,8 @@ OutLayer is a verifiable off-chain computation platform for NEAR. Your code runs
 | No-popup API calls | Payment Keys | [frontend-payment-keys.md](references/frontend-payment-keys.md) |
 | Off-chain authentication | NEP-413 signing | [frontend-nep413.md](references/frontend-nep413.md) |
 | Available env vars in WASM | Environment | [wasi-env-vars.md](references/wasi-env-vars.md) |
-| Sign with an ed25519 key bound to the caller and the project or code; NEP-413 | WASI P2 + `signing_keys` | [signing-keys.md](references/signing-keys.md) |
+| Sign with an ed25519 or secp256k1 key bound to the caller and the project or code; NEP-413, EVM, proving a key is the project's | WASI P2 + `signing_keys` | [signing-keys.md](references/signing-keys.md) |
+| Encrypt, decrypt or MAC with a key bound to the caller and the project or code; store records the operator cannot read (raw storage) | WASI P2 + `encryption_keys` | [encryption-keys.md](references/encryption-keys.md) |
 
 **CRITICAL**: Read [rules/critical-rules.md](rules/critical-rules.md) before starting!
 
@@ -207,4 +208,6 @@ curl -X POST "$OUTLAYER_API_URL/call/owner.near/project" \
 | [frontend-wallet.md](references/frontend-wallet.md) | Wallet-selector setup, transaction handling |
 | [frontend-payment-keys.md](references/frontend-payment-keys.md) | Payment Keys for no-popup API calls |
 | [frontend-nep413.md](references/frontend-nep413.md) | NEP-413 signing for authentication |
+| [signing-keys.md](references/signing-keys.md) | Keys a module signs with: manifest, host interface, NEP-413, EVM |
+| [encryption-keys.md](references/encryption-keys.md) | Keys a module seals data with; sealed records in raw storage |
 | [critical-rules.md](rules/critical-rules.md) | Must-read rules to avoid common errors |

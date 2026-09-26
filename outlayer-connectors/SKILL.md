@@ -161,7 +161,8 @@ the sentence in `message`:
 | `wk_is_not_a_payer` | you sent your `wk_`. It names your wallet; it buys nothing | send `X-Payment-Key` with a key that wallet owns |
 | `project_not_allowed` | the key's scope does not reach this project — a trial reaches connectors only | funding it changes nothing; use a key whose scope does |
 | `insufficient_balance`, `out_of_funds` | the key has no money left | top the key up; the trial key (nonce 0) takes no top-up — create a funded payment key |
-| `rate_limit_exceeded` | too many calls in a window | back off and retry |
+| `rate_limit_exceeded`, `upstream_unavailable` | too many calls; the platform briefly down (503) | wait `Retry-After`, then retry |
+| `internal_error` | platform fault (500); the call may still run | do not resend: it pays twice |
 | `wallet_not_yours` | `X-Wallet-Id` named a wallet your credential does not identify — terminal | drop the header, or send your own wallet's id |
 | `policy_denied:` | the owner's policy refused (cap, coin, method, missing policy) | do not retry; change the request inside the caps, or ask the owner |
 | `invalid_label:` / `sub_key_unavailable:` | a sub-key label was malformed, or this project has none | fix the label; only connectors have sub-keys |
@@ -170,10 +171,10 @@ the sentence in `message`:
 | `trial_expired` | the trial key is past the wallet's first week — **terminal**, calls left or not | same |
 | `operation_limit_reached` | a connector's own technical cap on one operation | wait `retry_after_seconds`; it is far above ordinary use, so look for a loop |
 | `unknown_operation` / "does not sell operation" | the operation is not priced | read the connector's skill for the list |
-| `invalid_secrets_ref` | the `secrets_ref` names no possible row: the account id is not one, or the profile is not 1–64 bytes or holds an ASCII character other than a letter, digit, `-` or `_` | fix the reference — `{"account_id": "<owner>", "profile": "<name>"}` |
+| `invalid_secrets_ref` | the `secrets_ref` names no possible row: the account id is invalid, or the profile is not 1–64 bytes or holds an ASCII character other than letter, digit, `-`, `_` | fix the reference — `{"account_id": "<owner>", "profile": "<name>"}` |
 | `Access denied by access condition` | the row exists but its condition does not admit your wallet | ask the owner to whitelist your wallet's 64-character account (`outlayer secrets access`), or name a row that does |
-| `… its time limit passed at <date>` | you WERE granted and the grant has expired | ask the owner to grant again with a later date; being named again without one does not help |
-| `… its AccountPattern \`…\` cannot be compiled as a regular expression` | the owner's condition holds a pattern the engine will not compile; the row refuses everyone, whatever its other branches say, until the owner fixes it | ask the owner to fix the pattern (`outlayer secrets access`) |
+| `… its time limit passed at <date>` | you WERE granted and the grant has expired | ask the owner for a new grant with a later date |
+| `… its AccountPattern \`…\` cannot be compiled as a regular expression` | the owner's condition holds a pattern the engine will not compile; the row refuses everyone until the owner fixes it | ask the owner to fix the pattern (`outlayer secrets access`) |
 | the venue's own text | the outside service refused | act on it; the platform did its part |
 
 ## Subscription: a flat rate for connector calls

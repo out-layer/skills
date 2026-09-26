@@ -98,10 +98,14 @@ intents balance use `/confidential/unshield` instead.
 
 ```json
 {
-  "amount_in": "...", "amount_out": "...", "min_amount_out": "...",
+  "amount_out": "...", "min_amount_out": "...",
   "deadline": "2026-…T…Z", "time_estimate_seconds": 10
 }
 ```
+
+When 1Click gives no estimate for the route, `amount_out` and `min_amount_out`
+are absent and `"hint": "1Click gave no output estimate for this route"` is
+present. It is still a 200; asking again gives the same answer.
 
 | Endpoint | Body | Response | Notes |
 |---|---|---|---|
@@ -112,7 +116,7 @@ intents balance use `/confidential/unshield` instead.
 | `POST /wallet/v1/confidential/transfer` | `{ to, amount, token }` (no `chain`) | `ConfidentialOpResponse` | `to` = recipient's `intentsUserId` (their 64-hex NEAR implicit address). NEAR-only context. Recipient must also have confidential intents enabled on their deployment |
 | `POST /wallet/v1/confidential/swap` | `{ token_in, token_out, amount_in, min_amount_out? }` | `ConfidentialOpResponse` | `token_in != token_out`; `min_amount_out` enforced before signing (rejects 400 if quote below floor) |
 | `POST /wallet/v1/confidential/swap/quote` | same as `swap` | `QuotePreview` | Read-only; no DB, no sign. Preview the swap rate |
-| `POST /wallet/v1/confidential/deposit/cross-chain` | `{ source_asset, amount }` **or** `{ chain, token?, amount }` (`token` defaults to `"USDC"`) | `{ intent_id, deposit_address, amount, amount_out, min_amount_out, expires_at?, hint? }` | Quote-only — returns the bridge address on the source chain; you then send funds out-of-band on that chain. **Privacy-preserving path**: your NEAR wallet never touches the public chain. Canonical; legacy alias `POST /wallet/v1/confidential/deposit-intent` still works |
+| `POST /wallet/v1/confidential/deposit/cross-chain` | `{ source_asset, amount }` **or** `{ chain, token?, amount }` (`token` defaults to `"USDC"`) | `{ intent_id, deposit_address, amount, amount_out?, min_amount_out?, expires_at?, hint? }` | Quote-only — returns the bridge address on the source chain; you then send funds out-of-band on that chain. **Privacy-preserving path**: your NEAR wallet never touches the public chain. Canonical; legacy alias `POST /wallet/v1/confidential/deposit-intent` still works |
 | `GET /wallet/v1/confidential/balance?token=` | query string | `{ balance, token, account_id }` (filtered) or `{ balances: [{ token, balance }, …], account_id }` (no filter) | Reads `/v0/account/balances` from the private shard. Zero-balance tokens are **omitted** from the unfiltered list |
 
 ### More curl examples

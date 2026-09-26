@@ -161,6 +161,8 @@ Base URL: `https://api.outlayer.ai`
 | `memo_too_long` | Memo exceeds 256 characters |
 | `timestamp_expired` | Signature timestamp outside allowed window (±30s for Bearer, ±5min for register/api-key) |
 | `conflict` | Cannot revoke last active API key (409) |
+| `upstream_unavailable` | HTTP 503: a service behind the API is briefly unreachable. Transient — wait the `Retry-After` seconds and send the same request again |
+| `internal_error` | HTTP 500: a platform fault. Sending the same request again does not help — report it with the request you sent |
 | `"Ambiguous auth"` | PUT /api-key received both Bearer header and signature fields in body — use one or the other |
 | `"seed: 1-256 chars required"` | Empty or oversized seed in register or api-key |
 | `"seed: only [a-zA-Z0-9._-] allowed"` | Seed contains forbidden characters (NUL, colon, whitespace, Unicode, etc) — use SHA-256 hex or alphanumeric |
