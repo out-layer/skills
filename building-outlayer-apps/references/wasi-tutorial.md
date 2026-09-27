@@ -149,7 +149,7 @@ For WASI P2, use the `outlayer` crate:
 
 ```toml
 [dependencies]
-outlayer = "0.1"
+outlayer = "0.2"
 ```
 
 ### `outlayer::env` - Execution Context
@@ -205,8 +205,8 @@ storage::set_json("key", &my_struct)?;
 let obj: Option<MyStruct> = storage::get_json("key")?;
 
 // Key management
-let exists: bool = storage::has("key");
-let deleted: bool = storage::delete("key");
+let exists: bool = storage::has("key")?;   // Err when the storage call fails
+let deleted: bool = storage::delete("key")?;
 let keys: Vec<String> = storage::list_keys("prefix:")?;
 
 // Atomic operations

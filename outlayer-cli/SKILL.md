@@ -235,7 +235,7 @@ outlayer keys create                   # create new key → prints key string (s
 outlayer keys list                     # list keys with balances
 outlayer keys balance <nonce>          # check specific key balance
 outlayer keys topup <nonce> <amount>   # top up with NEAR (auto-swaps to USDC on mainnet)
-outlayer keys delete <nonce>           # delete key (refunds storage deposit)
+outlayer keys delete <nonce>           # delete key: storage deposit refunded, remaining balance forfeited; its nonce is not freed
 ```
 
 Key format: `owner:nonce:secret` (e.g., `alice.near:1:a1b2c3d4e5f6...`).

@@ -106,7 +106,7 @@ serde_json = "1.0"
 
 # WASI P2 only
 wasi-http-client = "0.2"
-outlayer = "0.1"
+outlayer = "0.2"
 
 # For embedded contracts
 borsh = { version = "1.5", features = ["derive"] }
