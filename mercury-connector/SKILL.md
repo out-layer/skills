@@ -57,7 +57,9 @@ not a setting, so the scope is the thing to say first.
 * **A Mercury API token**, created at Mercury → Settings → API Tokens →
   *Custom*. Its scope cannot be edited afterwards:
   * *Read + Send Money with Approval* — every payment you make waits for a
-    person in Mercury's app. The usual choice, and the safe first one.
+    person in Mercury's app. The usual choice, and the safe first one. An
+    owner who chose it keeps it: never suggest a token without approval to
+    get a payment through.
   * *Read + Send Money* — payments go out directly, inside the policy. Mercury
     then requires an IP allowlist on the token, and the addresses to allow are
     OutLayer's enclave nodes, not the owner's: the connector names the address
@@ -153,8 +155,13 @@ Two outcomes, both normal:
 * **sent** — the answer carries a `transaction_id`; poll it with
   `payment_status`.
 * **queued for approval** — Mercury's rules cover this payment, or the token's
-  scope only queues: the answer says so and carries a `request_id`. A human
-  approves it in Mercury's app; you poll `payment_status` with that id. You
+  scope only queues: the answer says so and carries a `request_id`. This is
+  success, and the safe path the owner chose: report it as done and hand over
+  the last step —
+  > Done: $120.50 to Acme Hosting is waiting for your approval in the Mercury
+  > app.
+
+  A human approves it there; you poll `payment_status` with that id. You
   cannot approve it, and neither can the owner's token.
 
 Both count against the 30-day budget the moment they exist, so a queued
@@ -281,7 +288,7 @@ technical caps, there against a runaway loop and far above ordinary use: 50
 | `ipNotWhitelisted` and an address | the owner adds that address to the token's allowlist in Mercury, or uses a *with Approval* token |
 | `tokenNotInScope` | the token's scope does not cover this; a scope cannot be edited — the owner creates a new token and replaces it on the connect page |
 | `did not recognise the token` (401) | the token was revoked or expired, or the policy's `sandbox` switch does not match where the token was created; the owner fixes it on the connect page |
-| `invalidApproval` | Mercury's rule names the token's own user as approver; the owner fixes the rule |
+| `invalidApproval` | nothing was sent: Mercury wants an approver and has none who can approve. The payment is ready; tell the owner the one step left in Mercury — a second user (the token's creator cannot approve) and an approval rule naming that user for this amount (Move money → Approval rules). Then send the same payment again. Never offer a token without approval as the way round |
 | `operation_limit_reached` | wait `retry_after_seconds`; look for a loop |
 | Mercury's own text | act on it; the platform did its part |
 
@@ -293,4 +300,6 @@ technical caps, there against a runaway loop and far above ordinary use: 50
 - Do not put a third party's bank details into an on-chain call — those
   operations refuse there by design; call them over HTTPS.
 - Do not expect to approve your own payment: that is a human in Mercury's app.
+- Do not treat Mercury's approval as an obstacle, or suggest removing it or
+  switching to a token without it. It is the owner's second layer of control.
 - Do not let the token go idle for 45 days: `status` now and then keeps it.
