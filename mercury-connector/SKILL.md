@@ -173,11 +173,52 @@ account and routing numbers.
 
 ## Invoicing
 
-`send_invoice` creates a REAL Mercury invoice and Mercury emails it to the
-customer; `cancel_invoice` cancels an unpaid one and cannot be undone. Both
-need `allow_invoicing` in the policy. `create_invoice` only renders a document
-with the account's ACH coordinates — it sends nothing and is the safe choice
-when the customer pays by bank transfer.
+Three operations, all HTTPS-only. Pick by what the owner asked for:
+
+| the owner wants | operation | needs `allow_invoicing` |
+|---|---|---|
+| a real invoice the customer receives by email and Mercury tracks | `send_invoice` | yes |
+| an invoice document to deliver some other way | `create_invoice` | no |
+| to withdraw an unpaid invoice | `cancel_invoice` | yes |
+
+**`send_invoice`** creates the invoice in Mercury. Mercury emails it to the
+customer at once and tracks it to `Paid`. It goes out under the owner's company
+name: confirm the customer, the amount and the due date with the owner first.
+
+```json
+{"operation": "send_invoice",
+ "customer": {"name": "Client Co", "email": "ap@client.example"},
+ "line_items": [{"name": "Consulting, August", "unit_price_usd": 250.00, "quantity": 2}],
+ "due_date": "2026-10-15"}
+```
+
+| field | rule |
+|---|---|
+| `customer` or `customer_id` | one of them. `customer` is `{name, email, address?}`: matched to an existing customer by email, created when absent. `customer_id` comes from `customers` |
+| `line_items` | each `{name, unit_price_usd, quantity?, sales_tax_rate?}`; `quantity` defaults to 1, the tax rate is a percent. For a single line, `amount_usd` + `description` instead |
+| `due_date` | required, `YYYY-MM-DD` |
+| `invoice_date` | defaults to today |
+| `invoice_number` | Mercury generates one when omitted |
+| `payer_memo`, `po_number` | optional text on the invoice |
+| `send_email` | `false` creates the invoice without emailing it |
+| `ach_debit_enabled` | default on |
+| `credit_card_enabled` | default off; card payments carry fees |
+| `use_real_account_number` | default off: the payer sees a virtual account number |
+| `account_id` | the account to be paid into; defaults to the policy's pin, else the login's only account |
+
+Mercury computes the total. Read the answer for the invoice id, then follow it
+with `{"operation": "invoice_status", "invoice_id": "…"}`.
+
+**`create_invoice`** renders an invoice document with the account's real ACH
+coordinates. It sends nothing and stores nothing: deliver it yourself.
+
+```json
+{"operation": "create_invoice", "amount_usd": 500.00, "description": "Consulting, August",
+ "bill_to_name": "Client Co", "bill_to_email": "ap@client.example", "due_date": "2026-10-15"}
+```
+
+**`cancel_invoice`** takes `{"operation": "cancel_invoice", "invoice_id": "…"}`.
+Only an unpaid invoice can be cancelled, and it cannot be undone.
 
 ## What the policy caps
 
@@ -187,7 +228,7 @@ when the customer pays by bank transfer.
 | `allowed_recipients` | any payee saved in Mercury | only these recipient ids; a list here also makes `add_recipient` impossible |
 | `allow_new_recipients` | **off**: only payees already saved | `add_recipient` and inline payees allowed |
 | `payment_methods` | ACH only | only the rails named; a wire is never on unless named |
-| `account_id` | the login's only account; with several, no payments | everything runs against this account |
+| `account_id` | the login's only account; with several, no payments | payments draw from this account. It is Mercury's account id, the `id` that `accounts` lists; the owner picks the account by name on the connect page |
 | `allow_invoicing` | **off**: read invoices and render a document only | `send_invoice` and `cancel_invoice` allowed |
 | `allowed_operations` | every operation, subject to the rest | only these, reads included; `status` always answers |
 | `sandbox` | **off**: the production bank | the token is a Mercury sandbox one; every call goes to Mercury's sandbox API and no real money moves |
