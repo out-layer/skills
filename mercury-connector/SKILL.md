@@ -204,7 +204,7 @@ name: confirm the customer, the amount and the due date with the owner first.
 | `ach_debit_enabled` | default on |
 | `credit_card_enabled` | default off; card payments carry fees |
 | `use_real_account_number` | default off: the payer sees a virtual account number |
-| `account_id` | the account to be paid into; defaults to the policy's pin, else the login's only account |
+| `account_id` | the account to be paid into. When the policy names an account, only that one; otherwise the login's only account, or the one you name |
 
 Mercury computes the total. Read the answer for the invoice id, then follow it
 with `{"operation": "invoice_status", "invoice_id": "…"}`.
@@ -228,10 +228,16 @@ Only an unpaid invoice can be cancelled, and it cannot be undone.
 | `allowed_recipients` | any payee saved in Mercury | only these recipient ids; a list here also makes `add_recipient` impossible |
 | `allow_new_recipients` | **off**: only payees already saved | `add_recipient` and inline payees allowed |
 | `payment_methods` | ACH only | only the rails named; a wire is never on unless named |
-| `account_id` | the login's only account; with several, no payments | payments draw from this account. It is Mercury's account id, the `id` that `accounts` lists; the owner picks the account by name on the connect page |
+| `account_id` | reads may use any account; payments only on a login with a single account | every operation uses this account only. The owner enters the account number from the Mercury dashboard |
 | `allow_invoicing` | **off**: read invoices and render a document only | `send_invoice` and `cancel_invoice` allowed |
 | `allowed_operations` | every operation, subject to the rest | only these, reads included; `status` always answers |
 | `sandbox` | **off**: the production bank | the token is a Mercury sandbox one; every call goes to Mercury's sandbox API and no real money moves |
+
+With several accounts and none in the policy, payments are refused. Call
+`accounts` and tell the owner what you see — each account's name and
+`account_number_masked` — and ask them to enter the full number of the one to
+use on the connect page. The full number is in their Mercury dashboard; you
+never see it.
 
 `status` reports `sandbox`. When it is `true`, say so with every result you
 report: those payments are simulated. The switch is the owner's, set on the
