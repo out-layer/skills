@@ -190,6 +190,12 @@ when the customer pays by bank transfer.
 | `account_id` | the login's only account; with several, no payments | everything runs against this account |
 | `allow_invoicing` | **off**: read invoices and render a document only | `send_invoice` and `cancel_invoice` allowed |
 | `allowed_operations` | every operation, subject to the rest | only these, reads included; `status` always answers |
+| `sandbox` | **off**: the production bank | the token is a Mercury sandbox one; every call goes to Mercury's sandbox API and no real money moves |
+
+`status` reports `sandbox`. When it is `true`, say so with every result you
+report: those payments are simulated. The switch is the owner's, set on the
+connect page; do not propose the sandbox unless the owner asks how to try the
+connector without real money.
 
 Size the request inside the caps `status` reports rather than discovering them
 by refusal: a refused payment still costs its fee, because your call ran.
@@ -226,7 +232,7 @@ technical caps, there against a runaway loop and far above ordinary use: 50
 | `is HTTPS-only` | call the same operation over HTTPS |
 | `ipNotWhitelisted` and an address | the owner adds that address to the token's allowlist in Mercury, or uses a *with Approval* token |
 | `tokenNotInScope` | the token's scope does not cover this; a scope cannot be edited — the owner creates a new token and replaces it on the connect page |
-| `did not recognise the token` (401) | the token was revoked or expired; the owner replaces it on the connect page |
+| `did not recognise the token` (401) | the token was revoked or expired, or the policy's `sandbox` switch does not match where the token was created; the owner fixes it on the connect page |
 | `invalidApproval` | Mercury's rule names the token's own user as approver; the owner fixes the rule |
 | `operation_limit_reached` | wait `retry_after_seconds`; look for a loop |
 | Mercury's own text | act on it; the platform did its part |
