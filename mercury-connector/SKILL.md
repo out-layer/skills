@@ -224,13 +224,14 @@ Only an unpaid invoice can be cancelled, and it cannot be undone.
 
 | field | absent means | set means |
 |---|---|---|
-| `max_payment_usd` + `max_spend_usd_month` | **no payments at all** — both are needed | the largest single payment, and everything paid or queued in a rolling 30 days, counted from Mercury's own ledger (every outgoing transaction on the account by default, not only yours) |
+| `max_payment_usd` + `max_spend_usd_month` | **no payments at all** — both are needed | the largest single payment, and what you paid in a rolling 30 days, counted from Mercury's own ledger, plus every payment waiting for approval on the account |
 | `allowed_recipients` | any payee saved in Mercury | only these recipient ids; a list here also makes `add_recipient` impossible |
 | `allow_new_recipients` | **off**: only payees already saved | `add_recipient` and inline payees allowed |
 | `payment_methods` | ACH only | only the rails named; a wire is never on unless named |
 | `account_id` | reads may use any account; payments only on a login with a single account | every operation uses this account only. The owner enters the account number from the Mercury dashboard |
 | `allow_invoicing` | **off**: read invoices and render a document only | `send_invoice` and `cancel_invoice` allowed |
 | `allowed_operations` | every operation, subject to the rest | only these, reads included; `status` always answers |
+| `count_all_outgoing` | **off**: the budget counts only your payments | the budget counts every payment leaving the account, the people's included |
 | `sandbox` | **off**: the production bank | the token is a Mercury sandbox one; every call goes to Mercury's sandbox API and no real money moves |
 
 With several accounts and none in the policy, payments are refused. Call
