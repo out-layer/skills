@@ -134,24 +134,9 @@ act under. Ask like this:
 
 ### Later: the same page looks after the connection
 
-When the owner opens the page again it says *Gmail is connected*, since when,
-and who may use it. Three things they can do there, and what each costs them:
-
-* **Show current policy (one transaction).** The policy is sealed together
-  with the credential and only the keystore enclave can open it, so the page
-  cannot read it back. The one door into the enclave is running the connector,
-  and on chain a run is a transaction: it attaches 0.1 NEAR, keeps the run's
-  cost — about 0.0013 NEAR — and returns the rest. The connector answers with
-  the policy sealed to a key the page has just made and never sends anywhere,
-  so the chain records only ciphertext. If the owner asks why reading a
-  setting needs a transaction, that is the answer.
-* **Save policy: sign, then store.** A signature from their wallet (the
-  keystore re-seals the row with the new policy merged in — nothing on chain
-  yet), then one transaction. Two wallet prompts, in that order, both from
-  their own clicks.
-* **Reconnect Google account** — after `credential_expired`, or for a
-  different mailbox. A new consent, then the same signature and transaction;
-  the policy they have stays as it is.
+The owner reads their policy, saves a new one and reconnects there. What each
+costs them, and why reading a setting takes a transaction:
+[`references/owner-page.md`](references/owner-page.md).
 
 An owner who brought their own Google OAuth app stores three values instead of
 one and grants them the same way; nothing changes for you.
@@ -240,6 +225,15 @@ The answer:
 one, is already on it. `sent_today` and `remaining_today` are `null` when the
 owner set no `max_per_day`: no cap of theirs is counting.
 
+### When the owner confirms every message
+
+If `status` reports `confirm: ["send"]`, `send` answers
+`{"status": "awaiting_owner", "task_id": …, "link": …}` and sends nothing: the
+message waits for the owner. That is a success. Give them `link`, do not call
+`send` again, and learn the outcome with `task_status`. The limits of such a
+message and the rest:
+[`references/confirmed-sends.md`](references/confirmed-sends.md).
+
 ## What the policy permits
 
 `status` reports it, and it is written by the owner, not by you.
@@ -261,6 +255,7 @@ Everything else is allow-by-default; that one is deny-by-default.
 | `max_recipients` | any number | that many `to` and `cc` together |
 | `max_attachment_kb` | **no attachments at all** | that many KB, summed over the message's files |
 | `subject_prefix` | subjects go as written | prepended when not already there |
+| `confirm` | you send without asking | `["send"]`: every message waits for the owner's confirmation |
 
 One disallowed address refuses the whole message: a message goes to all of its
 recipients or none. Size the request inside those limits rather than discovering
@@ -279,6 +274,9 @@ blank cheque:
 |---|---|---|
 | `status` | free | ~$0.001 |
 | `send` | $0.01 | ~$0.001 |
+| `task_status`, `tasks`, `task_cancel`, `task_delete` | free | ~$0.001 |
+
+A confirmed message is paid for once, by your `send`.
 
 **A refused send costs exactly what a delivered one costs.** The fee is charged
 before the run, so a message rejected for a malformed address, an unpermitted
@@ -320,5 +318,6 @@ retries will change it — somebody has to do something.
 
 An operation name this connector does not sell is refused by the platform before
 the run, with the list: `Unknown operation "read" for this connector. Known
-operations: send, status.` Nothing runs, so there is no fee and no compute to pay, and on a trial key it is
+operations: confirm, send, status, task_cancel, task_delete, task_status, tasks,
+tasks_unlock.` Nothing runs, so there is no fee and no compute to pay, and on a trial key it is
 not one of your ten.

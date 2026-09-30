@@ -140,6 +140,9 @@ Base URL: `https://api.outlayer.ai`
 |-------|---------|
 | `missing_auth` | No `Authorization: Bearer` header |
 | `invalid_api_key` | Key revoked or not found |
+| `session_replaced` | The owner's session on that device ended: the account signed in on one device more than it may have, and that one was signed in longest ago. The owner signs in again |
+| `session_required` | The route for the owner's dashboard (`pending_approvals_by_pubkey`) was called without an owner's session. One approval by its id (`approval/{id}`) needs none. Not an agent's route: use `GET /wallet/v1/pending_approvals` with your `wk_` key |
+| `not_wallet_owner` | The signed-in owner asked about a wallet whose policy another account owns |
 | `policy_denied` | Operation blocked by policy rules |
 | `wallet_frozen` | Wallet frozen by controller |
 | `insufficient_balance` | Not enough funds |

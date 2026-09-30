@@ -10,8 +10,7 @@ and kept working — that runs inside the same TEE as your wallet. It gives an
 agent a capability of an ordinary web service with the security model of the
 wallet: the credential is sealed in the enclave, the owner's policy is checked
 on every call, and the module can only reach the hosts its signed manifest
-declares. You call it like any project; the platform knows its name, its
-prices, and that it works.
+declares. You call it like any project.
 
 ## What you could offer your owner
 
@@ -324,3 +323,5 @@ words.
    `*_continue` until `step` is `done`. Never start a second flow while one is
    unfinished.
 4. One call does one thing. Do not batch orders or payments into one call.
+5. `awaiting_owner` is a success; do not retry:
+   [`references/owner-tasks.md`](references/owner-tasks.md).
