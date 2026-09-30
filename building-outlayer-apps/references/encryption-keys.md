@@ -61,8 +61,8 @@ the module has checked who may read what it opens.
 | `vault` | a NEAR account id | `project` keys only, as for a signing key |
 
 **No `type`**: an encryption key has none, and a `type` member is refused as an
-unknown field. At most 3 encryption keys, counted apart from signing keys (a
-manifest may declare 3 of each). Any other unknown field is refused too; so is a
+unknown field. At most 5 encryption keys, counted apart from signing keys (a
+manifest may declare 3 signing keys and 5 encryption keys). Any other unknown field is refused too; so is a
 `bind` or `caller` value outside its list.
 
 **A `predecessor` key stores in the predecessor's cell.** A module that seals
