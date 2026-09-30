@@ -245,7 +245,7 @@ the account; the manifest's `storage_account` picks it:
 
 | `storage_account` | On chain | Over HTTPS |
 |---|---|---|
-| `signer` (default) | the transaction's signer | the payment key's owner |
+| `signer` (default) | the transaction's signer (for a meta-transaction, the account that signed the delegate action) | the payment key's owner |
 | `predecessor` | the account that called the contract (a relaying contract, not the user who signed) | the payment key's owner |
 
 Under `predecessor`, a run with no predecessor is refused before it executes.
@@ -253,6 +253,35 @@ Any other value makes the manifest unreadable, and the run is refused. Worker
 storage is not affected. A module that seals records under a
 `caller: "predecessor"` encryption key declares `storage_account: "predecessor"`
 too ([encryption-keys.md](encryption-keys.md)).
+
+**Who may call it.** The manifest's `callers` block names the doors a run may
+come through; the worker refuses any other before it decrypts or runs anything.
+
+```jsonc
+"callers": {
+  "direct":   "allow" | "deny",                    // absent: allow
+  "contract": "allow" | "deny" | {"only": [...]}, // absent: allow
+  "https":    "allow" | "deny",                    // absent: allow
+  "meta_tx":  "allow" | "deny"                     // absent: deny
+}
+```
+
+| Door | The run |
+|---|---|
+| `direct` | on chain; the account that called OutLayer signed the transaction |
+| `contract` | on chain; a contract called OutLayer on the signer's behalf |
+| `meta_tx` | on chain; a NEP-366 meta-transaction to OutLayer: the user signed a delegate action, a relayer sent it |
+| `https` | an HTTPS call with a payment key |
+
+No block admits every door. A block leaves open every door it does not name,
+except `meta_tx`. `{"only": [...]}` lists every account that may call OutLayer
+for the project (1–32 exact account ids), so it also shuts `direct`, `https`
+and `meta_tx`; pairing it with an explicit `"allow"` elsewhere, or `"tasks":
+true` with the direct door shut, makes the manifest unreadable. A refused run
+fails with an error that starts `This project's manifest` and ends `Nothing was
+executed.`; the owner gets no exception. The rule binds only the version that
+carries it: remove versions published without it (`remove_version`), or a
+caller pins one with `version_key`.
 
 **Raw storage.** The host interface `near:storage` also has `set-raw`,
 `get-raw`, `set-if-absent-raw` and `set-if-equals-raw`: the bytes as given, in

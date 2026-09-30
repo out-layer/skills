@@ -20,7 +20,7 @@ let value = std::env::var("VAR_NAME").unwrap();
 |----------|--------|-------------|
 | `OUTLAYER_EXECUTION_TYPE` | `"NEAR"` / `"HTTPS"` | Execution mode |
 | `NEAR_NETWORK_ID` | `"testnet"` / `"mainnet"` | Network |
-| `NEAR_SENDER_ID` | Account ID | Caller's account |
+| `NEAR_SENDER_ID` | Account ID | Caller's account; for a meta-transaction, the account that signed the delegate action |
 | `NEAR_USER_ACCOUNT_ID` | Account ID | Same as sender |
 | `NEAR_MAX_INSTRUCTIONS` | Number | Max WASM instructions |
 | `NEAR_MAX_MEMORY_MB` | Number | Max memory (MB) |
@@ -64,6 +64,7 @@ let usd_payment: u64 = std::env::var("USD_PAYMENT")
 | `NEAR_TRANSACTION_HASH` | Transaction hash |
 | `NEAR_SIGNER_PUBLIC_KEY` | Signer's public key |
 | `NEAR_PREDECESSOR_ID` | Who called the contract |
+| `NEAR_RELAYER_ID` | The relayer of a meta-transaction, who paid its gas; `""` for every other call |
 | `NEAR_GAS_BURNT` | Gas consumed |
 | `NEAR_REQUEST_ID` | Execution request ID (u64) |
 

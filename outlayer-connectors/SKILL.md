@@ -146,8 +146,7 @@ the reason is the contract.
 { "error": "Project not allowed for this payment key", "reason": "project_not_allowed" }
 ```
 
-Note the shape differs from `/wallet/v1/*`, which puts the code in `error` and
-the sentence in `message`:
+Where each door puts them:
 
 | door | machine-readable | human |
 |---|---|---|
@@ -174,7 +173,8 @@ the sentence in `message`:
 | `Access denied by access condition` | the row exists but its condition does not admit your wallet | ask the owner to whitelist your wallet's 64-character account (`outlayer secrets access`), or name a row that does |
 | `… its time limit passed at <date>` | you WERE granted and the grant has expired | ask the owner for a new grant with a later date |
 | `… its AccountPattern \`…\` cannot be compiled as a regular expression` | the owner's condition holds a pattern the engine will not compile; the row refuses everyone until the owner fixes it | ask the owner to fix the pattern (`outlayer secrets access`) |
-| the venue's own text | the outside service refused | act on it; the platform did its part |
+| `This project's manifest …` | the project does not admit this door — **terminal** | call it as the sentence says |
+| the venue's own text | the outside service refused | act on it |
 
 ## Subscription: a flat rate for connector calls
 
@@ -186,8 +186,8 @@ balance, or on chain), when the agent may, OutLayer's gift, and the rules are in
 ## What a call costs
 
 Compute (about $0.001 a call) plus the operation's fee on top. A run that
-started is charged even when it answers an error — that is how a refusal by a
-bank or a venue stays visible. Only a platform refusal before the guest runs
+started is charged even when it answers an error, such as a bank's or a
+venue's refusal. Only a platform refusal before the guest runs
 (no `operation`, unpriced, a spent trial) costs nothing. A module that traps or times
 out has its operation fee refunded.
 
