@@ -277,7 +277,9 @@ blank cheque:
 | `send` | $0.01 | ~$0.001 |
 | `task_status`, `tasks`, `task_cancel`, `task_delete` | free | ~$0.001 |
 
-A confirmed message is paid for once, by your `send`.
+A confirmed message is paid for once, by your `send`; the run of `confirm` the
+platform starts on the owner's approval is yours too, and costs you its compute
+only, as any call.
 
 **A refused send costs exactly what a delivered one costs.** The fee is charged
 before the run, so a message rejected for a malformed address, an unpermitted

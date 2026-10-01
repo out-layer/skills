@@ -23,10 +23,14 @@ second fee.
 > https://app.outlayer.ai/inbox/…
 
 The owner reads who it goes to, the subject and the body, opens every
-attachment, and sends it with their own call of `confirm`. Exactly the
-message you prepared is sent — nothing you call afterwards changes it; to
-change it, `task_cancel` it and `send` the new one. It is judged against the
-policy as it is at that moment, and counted in the owner's daily cap then.
+attachment, and approves it with one signature of their wallet; the platform
+then runs `confirm` as you — on your payment key, within the compute limit of
+the `send` that prepared it — and that run sends it. Exactly the message you
+prepared is sent — nothing you call afterwards changes it; to change it,
+`task_cancel` it and `send` the new one. It is judged against the policy as
+it is at that moment, and counted in your daily cap then, as a confirmed
+send. Keep the key alive and funded until then: a key that cannot pay for the
+run ends the task `failed` with `preparer_key_unavailable`.
 
 ## Learning what happened
 
@@ -36,8 +40,9 @@ policy as it is at that moment, and counted in the owner's daily cap then.
 
 `done` carries in `result` the fields a direct send answers: `message_id`,
 `thread_id`, `to`, `cc`, `subject`, `attachments`, `sent_today`,
-`remaining_today`. The owner's daily cap counts what you send yourself and
-what the owner confirms for you apart, each against the same number.
+`remaining_today`, and the owner's `note` when they wrote one. The owner's
+daily cap counts what you send yourself and what the owner confirms for you
+apart, each against the same number.
 
 `rejected` carries the owner's `reason` when they wrote one — "shorter", "not
 to Bob", "attach the PDF instead". Rewrite the message as they asked and call
@@ -62,8 +67,10 @@ Line ends in `body` are kept as `\n`. For a message over these, split it, or
 ask the owner whether confirmation is what they want for it — the choice is
 theirs, in their policy.
 
-## Operations that are the owner's
+## Operations that are not yours to call
 
-`confirm` and `tasks_unlock` are called by the owner, from their inbox. Called
-by you they are refused `not_the_owner:`, fee included. Never ask the owner to
-give you anything that would let you call them.
+`tasks_unlock` is the owner's, from their inbox: called by you it is refused
+`not_the_owner:`. `confirm` runs only when the platform starts it on the
+owner's approval: called by you it is refused `task_answer_invalid:`, fee
+included. Never ask the owner to give you anything that would let you call
+them.

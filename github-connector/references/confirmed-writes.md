@@ -37,8 +37,12 @@ writes.
 > waits for your confirmation, and nothing is merged until you confirm:
 > https://app.outlayer.ai/inbox/…
 
-The owner reads the write in their inbox and makes it with their own call of
-`confirm`. You learn the outcome with `task_status` (free):
+The owner reads the write in their inbox and approves it with one signature
+of their wallet; the platform then runs `confirm` as you — on your payment
+key, within the compute limit of the call that prepared it — and that run
+makes the write. Keep the key alive and funded until then: a key that cannot
+pay for the run ends the task `failed` with `preparer_key_unavailable`. You
+learn the outcome with `task_status` (free):
 
 ```json
 {"operation": "task_status", "task_id": "…"}
@@ -46,7 +50,7 @@ The owner reads the write in their inbox and makes it with their own call of
 
 `done` carries in `result` the write's whole answer, as the write would have
 answered you directly — for a `commit`, its `commit`, `url` and
-`writes_today`. `rejected` carries the owner's `reason` when they wrote one ("request
+`writes_today` — and the owner's `note` when they wrote one. `rejected` carries the owner's `reason` when they wrote one ("request
 changes instead of approving", "put it on a branch"): do what it says and call
 the write again — a new task, with a new `link` to give them. Never prepare the
 same write again unchanged. Every state and what to do in it:
@@ -89,10 +93,12 @@ it was given.
 
 ## The owner's yes is bound to what they saw
 
-`confirm` makes exactly the write the task holds; nothing you call afterwards
-changes it. To change a prepared write, `task_cancel` it and prepare the new
-one. The write is judged again at `confirm`, under the same policy, with the
-default-branch rule asked of GitHub again, and counted then — for you.
+The run of `confirm` the platform starts makes exactly the write the task
+holds; nothing you call afterwards changes it. To change a prepared write,
+`task_cancel` it and prepare the new one. The write is judged again at
+`confirm`, under the same policy, with the default-branch rule asked of
+GitHub again, and counted then — in your own daily count, as a confirmed
+write.
 
 | write | bound to |
 |---|---|
@@ -124,8 +130,10 @@ owner confirms for you as two counts, each against the same number.
 `writes_today` in `status` and in a write you make yourself is the first; in a
 confirmed write's `result` it is the second.
 
-## Operations that are the owner's
+## Operations that are not yours to call
 
-`confirm` and `tasks_unlock` are called by the owner, from their inbox. Called
-by you they are refused `not_the_owner:`, and the call is still paid for.
-Never ask the owner to give you anything that would let you call them.
+`tasks_unlock` is the owner's, from their inbox: called by you it is refused
+`not_the_owner:`. `confirm` runs only when the platform starts it on the
+owner's approval: called by you it is refused `task_answer_invalid:`, and
+the call is still paid for. Never ask the owner to give you anything that
+would let you call them.

@@ -202,7 +202,7 @@ what binds their yes, and what a refusal does to the task:
 | `tasks` | — | your tasks for this owner |
 | `task_cancel` | `task_id` | withdraw a task that is still open |
 | `task_delete` | `task_id` | delete one of your tasks |
-| `confirm`, `tasks_unlock` | `task_id`, `task_hash` (`confirm`) | the owner's own calls, from their inbox; refused `not_the_owner` for you |
+| `confirm`, `tasks_unlock` | `task_id`, `task_hash`, `approval` (`confirm`) | not yours to call: `confirm` is run by the platform as you on the owner's approval (refused `task_answer_invalid` when you call it); `tasks_unlock` is the owner's (refused `not_the_owner`) |
 
 There is no operation that forwards a request of your choosing, and there will
 not be one. If GitHub has an endpoint this list does not, say so rather than
