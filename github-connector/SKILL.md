@@ -1,6 +1,6 @@
 ---
 name: github-connector
-description: Work in the owner's GitHub account through the `github` connector — read and open issues, comment, read and review pull requests, write files, commit, open pull requests, and create gists, all under the owner's policy. Use when an agent with an OutLayer wallet needs to act on GitHub as its owner. Everything is posted under the owner's name.
+description: Work in the owner's GitHub account through the `github` connector — read and open issues, comment, read and review pull requests, write files, commit, open pull requests, and create gists, all under the owner's policy. Use when an agent with an OutLayer wallet needs to act on GitHub as its owner. Everything is posted under the owner's name. Also covers writes the owner chose to confirm first, which answer `awaiting_owner`.
 ---
 
 # GitHub connector
@@ -61,12 +61,18 @@ what the policy lets you do.
  "reachable_repositories": ["outlayer-ai/sandbox"],
  "add_repositories": "https://github.com/apps/outlayer-auth/installations/new",
  "policy": {"present": true, "actions": ["any"], "repos": ["outlayer-ai/*"],
-            "branches": ["agent/*"], "paths": ["docs/*"], "max_writes_per_day": 40},
+            "branches": ["agent/*"], "paths": ["docs/*"], "max_writes_per_day": 40,
+            "confirm": ["pr_merge"]},
  "writes_today": 7}
 ```
 
 Read `policy.actions` and plan inside it. Asking for something it does not list
 wastes a call and tells the owner nothing they did not already decide.
+
+Read `policy.confirm` too. It names the writes that wait for the owner's
+confirmation instead of being made; `null` or `[]` means none waits. Above,
+`pr_merge` would answer `awaiting_owner` and every other allowed write would
+be made at once.
 
 On chain the policy comes back **sealed**: pass `reply_pubkey`, a secp256k1
 public key in hex, and open `policy_sealed` yourself. The policy names the
@@ -139,8 +145,9 @@ the same page.
 
 ## The operations
 
-`status` is free. A read costs $0.001, a write $0.01. Every write also spends
-one of the owner's `max_writes_per_day`.
+`status` is free. A read costs $0.001, a write $0.01 — also when it waits for
+the owner, paid when the task is made. `confirm` and the task operations are
+free. Every write also spends one of the owner's `max_writes_per_day`.
 
 ### Reading
 
@@ -178,6 +185,25 @@ at the head's sha.
 | `gist_update` | `gist_id`, `files`, `description` |
 | `repo_star`, `repo_unstar` | `repo` |
 
+### When the owner confirms a write
+
+A write listed in `policy.confirm` is checked, prepared and left in the
+owner's inbox, and answers `{"status": "awaiting_owner", "task_id": …,
+"link": …}`. Nothing is written yet. Give the owner `link`, do not call the
+write again while the task is open, and learn the outcome with `task_status`.
+The owner's `confirm` makes exactly the write they were shown; a merge or an
+approval is bound to the pull request head they saw. What the owner is shown,
+what binds their yes, and what a refusal does to the task:
+[`references/confirmed-writes.md`](references/confirmed-writes.md).
+
+| operation | fields | does |
+|---|---|---|
+| `task_status` | `task_id` | where one of your tasks stands; `result` on `done`, the owner's `reason` on `rejected` |
+| `tasks` | — | your tasks for this owner |
+| `task_cancel` | `task_id` | withdraw a task that is still open |
+| `task_delete` | `task_id` | delete one of your tasks |
+| `confirm`, `tasks_unlock` | `task_id`, `task_hash` (`confirm`) | the owner's own calls, from their inbox; refused `not_the_owner` for you |
+
 There is no operation that forwards a request of your choosing, and there will
 not be one. If GitHub has an endpoint this list does not, say so rather than
 looking for a way around.
@@ -214,7 +240,8 @@ answers `not_permitted`, say so and move on.
   `file_put` calls are five commits, five prices, and five entries in the
   owner's history.
 * **A write you repeat is a write that happened twice.** `issue_create` has no
-  idempotency key. If an answer is lost, `issue_list` first and look.
+  idempotency key. If an answer is lost, `issue_list` first and look. An
+  `awaiting_owner` answer is not lost: the write waits, do not repeat it.
 * **On `conflict`, read again.** The branch moved. Never work around it — there
   is no force and there should not be.
 * **Do not retry a `policy_denied` or a `not_permitted`.** Nothing you do

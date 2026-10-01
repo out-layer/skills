@@ -1,6 +1,6 @@
 ---
 name: gmail-connector
-description: Send email from the owner's own Gmail address through the `gmail` connector — to the recipients the owner's policy allows, with attachments if it allows them. Use when an agent with an OutLayer wallet needs to write to someone by email as its owner. It cannot read the mailbox.
+description: Send email from the owner's own Gmail address through the `gmail` connector — to the recipients the owner's policy allows, with attachments if it allows them. Use when an agent with an OutLayer wallet needs to write to someone by email as its owner. It cannot read the mailbox. Also covers a send the owner chose to confirm first, which answers `awaiting_owner`.
 ---
 
 # Gmail connector
@@ -181,7 +181,7 @@ The full answer:
  "scope": "gmail.send: this connector sends as the connected account and cannot read its mailbox",
  "policy": {"present": true, "recipient_domains": null, "recipients": null,
             "max_per_day": null, "max_recipients": null,
-            "max_attachment_kb": null, "subject_prefix": null},
+            "max_attachment_kb": null, "subject_prefix": null, "confirm": null},
  "sent_today": 0,
  "next": "`send` with `to`, `subject` and `body`"}
 ```
@@ -227,11 +227,12 @@ owner set no `max_per_day`: no cap of theirs is counting.
 
 ### When the owner confirms every message
 
-If `status` reports `confirm: ["send"]`, `send` answers
+Read `policy.confirm` in `status` before you send. `null` or `[]`: `send`
+sends at once. `["send"]`: `send` answers
 `{"status": "awaiting_owner", "task_id": …, "link": …}` and sends nothing: the
 message waits for the owner. That is a success. Give them `link`, do not call
-`send` again, and learn the outcome with `task_status`. The limits of such a
-message and the rest:
+`send` again while the task is open, and learn the outcome with `task_status`.
+The limits of such a message, and what to do when the owner rejects it:
 [`references/confirmed-sends.md`](references/confirmed-sends.md).
 
 ## What the policy permits

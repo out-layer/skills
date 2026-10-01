@@ -9,17 +9,24 @@ the owner's inbox and answers
 ```json
 {"success": true,
  "output": {"status": "awaiting_owner", "task_id": "…", "task_hash": "…",
-            "expires_at": 1790003600, "link": "https://app.outlayer.ai/inbox/…"}}
+            "thread": "…", "expires_at": 1790003600,
+            "link": "https://app.outlayer.ai/inbox/…"}}
 ```
 
-That is a success: the message is prepared and waits. Give the owner `link`,
-keep `task_id`, and **do not call `send` again** — a second call is a second
-message in their inbox and a second fee.
+That is a success: the message is prepared and waits, and nothing was sent.
+Give the owner `link`, keep `task_id`, and **do not call `send` again while
+the task is open** — a second call is a second message in their inbox and a
+second fee.
+
+> I wrote the email to boss@example.com, subject "Weekly numbers". It is
+> waiting for your confirmation and nothing is sent until you confirm:
+> https://app.outlayer.ai/inbox/…
 
 The owner reads who it goes to, the subject and the body, opens every
 attachment, and sends it with their own call of `confirm`. Exactly the
-message you prepared is sent; it is judged against the policy as it is at that
-moment, and counted in the owner's daily cap then.
+message you prepared is sent — nothing you call afterwards changes it; to
+change it, `task_cancel` it and `send` the new one. It is judged against the
+policy as it is at that moment, and counted in the owner's daily cap then.
 
 ## Learning what happened
 
@@ -30,8 +37,12 @@ moment, and counted in the owner's daily cap then.
 `done` carries in `result` the fields a direct send answers: `message_id`,
 `thread_id`, `to`, `cc`, `subject`, `attachments`, `sent_today`,
 `remaining_today`. The owner's daily cap counts what you send yourself and
-what the owner confirms for you apart, each against the same number. Every
-other state, and what to do in it:
+what the owner confirms for you apart, each against the same number.
+
+`rejected` carries the owner's `reason` when they wrote one — "shorter", "not
+to Bob", "attach the PDF instead". Rewrite the message as they asked and call
+`send` again: a new task, with a new `link` to give them. Never send the same
+message again unchanged. Every other state, and what to do in it:
 https://skills.outlayer.ai/outlayer-connectors/references/owner-tasks.md
 
 ## What a message to be confirmed must fit

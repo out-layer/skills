@@ -323,5 +323,5 @@ words.
    `*_continue` until `step` is `done`. Never start a second flow while one is
    unfinished.
 4. One call does one thing. Do not batch orders or payments into one call.
-5. `awaiting_owner` is a success; do not retry:
+5. `awaiting_owner` is success, nothing done yet; do not retry:
    [`references/owner-tasks.md`](references/owner-tasks.md).
