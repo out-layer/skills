@@ -29,7 +29,10 @@ offered here", not an error to retry.
 The action endpoints are **asynchronous**: they return
 `{ request_id, status: "pending_deposit", intent_hash, deposit_address }`. Poll
 `GET /wallet/v1/requests/{request_id}` until `status` is `success`, `failed`, or
-`refunded`. On `/confidential/withdraw`, `chain` is the token's **home
+`refunded`. An action can also answer `{ request_id, status: "processing",
+deposit_address, poll_url }`: the intent was submitted and the upstream's answer
+was lost. It may have been taken — **do not retry**; poll `poll_url`, the request
+settles on its own (a day unresolved → `needs_review`). On `/confidential/withdraw`, `chain` is the token's **home
 chain** (e.g. `chain="zcash"` for `nep141:zec.omft.near` + a Zcash
 t-address), `"near"`, or another chain that lists the same symbol — there the
 token arrives as that listing, swapped on the way (NEAR USDC with

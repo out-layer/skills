@@ -38,10 +38,9 @@ curl -s -X POST -H "Content-Type: application/json" \
 Response:
 ```json
 {
-  "request_id": "uuid",
-  "status": "success",
-  "check_id": "pc_a1b2c3d4e5f6",
-  "check_key": "ed25519:5Kd3NBU...base58_private_key",
+  "check_id": "3a2b1c0d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "check_key": "9f8a7b6c...64_hex_chars",
+  "status": "unclaimed",
   "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
   "amount": "1000000",
   "memo": "Payment for song generation",
@@ -51,6 +50,13 @@ Response:
 ```
 
 **`check_key` is shown only once** - this is the check itself. Send it to the recipient. The `check_id` is for your own status tracking and reclaims.
+
+`status` is `unclaimed` once the funding transfer settled. If the relay did not
+confirm it in time, the answer is `"status": "creating"` with a `poll_url`
+(`/wallet/v1/payment-check/status?check_id=…`) — the `check_key` is in that answer
+too, so keep it. Poll until the check reads `unclaimed` (or `failed`: the funding
+never executed and nothing moved). Do not create the check again: the first one may
+still land. A recipient's claim of a `creating` check is refused until it is funded.
 
 The check is paid from the **intents** balance, and a short one is refused
 (`400 insufficient_balance`) rather than topped up: move funds in first with
@@ -69,7 +75,10 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.ai/wallet/v1/payment-check/batch-create"
 ```
 
-Response: `{"checks": [<same as single create>, ...]}` - one entry per check, same fields.
+Response: `{"checks": [<same as single create>, ...]}` - one entry per check, same
+fields, each with its own `status`. The balance must cover the whole batch, or nothing
+is created. If the batch stops part way (rare: the relay is down), the checks already
+created are listed with their keys and `"error"` says which were not created.
 
 ### Claim a payment check
 
@@ -79,13 +88,13 @@ Supports **partial claims** - pass `amount` to claim less than the full check. O
 # Full claim
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RECIPIENT_API_KEY" \
-  -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key"}' \
+  -d '{"check_key":"9f8a7b6c...64_hex_chars"}' \
   "https://api.outlayer.ai/wallet/v1/payment-check/claim"
 
 # Partial claim (500000 out of 1000000)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $RECIPIENT_API_KEY" \
-  -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key","amount":"500000"}' \
+  -d '{"check_key":"9f8a7b6c...64_hex_chars","amount":"500000"}' \
   "https://api.outlayer.ai/wallet/v1/payment-check/claim"
 ```
 
@@ -98,7 +107,7 @@ Response:
 ```json
 {
   "request_id": "uuid",
-  "status": "success",
+  "status": "partially_claimed",
   "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
   "amount_claimed": "500000",
   "remaining": "500000",
@@ -108,19 +117,27 @@ Response:
 }
 ```
 
+`status` is the check's status after this claim (`claimed` or `partially_claimed`).
+If the transfer is not confirmed in time, the answer is `"status": "processing"`
+with `request_id` and `poll_url` (`remaining` and `claimed_at` absent): poll
+`GET /wallet/v1/requests/{request_id}` until it reads `completed` (its `result`
+carries `amount_claimed` and `remaining`) or `failed` with `never_executed: true`
+(nothing moved — claim again). Do not claim again while it is `processing`; send an
+`X-Idempotency-Key` so a retried call answers `duplicate_idempotency_key` instead.
+
 Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` to move them to a wallet or another chain. When `remaining > 0`, the check stays active for further claims or reclaim.
 
 ### Check status
 
 ```bash
 curl -s -H "Authorization: Bearer $API_KEY" \
-  "https://api.outlayer.ai/wallet/v1/payment-check/status?check_id=pc_a1b2c3d4e5f6"
+  "https://api.outlayer.ai/wallet/v1/payment-check/status?check_id=3a2b1c0d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"
 ```
 
 Response:
 ```json
 {
-  "check_id": "pc_a1b2c3d4e5f6",
+  "check_id": "3a2b1c0d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
   "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
   "amount": "1000000",
   "claimed_amount": "500000",
@@ -136,12 +153,15 @@ Response:
 
 | Status | Meaning |
 |--------|---------|
+| `creating` | Funding transfer not confirmed yet - poll; claims wait for it |
 | `unclaimed` | Funds waiting - check not yet claimed |
+| `claiming` / `reclaiming` | A claim or reclaim is in flight - poll; another one is refused meanwhile |
 | `partially_claimed` | Recipient claimed part of the check - remaining funds available |
 | `claimed` | Recipient claimed the entire check |
 | `partially_reclaimed` | Sender reclaimed part - remaining available for claim |
 | `reclaimed` | Sender took all remaining funds back |
 | `expired` | Unclaimed and past `expires_at` - sender can reclaim |
+| `failed` | The funding transfer never executed - nothing moved, create a new check |
 
 ### List payment checks
 
@@ -160,13 +180,13 @@ Supports **partial reclaims** - pass `amount` to reclaim less than the remaining
 # Full reclaim
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -d '{"check_id":"pc_a1b2c3d4e5f6"}' \
+  -d '{"check_id":"3a2b1c0d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"}' \
   "https://api.outlayer.ai/wallet/v1/payment-check/reclaim"
 
 # Partial reclaim (300000 out of remaining 500000)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -d '{"check_id":"pc_a1b2c3d4e5f6","amount":"300000"}' \
+  -d '{"check_id":"3a2b1c0d-4e5f-6a7b-8c9d-0e1f2a3b4c5d","amount":"300000"}' \
   "https://api.outlayer.ai/wallet/v1/payment-check/reclaim"
 ```
 
@@ -179,7 +199,7 @@ Response:
 ```json
 {
   "request_id": "uuid",
-  "status": "success",
+  "status": "partially_reclaimed",
   "token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
   "amount_reclaimed": "300000",
   "remaining": "200000",
@@ -188,7 +208,7 @@ Response:
 }
 ```
 
-Reclaim works anytime the check has remaining balance - before or after expiry. Only the check creator can reclaim. When `remaining > 0`, the check stays active for further claims or reclaims.
+`processing` + `poll_url` works as for a claim. Reclaim works anytime the check has remaining balance - before or after expiry. Only the check creator can reclaim. When `remaining > 0`, the check stays active for further claims or reclaims.
 
 ### Peek a check (check balance by key)
 
@@ -197,7 +217,7 @@ Check the on-chain balance and status of a check using its key. Requires wallet 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -d '{"check_key":"ed25519:5Kd3NBU...base58_private_key"}' \
+  -d '{"check_key":"9f8a7b6c...64_hex_chars"}' \
   "https://api.outlayer.ai/wallet/v1/payment-check/peek"
 ```
 

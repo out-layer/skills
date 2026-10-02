@@ -95,6 +95,15 @@ Response — 1Click's order **as it stood when it was created**, plus `request_i
 }
 ```
 
+If the funding transfer is not confirmed in time, the order exists but the answer is
+```json
+{ "request_id": "uuid", "status": "processing", "order_id": "order_…", "poll_url": "/wallet/v1/requests/uuid" }
+```
+That is not an error and **must not be retried** — the transfer may land, and a retry
+rests and funds a second order. Poll `poll_url`: `success` once the transfer executed,
+or `failed` with `never_executed: true` once its deadline passed unused (nothing moved;
+the order is then cancelled). Follow the order itself by `order_id` as usual.
+
 | Field | What it tells you |
 |-------|-------------------|
 | `fill_status`, `payout_status`, `is_payout_status_final` | Where the order stands — see "Is it done?" below |
