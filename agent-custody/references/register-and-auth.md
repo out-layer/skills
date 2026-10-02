@@ -50,7 +50,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.ai/register"
 ```
 
-Signed message format: `"register:<seed>:<unix_timestamp>"`. Timestamp window: **±5 minutes**.
+Signed message format: `"register:<seed>:<unix_timestamp>"`. Timestamp window: **±5 minutes**. Sign with a **full-access** key of `account_id` (or the key of an implicit account not created yet); a function-call key is refused.
 
 Response:
 ```json
@@ -75,7 +75,7 @@ curl -s -H "Authorization: Bearer near:${TOKEN}" \
   "https://api.outlayer.ai/wallet/v1/balance?chain=near"
 ```
 
-The signed message for Bearer auth is `"auth:<seed>:<timestamp>"` (±30 second window).
+The signed message for Bearer auth is `"auth:<seed>:<timestamp>"` (±30 second window), signed by a full-access key of `account_id`.
 
 #### Register delegate key for sub-agents
 
