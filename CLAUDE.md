@@ -32,7 +32,7 @@ Write for a small-context model that reads only what it is pointed at.
 | FT transfer, `/call`, storage deposit, NEP-413 / `auth-sign`, delete, auto-registration table | `…/wallet-ops.md` |
 | EVM and Solana signing | `…/signing-evm-solana.md` |
 | Swap: quote, execute, reading the fill | `…/intents-swap.md` |
-| Withdraw, async mode, the exact status set, `Idempotency-Key`, which field is a tx hash, `/intents/transfer` | `…/intents-withdraw.md` |
+| Withdraw, async mode, the exact status set, `X-Idempotency-Key`, which field is a tx hash, `/intents/transfer` | `…/intents-withdraw.md` |
 | Cross-chain deposit/withdraw, supported chains | `…/cross-chain.md` |
 | Confidential intents and the privacy model | `…/confidential.md` |
 | Limit orders | `…/limit-orders.md` |

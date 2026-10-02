@@ -36,7 +36,7 @@ On a **multisig** wallet the create call answers `pending_approval` (see "Reques
 # Sell 1 wNEAR for USDC at 5 USDC per NEAR (or better)
 curl -s -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
-  -H "Idempotency-Key: $(uuidgen)" \
+  -H "X-Idempotency-Key: $(uuidgen)" \
   -d '{
     "base_asset":  "nep141:wrap.near",
     "quote_asset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
@@ -108,7 +108,7 @@ Response — 1Click's order **as it stood when it was created**, plus `request_i
 | `order_type`, `deposit_mode`, `deposit_type`, `confidentiality`, `time_in_force` | Constants today: `limit`, `simple`, `intents`, `basic`, `gtc` |
 | `transfer_intent_hash`, `request_id` | The only two fields that are OutLayer's and not 1Click's: the transfer that funded the order, and this create call |
 
-Always send an `Idempotency-Key` (see "Idempotency-Key — one key per operation" in `intents-withdraw.md`): a repeated key is not executed again, so a retry cannot rest — and fund — a second order.
+Always send an `X-Idempotency-Key` (see "X-Idempotency-Key — one key per operation" in `intents-withdraw.md`): a repeated key is not executed again, so a retry cannot rest — and fund — a second order.
 
 If 1Click's own figures for the order turn out worse than the terms your policy authorised (it asks for more, or pays out less), OutLayer cancels the still-unfunded order and answers `400` — nothing is sent.
 

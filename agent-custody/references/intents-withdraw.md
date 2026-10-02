@@ -39,7 +39,7 @@ The `GET /wallet/v1/requests/{id}` row for a withdraw/swap holds **only** these 
 |----------|-----------|--------------------------|
 | `processing` | no | Still settling. Keep polling. |
 | `success` | **yes** | Done. `result` carries `amount_out`, `transfer_intent_hash`, `deposit_address` (identifiers) plus — on cross-chain ops — nullable `destination_tx_hash`, the **one** real destination-chain tx (see "Result fields are identifiers, NOT tx hashes" below). |
-| `failed` | **yes** | Execution failed (a 1Click refund/expiry is also normalized to `failed`; the reason is in `result.reason`). Safe to surface as a failure. `result.never_executed: true` or `result.never_submitted: true` means no funds moved — safe to retry with a new `Idempotency-Key`. |
+| `failed` | **yes** | Execution failed (a 1Click refund/expiry is also normalized to `failed`; the reason is in `result.reason`). Safe to surface as a failure. `result.never_executed: true` or `result.never_submitted: true` means no funds moved — safe to retry with a new `X-Idempotency-Key`. |
 | `needs_review` | **yes (stop)** | **Execution was interrupted or unresolved; fund state is UNKNOWN.** Surface as "needs manual review / contact support". **Do NOT auto-retry** — the original transfer may have fired, so a retry can double-spend. This is the status integrators most often forget — without it you poll forever. |
 | `pending_approval` / `approved` | no | **Multisig wallets only.** The withdrawal needs the approval flow to complete; it will not settle by polling alone. |
 | `rejected` | **yes** | Multisig: approvers rejected. Treat as failure. |
@@ -55,7 +55,7 @@ Notes:
 - `success`/`failure` detection in your client should be: success = `{"success"}`, failure = `{"failed","rejected"}`, plus `needs_review` as a distinct non-retryable outcome.
 - `"bridging"` and `"pending_deposit"` belong to the **deposit** endpoint (`/intents/deposit/cross-chain/status`), **not** to `/requests/{id}` — don't expect them here.
 - **Submit status:** a successful async submit is exactly `"processing"` (never `pending`/`queued`). On a **multisig** wallet the submit returns `"pending_approval"` instead — handle that before assuming you can just poll.
-- **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow settlement — the bridge, or the solver relay on a same-chain withdraw — can still return `"processing"`** with a `poll_url` — branch on the status and poll it, don't assume the sync body is always terminal. The withdrawal runs to its outcome even if your client disconnects, so give a sync call at least 100 s; if your client gives up first, do NOT submit a new withdraw — re-send with the same `Idempotency-Key` and poll the id the duplicate answer names (see "Idempotency-Key" below).
+- **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow settlement — the bridge, or the solver relay on a same-chain withdraw — can still return `"processing"`** with a `poll_url` — branch on the status and poll it, don't assume the sync body is always terminal. The withdrawal runs to its outcome even if your client disconnects, so give a sync call at least 100 s; if your client gives up first, do NOT submit a new withdraw — re-send with the same `X-Idempotency-Key` and poll the id the duplicate answer names (see "X-Idempotency-Key" below).
 - **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
 - **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap` / `limit_order` (the last one fires when a multisig-approved order has been placed and funded — NOT when it fills; read the order for that).
 
@@ -72,9 +72,9 @@ Notes:
 - **Real NEAR `tx_hash` exists only on the on-chain endpoints:** `/wallet/v1/call`, `/transfer`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit`, `/delete`. The gasless/intents endpoints (`/intents/withdraw`, `/intents/swap`, `/intents/transfer`) return intent hashes (plus `destination_tx_hash` where noted) — no `tx_hash` field.
 - **Receipts:** show `deposit_address` and `request_id` as ids/text; render `transfer_intent_hash`/`intent_hash` as a NEAR-Intents identifier, never as an EVM/Solana explorer link; link `destination_tx_hash` on the destination chain's explorer once non-null.
 
-#### Idempotency-Key — one key per operation
+#### X-Idempotency-Key — one key per operation
 
-State-changing calls (`/intents/withdraw`, `/swap`, `/intents/transfer`, `/intents/deposit`, …) accept an optional `Idempotency-Key` HTTP header. Dedup is **by key only** — scoped to `(wallet, key)`; the request **body is never compared or hashed**. This has two consequences integrators get wrong:
+State-changing calls (`/intents/withdraw`, `/swap`, `/intents/transfer`, `/intents/deposit`, …) accept an optional `X-Idempotency-Key` HTTP header. Dedup is **by key only** — scoped to `(wallet, key)`; the request **body is never compared or hashed**. This has two consequences integrators get wrong:
 
 - **A reused key does NOT return the prior result and does NOT re-execute.** It returns **HTTP `200`** (not a 4xx) with an *error* body:
   ```json

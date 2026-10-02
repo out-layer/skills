@@ -32,7 +32,7 @@ Paths below are relative to this file. Fetched over HTTP, the base is
 | Send an FT token, call a contract, register token storage, sign a NEP-413 message, delete the wallet | `references/wallet-ops.md` |
 | Sign EIP-712 / EIP-191 / a raw EVM transaction, or a Solana message / transaction | `references/signing-evm-solana.md` |
 | Swap tokens: quote, execute, read the realized fill | `references/intents-swap.md` |
-| Withdraw out of intents (native NEAR, wNEAR, another chain), async mode and the exact status values, `/intents/transfer`, `Idempotency-Key`, which field is a real tx hash | `references/intents-withdraw.md` |
+| Withdraw out of intents (native NEAR, wNEAR, another chain), async mode and the exact status values, `/intents/transfer`, `X-Idempotency-Key`, which field is a real tx hash | `references/intents-withdraw.md` |
 | Bring funds in from Solana / an EVM chain / Bitcoin, or send them there | `references/cross-chain.md` |
 | Shielded balances, private transfer or swap, and what "confidential" does and does not hide | `references/confidential.md` |
 | Place, read or cancel a limit order | `references/limit-orders.md` |
