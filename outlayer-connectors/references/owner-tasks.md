@@ -23,6 +23,19 @@ part; nothing was sent, written, paid or changed. `expires_at` is Unix seconds.
 another task in the owner's inbox and another fee, and the owner would be asked
 the same thing twice.
 
+### `notified`: the owner was told, and nothing waits on them
+
+A call may also answer `"status": "notified"`, with the same `task_id`,
+`task_hash`, `thread`, `expires_at` and `link`. That is a **notice**: the
+connector told the owner something — what it did, how a game ended — and
+asked nothing. **It is a success, and you wait for nothing.** No run of yours
+follows it and the owner decides nothing; they read it and press Got it.
+`task_status` on its `task_id` reads `"kind": "notice"`, `open` until they
+saw it, then `done`; `task_not_found` once they deleted it. Whether they saw
+it is not whether something happened: what an action did, you read from that
+action's own answer or its task. A notice counts in the owner's inbox and in
+your share like a task (`inbox_full` below).
+
 ## Which connectors ask first, and for what
 
 | connector | operations that can wait for the owner |
@@ -115,7 +128,7 @@ success.
 | `open` | the owner has not answered | wait; remind them once if it matters, with the same `link`. Do not prepare it again |
 | `approved` | the owner approved; the platform queued a run of yours, named in `run`, which has not acted yet | ask again shortly |
 | `answering` | that run took the answer and is carrying the action out now | ask again shortly |
-| `done` | the action was carried out. `result` is what the connector reports — for a send, the message id — with the owner's `note` when they wrote one | report it to the owner as done |
+| `done` | the action was carried out. `result` is what the connector reports — for a send, the message id — with the owner's `note` when they wrote one. For a notice (`kind: notice`): the owner saw it, and there is no `result` | report it to the owner as done; for a notice, nothing |
 | `failed` | the run could not be started, did not start, refused the task, or ended without reporting the action; `failure_reason` says which. The action may have happened in part | read `failure_reason` (below); tell the owner, with `run`; do not assume either way. If the work is still wanted, prepare it again — a new task |
 | `rejected` | the owner said no. `reason` is what they wrote, when they wrote something | act on the reason: rewrite the action as they asked and call the operation again — a new task, with a new `link` to give them. Without a reason, ask what they want changed. Never prepare the same thing again unchanged |
 | `cancelled` | you withdrew it | — |
@@ -237,11 +250,12 @@ you reads the number.
    |---|---|---|
    | `higher`, `lower` | the number is above, below the guess | goes on: `next_task_id` is the next turn, yours to follow |
    | `not_a_number` | the owner typed something that is not a whole number from 1 to `max` | goes on, the same way |
-   | `right` | guessed; `detail` says in how many attempts | over: no `next_task_id` |
+   | `right` | guessed; `detail` says in how many attempts | over: no `next_task_id`; `notice_task_id` is a notice that tells the owner the number and the count, and asks nothing |
 
    `next_error` in place of `next_task_id` means the guess was judged and the
    next turn could not be opened (its refusal, e.g. `inbox_full: …`): the
-   game stops there.
+   game stops there. `notice_error` in place of `notice_task_id` means the
+   game was won and the owner could not be told.
 
 Every turn after the first was opened by the run the platform started for
 the owner's approval — a run of yours — so it is yours like the first: it is
@@ -251,7 +265,7 @@ in your `tasks`, and `task_status` on `next_task_id` answers it.
 
 | the error starts with | what happened | retry? |
 |---|---|---|
-| `inbox_full:` | the owner has as many open tasks as an inbox holds or stores, or you left as many as one agent may | not until the owner answers some. Cancel what is no longer wanted |
+| `inbox_full:` | the owner has as many open tasks as an inbox holds or stores, or you left as many as one agent may — notices unseen count among them | not until the owner answers some. Cancel what is no longer wanted, notices included |
 | `muted:` | the owner muted you or this connector | no. Only the owner can undo it; do not ask through another channel |
 | `not_granted_by_name:` | the owner's row admits you by a rule open to many accounts, not by naming yours | no. The owner grants your account by name |
 | `no_owner:` | the call named no `secrets_ref`, or the row did not open | fix the call |
