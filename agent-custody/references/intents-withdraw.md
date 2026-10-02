@@ -15,7 +15,7 @@ Same result, different execution:
 `/intents/withdraw` accepts `"async": true`. In async mode the call returns immediately with `status: "processing"` and a `poll_url`; the withdrawal settles in the background and you poll `GET /wallet/v1/requests/{request_id}` until the row reaches a terminal status. **The exact status values are a short, fixed set — see "Status values (exact)" below; do not invent synonym sets, and do not forget `needs_review`.**
 
 - **Cross-chain withdrawals (`chain` ≠ `near`): always prefer `async: true`.** The 1Click bridge almost always takes longer than the synchronous response window — a sync call blocks up to ~90s and then returns `processing` anyway, and can hit the gateway request timeout first. Async is the reliable path; treat it as the default for any non-NEAR `chain`.
-- **Same-chain NEAR (`chain: "near"`)** settles in seconds — a synchronous call is fine and `async` is optional.
+- **Same-chain NEAR (`chain: "near"`)** usually settles in seconds — a synchronous call is fine and `async` is optional. When the solver relay is slow, a sync call still answers `processing`; branch on the status and poll.
 - Auth, policy and validation errors are returned **synchronously** in both modes. In async mode only an *execution* failure surfaces as the request's `failed` status (read it from the poll, not the POST response).
 
 ```bash
@@ -39,7 +39,7 @@ The `GET /wallet/v1/requests/{id}` row for a withdraw/swap holds **only** these 
 |----------|-----------|--------------------------|
 | `processing` | no | Still settling. Keep polling. |
 | `success` | **yes** | Done. `result` carries `amount_out`, `transfer_intent_hash`, `deposit_address` (identifiers) plus — on cross-chain ops — nullable `destination_tx_hash`, the **one** real destination-chain tx (see "Result fields are identifiers, NOT tx hashes" below). |
-| `failed` | **yes** | Execution failed (a 1Click refund/expiry is also normalized to `failed`; the reason is in `result.reason`). Safe to surface as a failure. |
+| `failed` | **yes** | Execution failed (a 1Click refund/expiry is also normalized to `failed`; the reason is in `result.reason`). Safe to surface as a failure. `result.never_executed: true` or `result.never_submitted: true` means no funds moved — safe to retry with a new `Idempotency-Key`. |
 | `needs_review` | **yes (stop)** | **Execution was interrupted or unresolved; fund state is UNKNOWN.** Surface as "needs manual review / contact support". **Do NOT auto-retry** — the original transfer may have fired, so a retry can double-spend. This is the status integrators most often forget — without it you poll forever. |
 | `pending_approval` / `approved` | no | **Multisig wallets only.** The withdrawal needs the approval flow to complete; it will not settle by polling alone. |
 | `rejected` | **yes** | Multisig: approvers rejected. Treat as failure. |
@@ -55,7 +55,7 @@ Notes:
 - `success`/`failure` detection in your client should be: success = `{"success"}`, failure = `{"failed","rejected"}`, plus `needs_review` as a distinct non-retryable outcome.
 - `"bridging"` and `"pending_deposit"` belong to the **deposit** endpoint (`/intents/deposit/cross-chain/status`), **not** to `/requests/{id}` — don't expect them here.
 - **Submit status:** a successful async submit is exactly `"processing"` (never `pending`/`queued`). On a **multisig** wallet the submit returns `"pending_approval"` instead — handle that before assuming you can just poll.
-- **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow bridge can still return `"processing"`** — branch on the status (poll via the returned `request_id`), don't assume the sync body is always terminal.
+- **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow settlement — the bridge, or the solver relay on a same-chain withdraw — can still return `"processing"`** with a `poll_url` — branch on the status and poll it, don't assume the sync body is always terminal. The withdrawal runs to its outcome even if your client disconnects, so give a sync call at least 100 s; if your client gives up first, do NOT submit a new withdraw — re-send with the same `Idempotency-Key` and poll the id the duplicate answer names (see "Idempotency-Key" below).
 - **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
 - **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap` / `limit_order` (the last one fires when a multisig-approved order has been placed and funded — NOT when it fills; read the order for that).
 
@@ -136,7 +136,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 - **Use `/intents/transfer`** when the recipient also holds an intents balance (e.g. another OutLayer custody wallet) and you want to keep funds inside intents — cheapest, no exit.
 - **Use `/intents/withdraw`** when the recipient should receive funds on a plain on-chain account (it runs `ft_withdraw`/`native_withdraw`, leaving the intents pool).
 
-NEAR-only: no `chain` field, and `token` is **required** (to send NEAR, transfer `nep141:wrap.near`). The recipient need not exist on-chain — a 64-hex implicit account is a valid recipient. Same policy gating as withdraw (recipient whitelist + per-token amount limit; multisig returns `status=pending_approval`).
+NEAR-only: no `chain` field, and `token` is **required** (to send NEAR, transfer `nep141:wrap.near`). The recipient need not exist on-chain — a 64-hex implicit account is a valid recipient. Same policy gating as withdraw (recipient whitelist + per-token amount limit; multisig returns `status=pending_approval`). The response is usually `status:"success"`; when the solver relay is slow it is `"processing"` with a `poll_url` — poll it, same status set as withdraw, and do NOT send the transfer again.
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
