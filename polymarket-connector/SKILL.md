@@ -18,16 +18,20 @@ says "seen", that is what happened.
 ```
 POST https://api.outlayer.ai/call/connectors.outlayer.near/polymarket
 X-Payment-Key: <a payment key the custody wallet owns>
+X-Wallet-Id: <your wallet's id — GET /wallet/v1/address, `wallet_id`>
 Content-Type: application/json
 
-{"input": {"operation": "<op>", ...},
- "secrets_ref": {"account_id": "<owner's account>", "profile": "polymarket"}}
+{"input": {"operation": "<op>", ...}}
 ```
 
-`secrets_ref` names the owner's row: the policy, stored under the owner's
-account with your wallet in its access rule. Every call carries it, reads
-included — without it the connector sees no policy and can only read and
-cancel.
+**Send no `secrets_ref`, and always send `X-Wallet-Id`** — without it the
+run has no wallet. If your wallet has an owner, OutLayer attaches their policy
+row (`{owner, "polymarket"}`) itself; any other row, your own included, is refused
+`403 policy_row_not_owner`, and doing it again blocks your wallet on this
+connector for a while (`403 calls_suspended`). If the owner's row does not name
+your wallet you get `Access denied by access condition`: ask them to add your
+wallet's account. With no policy you trade on the built-in default (any size,
+withdrawals only back to the wallet); `status` shows which applies.
 
 Two envelopes come back. The platform's: `{call_id, status, output,
 compute_cost, time_ms}`. Inside its `output`, the connector's: `{success,
@@ -57,13 +61,13 @@ after it names the rule or the number. Mainnet only.
   If the owner set a wallet policy, it must allow the `confidential`
   capability.
 * **The owner's policy**, `POLYMARKET_POLICY`, in a row under the OWNER's
-  account that names your wallet. Without it only reads and `cancel` work;
+  account that names your wallet. Without it you trade on the built-in default;
   `status` shows it. The owner stores it at
   **<https://app.outlayer.ai/connect/polymarket>**: a form for the caps, a field
   for your wallet's account, one wallet transaction. Send them there with your
   account (`GET /wallet/v1/address?chain=near`, the `address`) and say what you
   need: orders open only when both `max_order_usd` and `max_daily_volume_usd`
-  are set. Then name their row in `secrets_ref`.
+  are set. It applies to your next call; you name nothing.
 
 ## First calls, in order
 

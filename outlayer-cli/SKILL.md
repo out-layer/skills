@@ -240,7 +240,18 @@ outlayer keys delete <nonce>           # delete key: storage deposit refunded, r
 
 Key format: `owner:nonce:secret` (e.g., `alice.near:1:a1b2c3d4e5f6...`).
 
-**Key cannot be recovered after creation** - save it immediately.
+**Key cannot be recovered after creation** - save it immediately. The one
+exception is a custody wallet's nonce-0 key (its trial, or a sponsor code's
+subscription): it is derived, and read again on request.
+
+```bash
+outlayer redeem spn_... --api-key wk_...   # sponsor code → subscription on the wallet's nonce-0 key; stdout = the key
+outlayer keys trial-key --api-key wk_...   # print the wallet's nonce-0 key again
+```
+
+Both take the wallet key from `--api-key`, then `OUTLAYER_WALLET_KEY`. A code
+that cannot be redeemed answers `sponsor_code_invalid` whatever the reason —
+ask whoever gave it; `sponsor_cannot_top_up` means the key already holds more.
 
 ## Payment Checks (Agent-to-Agent)
 
@@ -349,7 +360,7 @@ outlayer status [call_id]      # project info or poll async call status
 | `OUTLAYER_HOME` | Config directory (default: `~/.outlayer`) |
 | `OUTLAYER_NETWORK` | Override network: `mainnet` or `testnet` |
 | `PAYMENT_KEY` | Payment key for `outlayer run` (format: `owner:nonce:secret`) |
-| `OUTLAYER_WALLET_KEY` | Wallet API key for `outlayer checks` (format: `wk_...`) |
+| `OUTLAYER_WALLET_KEY` | Wallet API key for `outlayer checks`, `redeem` and `keys trial-key` (format: `wk_...`) |
 
 ## Global Flags
 

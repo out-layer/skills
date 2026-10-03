@@ -5,7 +5,8 @@
 | You need... | Action |
 |-------------|--------|
 | A crypto wallet for your agent | Register via `POST /register` |
-| Try the connectors for free | Claim a trial key with `POST /trial-key`, then send it as `X-Payment-Key` |
+| Try the connectors for free | Claim a trial key with `POST /trial-key`, then send it as `X-Payment-Key`; read it again with `GET /wallet/v1/payment-key` |
+| Somebody gave you a sponsor code | `POST /wallet/v1/sponsorship {code}` — a subscription on the nonce-0 key, paid by the sponsor (the `outlayer-connectors` skill) |
 | Check what is left on any key | `GET /payment-keys/balance` with `X-Payment-Key` — money in `available`; a trial key answers in calls, `trial.calls_left` |
 | Run your own WASI module | No free tier — create and fund a payment key |
 | Upgrade to paid execution | Use `POST /wallet/v1/create-payment-key` (USDC or NEAR) |
@@ -74,6 +75,8 @@
 | Register delegate key | PUT | `/wallet/v1/api-key` (Bearer or NEAR sig) | - |
 | Revoke delegate key | DELETE | `/wallet/v1/api-key/{key_hash}` | - |
 | Claim the trial key | POST | `/trial-key` | - |
+| Read the nonce-0 key again | GET | `/wallet/v1/payment-key` | - |
+| Redeem a sponsor code | POST | `/wallet/v1/sponsorship` | - |
 | Payment key balance | GET | `/payment-keys/balance` | - |
 | Turn a key's balance into a subscription (`X-Payment-Key`, nonce ≥ 1) | POST | `/subscription/purchase` | - |
 | Which purchase step the wallet is on | GET | `/wallet/v1/subscription/purchase-info` | - |
@@ -169,7 +172,14 @@ Base URL: `https://api.outlayer.ai`
 | `"Ambiguous auth"` | PUT /api-key received both Bearer header and signature fields in body — use one or the other |
 | `"seed: 1-256 chars required"` | Empty or oversized seed in register or api-key |
 | `"seed: only [a-zA-Z0-9._-] allowed"` | Seed contains forbidden characters (NUL, colon, whitespace, Unicode, etc) — use SHA-256 hex or alphanumeric |
-| `trial_already_claimed` | This account has already had its trial key, and it is shown only once |
+| `trial_already_claimed` | This account has already had its trial key; read it again with `GET /wallet/v1/payment-key` |
+| `no_payment_key` | `GET /wallet/v1/payment-key`: the wallet has no nonce-0 key yet — claim the trial or redeem a sponsor code |
+| `payment_key_not_recoverable` | The nonce-0 key was issued at random before keys were derived and was shown once; create a payment key |
+| `sponsor_code_invalid` | The code cannot be redeemed by this wallet now, for any reason. Terminal; ask whoever gave it |
+| `sponsor_cannot_top_up` | The key can already spend more than the code gives; nothing changed |
+| `payment_key_revoked` | The `wk_` the nonce-0 key was claimed with is revoked, and the key with it; create a payment key |
+| `payment_key_other_credential` | The nonce-0 key was claimed with another credential of this wallet; only that one reads it |
+| `payment_key_deleted` | The wallet's nonce-0 key was deleted and cannot be issued again; create a payment key |
 | `trial_window_closed` | The wallet is past its first week (`trial.days` in `/register`); create and fund a payment key instead |
 | `trial_unavailable` | No trial is offered to this caller. Terminal — create and fund a payment key |
 | `trial_exhausted` | The trial's calls (`trial.calls` in `/register`, fifty today) are made. Terminal; a funded key has no call limit |

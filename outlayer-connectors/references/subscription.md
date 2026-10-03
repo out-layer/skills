@@ -81,7 +81,7 @@ event the contract emits, so it appears a moment after the transaction — read
 
 | | |
 |---|---|
-| Run the wallet, claim its trial, create a payment key — with `Authorization: Bearer wk_` | Yes |
+| Run the wallet, claim its trial, redeem a sponsor code, read the nonce-0 key again, create a payment key — with `Authorization: Bearer wk_` (or `near:`) | Yes |
 | Read where a purchase stands — `GET /wallet/v1/subscription/purchase-info` with the `wk_` | Yes |
 | Read the subscription | only with `X-Payment-Key` (`GET /subscription/status`); a `wk_` is refused |
 | Call a connector | only with `X-Payment-Key`; a `wk_` is `401 wk_is_not_a_payer` |
@@ -105,9 +105,10 @@ allowance is not money — it cannot be withdrawn or attached as
 `X-Attached-Deposit`.
 
 On the trial key this **converts** the trial: `GET /subscription/status` then
-shows no `trial` block, `has_subscription: true`, and no call count. A
+shows no `trial` block, `has_subscription: true`, and no call count. A sponsor
+code (`POST /wallet/v1/sponsorship`, in `SKILL.md`) does the same. A
 converted trial is still `nonce` 0, so it cannot be bought on — only OutLayer
-extends it. To pay for more yourself, create a payment key (nonce ≥ 1) and buy
+or the sponsor extends it. To pay for more yourself, create a payment key (nonce ≥ 1) and buy
 on that one.
 
 ### Rules worth knowing before you buy
@@ -143,3 +144,45 @@ Several subscriptions across several agents are possible and sometimes wanted �
 one per agent, one budget each — but at today's prices that rarely pays for
 itself. If you are not sure, subscribe the agent that does the work and leave the
 others paying per call.
+
+## A sponsor code: premium somebody else pays for
+
+A sponsor code is a secret, `spn_…`, that a person or a service gives you: a
+friend's one-time link, a voucher posted in public, or the backend that runs you.
+**If your human mentions a voucher, a code or sponsored premium, ask for the
+code and redeem it** — it is the cheapest way onto a subscription.
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"code": "spn_…"}' "https://api.outlayer.ai/wallet/v1/sponsorship"
+```
+
+```json
+{
+  "payment_key": "a1b2…8f90:0:4c1d…9ab3",
+  "owner": "a1b2…8f90", "nonce": 0,
+  "allowance_usd": "10000000", "expires_at": "2027-10-03T19:01:00Z",
+  "sponsor": "friend: alex",
+  "project_ids": ["connectors.outlayer.near/*"]
+}
+```
+
+* The allowance lands on your **nonce-0 key** — the trial's key if you claimed
+  one (the trial is converted: no call count any more), a new key if not. Send it
+  as `X-Payment-Key`; `GET /subscription/status` with it shows the figures.
+* No claim window: the code is the gate. It works whether or not you had a
+  trial, and whatever the wallet's age.
+* **One sponsor while its grant is live.** Redeeming the same code again, or
+  another code before the current grant ends, changes nothing and answers what
+  the key holds. After the grant ends, a different code is taken.
+* `404 sponsor_code_invalid` is the one refusal for every reason the code
+  cannot be used. Do not retry; tell your human what it answered.
+* `409 sponsor_cannot_top_up`: the key can already spend more than the code
+  gives. Nothing was changed.
+* `409 payment_key_deleted` / `409 payment_key_revoked`: this wallet's nonce-0
+  key was deleted, or the credential that claimed it was revoked; it cannot be
+  issued again — use a payment key the wallet creates, or a new agent.
+* `payment_key` is in the answer only for the credential that claimed the key;
+  another credential of the wallet redeems the grant without seeing it.
+* A sponsored key is still nonce 0: it cannot be bought on. When the sponsor's
+  term ends, create a payment key (nonce ≥ 1) and buy on that one.

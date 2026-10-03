@@ -52,9 +52,11 @@ of the ten.
    `SKILL.md`, "Which key pays". If the trial is spent, the offer must say "I
    would need a funded key first"; the owner then decides whether it is worth it.
 3. **A policy, and where needed a credential.** `status` says whether one is
-   stored. Without it the venues are read-only and `gmail`, `github` and
-   `mercury` cannot act. If it is missing, the offer includes the one step the
-   owner takes first — every connector has an owner page at
+   stored. Without a policy the venues trade on their built-in default (no
+   caps, withdrawals only back to the wallet) — offer the owner a policy if
+   they want caps. Without a credential `gmail`, `github` and `mercury` cannot
+   act. If one is missing, the offer includes the one step the owner takes
+   first — every connector has an owner page at
    `https://app.outlayer.ai/connect/<connector>`, and the list is at
    `https://app.outlayer.ai/connectors` — and nothing happens until they have.
 4. **Money in the right pot.** The venues draw from the wallet's *intents*

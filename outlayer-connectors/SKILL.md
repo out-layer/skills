@@ -41,11 +41,14 @@ entirely, and the refusal names the project, not the network.
   refused before anything runs and costs nothing.
 * **`X-Payment-Key` must be a key the wallet itself owns** (create it from the
   wallet's own `wk_`), or the connector cannot see the secrets stored for you.
-* **`X-Wallet-Id` is optional.** The wallet is taken from the credential; the
-  header, when sent, is only compared against it and a mismatch is refused with
-  `wallet_not_yours` (terminal). You do not need to look a wallet id up to make
-  a call.
-* **`secrets_ref` names the owner's row** — the credential or policy your owner
+* **`X-Wallet-Id` opens your wallet to the call.** A connector that acts on
+  your wallet (`hyperliquid`, `polymarket`, anything that signs or moves funds)
+  needs it — without it the run has no wallet at all. Send your wallet's id
+  (`wallet_id` from `GET /wallet/v1/address`); another id is refused
+  `wallet_not_yours` (terminal). A connector that needs no wallet works without
+  it.
+* **`secrets_ref` names the owner's row** (except on the trading connectors
+  below) — the credential or policy your owner
   stored under THEIR account, with your wallet in its access rule:
   `{"input": {...}, "secrets_ref": {"account_id": "owner.near", "profile": "gmail"}}`.
   The profile is the connector's id unless the owner chose another. A grant
@@ -54,6 +57,11 @@ entirely, and the refusal names the project, not the network.
   on. Without `secrets_ref` the connector starts with no secrets and says so.
   (`X-Use-Owner-Secret: 1` loads a row under your own wallet instead — for a
   module of your own, not a connector.)
+* **Trading connectors take only the owner's policy** (`hyperliquid`,
+  `polymarket`): send no `secrets_ref` — if your wallet has an owner, OutLayer
+  attaches their row; any other row, yours included, is refused, and doing it
+  again blocks your wallet on these connectors for a while. A wallet with no
+  owner may name its own row. With no policy they trade on a built-in default.
 
 The answer is always `{"success": bool, "output": {...}, "error": "...", "logs": []}`.
 
@@ -66,7 +74,8 @@ first.
 
 | Your situation | Take |
 |---|---|
-| the wallet is less than a week old and has not had its trial | **the trial** — `POST /trial-key` with the wallet's `wk_`: fifty connector calls, free |
+| the wallet is less than a week old and has not had its trial | **the trial** — `POST /trial-key` with the wallet's credential: fifty connector calls, free |
+| somebody gave you a sponsor code (`spn_…`) | **redeem it** — `POST /wallet/v1/sponsorship`: a subscription on the same nonce-0 key, paid by the sponsor. See below |
 | the trial is spent or the week is over | a funded key — `POST /wallet/v1/create-payment-key`. **A key with money on it has no call limit** |
 | you need to run your own WASI module, not a connector | a funded key; the trial does not reach anything else |
 
@@ -88,12 +97,16 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" \
   "calls": 50,
   "expires_at": "2026-09-25T19:01:00Z",
   "project_ids": ["connectors.outlayer.near/*"],
-  "note": "Send this as the X-Payment-Key header. It is shown once…"
+  "note": "Send this as the X-Payment-Key header. … Read it again with GET /wallet/v1/payment-key…"
 }
 ```
 
-**Store `payment_key` immediately.** It is shown once and cannot be recovered
-or re-issued; lost, the only route forward is a funded payment key.
+**Read the key again any time** with `GET /wallet/v1/payment-key`, with the
+credential that claimed it; storing it is optional. The key is bound to that
+credential: if that `wk_` is revoked, the key stops working, and another `wk_`
+of the wallet cannot read it (`payment_key_other_credential`).
+(`409 payment_key_not_recoverable`: an older random key — the copy you kept is
+the only one.)
 
 * **The week is counted from the wallet's registration, not from the claim.** A
   trial claimed on day six works for one day; on day seven there is nothing left
@@ -112,7 +125,8 @@ or re-issued; lost, the only route forward is a funded payment key.
 * It reaches connectors only; anything else is `project_not_allowed`.
 * It cannot pay a developer: `X-Attached-Deposit` on a trial call → `403 no_deposit`.
   It cannot be withdrawn or topped up — it is not money.
-* **`Bearer near:` callers** claim nothing — a trial is claimed with a `wk_`.
+* **`Bearer near:` works as `wk_` does** on `POST /trial-key`,
+  `GET /wallet/v1/payment-key` and `POST /wallet/v1/sponsorship`.
 * A trial stops starting calls shortly before `expires_at`, so none is cut off mid-run.
 
 Spend them on purpose: one `status` to see that the credential works, then the
@@ -120,8 +134,16 @@ calls the task needs. Polling `status` in a loop is how a trial disappears
 without having done anything.
 
 Two more refusals are terminal and worth recognising rather than retrying:
-`409 trial_already_claimed` (this wallet has had its one) and `403 trial_unavailable` (no
-trial is offered to this caller). The way forward from either is a funded key.
+`409 trial_already_claimed` (this wallet has had its one — read it with
+`GET /wallet/v1/payment-key`) and `403 trial_unavailable` (no trial is offered to
+this caller; the way forward is a funded key).
+
+## A sponsor code: premium somebody else pays for
+
+**If your human mentions a voucher, a code (`spn_…`) or sponsored premium, ask
+for the code and redeem it:** `POST /wallet/v1/sponsorship {"code"}` puts the
+sponsor's subscription on your nonce-0 key. Call, answer, refusals:
+[references/subscription.md](references/subscription.md), "A sponsor code".
 
 ## Paying: no quota
 
@@ -161,7 +183,7 @@ Where each door puts them:
 | `insufficient_balance`, `out_of_funds` | the key has no money left | top the key up; the trial key (nonce 0) takes no top-up — create a funded payment key |
 | `rate_limit_exceeded`, `upstream_unavailable` | too many calls; the platform briefly down (503) | wait `Retry-After`, then retry |
 | `internal_error` | platform fault (500); the call may still run | do not resend: it pays twice |
-| `wallet_not_yours` | `X-Wallet-Id` named a wallet your credential does not identify — terminal | drop the header, or send your own wallet's id |
+| `wallet_not_yours` | `X-Wallet-Id` named a wallet your credential does not identify — terminal | send your own wallet's id (`GET /wallet/v1/address`) |
 | `policy_denied:` | the owner's policy refused (cap, coin, method, missing policy) | do not retry; change the request inside the caps, or ask the owner |
 | `invalid_label:` / `sub_key_unavailable:` | a sub-key label was malformed, or this project has none | fix the label; only connectors have sub-keys |
 | `wallet_busy` | another operation holds the wallet | poll `in_flight_request_id` if present, then retry once |
@@ -169,6 +191,8 @@ Where each door puts them:
 | `trial_expired` | the trial key is past the wallet's first week — **terminal**, calls left or not | same |
 | `operation_limit_reached` | a connector's own technical cap on one operation | wait `retry_after_seconds`; it is far above ordinary use, so look for a loop |
 | `unknown_operation` / "does not sell operation" | the operation is not priced | read the connector's skill for the list |
+| `policy_row_not_owner` | a trading connector was given a policy row that is not your owner's — **terminal** | send no `secrets_ref`; do not try other rows — repeating it suspends your calls |
+| `calls_suspended` | your wallet is blocked on the trading connectors for a while — **terminal** | stop naming other rows; tell your owner |
 | `invalid_secrets_ref` | the `secrets_ref` names no possible row: the account id is invalid, or the profile is not 1–64 bytes or holds an ASCII character other than letter, digit, `-`, `_` | fix the reference — `{"account_id": "<owner>", "profile": "<name>"}` |
 | `Access denied by access condition` | the row exists but its condition does not admit your wallet | ask the owner to whitelist your wallet's 64-character account (`outlayer secrets access`), or name a row that does |
 | `… its time limit passed at <date>` | you WERE granted and the grant has expired | ask the owner for a new grant with a later date |
@@ -253,7 +277,7 @@ mail you asked for" is a sentence a person can refuse. A bare link is not.
 The usual arrangement for a connector that acts on somebody's account — their
 mailbox, their bank, their exchange — is that the OWNER stores the credential
 once under their own account and names your wallet as a reader. You then name
-their row in `secrets_ref`. The credential itself never reaches you: the
+their row in `secrets_ref` (the trading connectors attach it for you). The credential itself never reaches you: the
 connector reads it inside the enclave.
 
 **They cannot guess which account to name, and you must tell them.** Naming the

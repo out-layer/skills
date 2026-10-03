@@ -69,10 +69,21 @@ to `/wallet/v1/*` — it names the wallet, it does not pay.
 That means an agent needs a key of its own, and there are two ways to give it
 one:
 
-* **claim the trial** (the `outlayer-connectors` skill) — `POST /trial-key` with the wallet's `wk_`
-  returns a real key string, shown once;
+* **claim the trial** (the `outlayer-connectors` skill) — `POST /trial-key` with the wallet's
+  credential (`wk_` or `near:`) returns a real key string; `GET /wallet/v1/payment-key` reads it
+  again, so a wallet derived from a NEAR account stores nothing;
+* **redeem a sponsor code** (same skill) — `POST /wallet/v1/sponsorship {code}` puts the sponsor's
+  subscription on that same nonce-0 key;
 * **create and fund one** — Option A or B above, then hand the string to the
   agent.
 
-Store the string. Losing it means creating another key, exactly as it would for
-a key you bought.
+Store the string of a key you bought: losing it means creating another. The
+nonce-0 key is the one exception — it is derived, and read again on request by
+the credential that claimed it.
+
+**If a credential leaks.** No endpoint returns a payment key you bought, so a
+leaked `wk_` cannot fetch one. The nonce-0 key is read only by the credential
+that claimed it: if that `wk_` leaks, revoking it ends the nonce-0 key too
+(another `wk_` of the wallet could never read it). A payment key string that
+leaked is itself the secret: delete that key (`outlayer keys delete <nonce>`)
+and create another. When in doubt, create a new agent.

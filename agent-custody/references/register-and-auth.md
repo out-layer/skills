@@ -226,7 +226,7 @@ balance = requests.get(f"{API}/wallet/v1/balance?chain=near",
 
 Same `(parent_wallet_id, seed, vault_scope)` always produces the same sub-wallet — call again to re-derive the key without storage. Different vault scopes under the same `(parent_wallet_id, seed)` mint **independent sub-wallets** with their own addresses (this is intentional — each scope is its own identity).
 
-**A sub-agent pays like any wallet.** It can claim its own trial with its own `wk_` (`POST /trial-key`, in its first week), or be given a funded payment key to spend.
+**A sub-agent pays like any wallet.** It can claim its own trial with its own `wk_` (`POST /trial-key`, in its first week), redeem a sponsor code (`POST /wallet/v1/sponsorship`), or be given a funded payment key to spend.
 
 No `sign-message`, no NEAR signatures, no crypto libraries. Just derive a key, register its hash, hand it to the sub-agent.
 
