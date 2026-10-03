@@ -55,7 +55,7 @@ Notes:
 - `success`/`failure` detection in your client should be: success = `{"success"}`, failure = `{"failed","rejected"}`, plus `needs_review` as a distinct non-retryable outcome.
 - `"bridging"` and `"pending_deposit"` belong to the **deposit** endpoint (`/intents/deposit/cross-chain/status`), **not** to `/requests/{id}` — don't expect them here.
 - **Submit status:** a successful async submit is exactly `"processing"` (never `pending`/`queued`). On a **multisig** wallet the submit returns `"pending_approval"` instead — handle that before assuming you can just poll.
-- **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow settlement — the bridge, or the solver relay on a same-chain withdraw — can still return `"processing"`** with a `poll_url` — branch on the status and poll it, don't assume the sync body is always terminal. The withdrawal runs to its outcome even if your client disconnects, so give a sync call at least 100 s; if your client gives up first, do NOT submit a new withdraw — re-send with the same `X-Idempotency-Key` and poll the id the duplicate answer names (see "X-Idempotency-Key" below).
+- **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow settlement — the bridge, or the solver relay on a same-chain withdraw — can still return `"processing"`** with a `poll_url` — branch on the status and poll it, don't assume the sync body is always terminal. The withdrawal runs to its outcome even if your client disconnects. Either send `X-Answer-Within: <seconds>` below your own timeout (the call then answers `processing` with `request_id` and `poll_url` within that many seconds — see below), or give a sync call at least 90 s. If your client gives up first, do NOT submit a new withdraw — re-send with the same `X-Idempotency-Key`: the duplicate answer names the request (`request_id`, `status`, `poll_url`), and nothing runs twice (see "X-Idempotency-Key — one key per operation").
 - **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
 - **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap` / `limit_order` (the last one fires when a multisig-approved order has been placed and funded — NOT when it fills; read the order for that).
 
@@ -74,19 +74,30 @@ Notes:
 
 #### X-Idempotency-Key — one key per operation
 
-State-changing calls (`/intents/withdraw`, `/swap`, `/intents/transfer`, `/intents/deposit`, …) accept an optional `X-Idempotency-Key` HTTP header. Dedup is **by key only** — scoped to `(wallet, key)`; the request **body is never compared or hashed**. This has two consequences integrators get wrong:
+State-changing calls (`/intents/withdraw`, `/swap`, `/intents/transfer`, `/intents/deposit`, payment checks, limit orders, …) accept an optional `X-Idempotency-Key` HTTP header. Dedup is **by key only** — scoped to `(wallet, key)`; the request **body is never compared or hashed**. The key is written on the request row BEFORE any funds move, so a key seen again names the request that reserved it, whatever became of it.
 
-- **A reused key does NOT return the prior result and does NOT re-execute.** It returns **HTTP `200`** (not a 4xx) with an *error* body:
+- **A reused key does NOT re-execute.** It returns **HTTP `200`** (not a 4xx) with an *error* body that carries the request:
   ```json
-  { "error": "duplicate_idempotency_key", "message": "Request already processed: <request_id of the FIRST call>" }
+  { "error": "duplicate_idempotency_key",
+    "message": "Request already processed: <request_id of the FIRST call>",
+    "request_id": "<request_id>", "type": "withdraw", "status": "processing",
+    "result": { ... }, "poll_url": "/wallet/v1/requests/<request_id>",
+    "created_at": "...", "updated_at": "..." }
   ```
-  There is no `status` / `request_id` / `poll_url` field here — the original id is only embedded in `message`. Because it's `200`, your HTTP-error handling won't catch it: **check `body.error === "duplicate_idempotency_key"` explicitly.**
-- **Use a distinct key per logical operation. Never share one key across two different operations.** Reusing one key across e.g. a `withdraw` and a later `deliver`/top-up call means the second call is rejected with the duplicate response above — your client sees no pollable `request_id` (the embedded id points at the *first*, different-amount operation) and silently stalls.
+  `status` is the request's as recorded; `poll_url` is present while it is not terminal; `result` once the row has one. For `/payment-check/create` and `/batch-create` the body also carries `checks: [{check_id, check_key, status}]` — the checks that key made, each with its key derived again: a caller that lost the create's answer gets its only copy of `check_key` back here. `check_key` is `null` when you ask with another API key than the one that created the check (keys of one wallet under different vaults derive different keys): re-send with the creating key. A batch's request reads `processing` while it runs and lists the checks reserved so far. Because it's `200`, your HTTP-error handling won't catch it: **check `body.error === "duplicate_idempotency_key"` explicitly**, then read `request_id` and `status` off the body — never parse `message`.
+- **Use a distinct key per logical operation. Never share one key across two different operations.** Reusing one key across e.g. a `withdraw` and a later `deliver`/top-up call means the second call is answered with the FIRST operation's request, and your client silently stalls.
+- **A key is held by the request that reserved it — including one that ended `failed` after the reserve** (a short balance, a recipient that does not exist). A refusal BEFORE the reserve — auth, a malformed body, the policy, `wallet_busy`, a bad `X-Answer-Within` — holds nothing. Retry a `failed` with `never_executed`/`never_submitted` under a **new** key; any other `failed` or `needs_review`: do not.
 
-Correct usage:
-- **Same key = a retry of the *same* operation** (network blip, re-send). Recover by detecting `body.error`, parsing the id from `message`, and `GET /wallet/v1/requests/{id}` to read the original result.
-- **Different operation = different key.** A fresh UUID per intended state change.
-- **No header at all** → the server generates a fresh UUID per call, so there is no dedup (each call executes).
+Recovery after a timeout or a dropped connection — the whole algorithm:
+1. Mint one key per operation in your client and **persist it before sending**.
+2. Send `X-Answer-Within` below your timeout (next section), or set the timeout to at least 90 s.
+3. On a timeout: **re-send with the same key.** Read `request_id` and `status` from whichever answer comes — the plain one, the `200 duplicate_idempotency_key` above, or `409 wallet_busy` with `in_flight_request_id` (`null` while the request is being written: retry in a moment).
+4. Poll `poll_url` until the status is terminal; act — credit, ship, release funds — on the terminal status only.
+5. No header at all → the server generates a fresh UUID per call, so there is no dedup and no recovery (each call executes).
+
+#### X-Answer-Within — answer before my timeout
+
+`X-Answer-Within: <seconds>` (whole seconds, `0`–`80`, counted from the request's arrival) on `/intents/withdraw`, `/intents/transfer`, `/intents/swap`, `/limit-orders`, `/payment-check/create|batch-create|claim|reclaim`: how long the call waits for the settlement before answering `status: "processing"` with `request_id` and `poll_url` (`/payment-check/create`: `status: "creating"` with the check's `poll_url`). `0` answers as soon as the funds are handed over. Absent, the call waits its own budget — up to 80 s; the relay's 60 s on a same-chain withdraw or transfer. The wait only shortens: the operation runs to its outcome and settles the request whatever you waited. It does not cut the hand-over itself (one relay publish, up to 30 s), nor in `/batch-create` the hand-over of every check, which the wait follows. Out of range → `400 bad_request` before anything runs, nothing reserved. Set it a few seconds below your client's timeout; a slow settlement then answers with an id to poll instead of a dropped connection.
 
 ### Cross-chain transfer (deposit + withdraw)
 

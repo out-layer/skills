@@ -58,6 +58,15 @@ too, so keep it. Poll until the check reads `unclaimed` (or `failed`: the fundin
 never executed and nothing moved). Do not create the check again: the first one may
 still land. A recipient's claim of a `creating` check is refused until it is funded.
 
+Send `X-Idempotency-Key` on the create (and `X-Answer-Within: <seconds>` below your
+own timeout — see `intents-withdraw.md`). If the answer is lost — a timeout, a dropped
+connection — re-send with the same key: the `duplicate_idempotency_key` answer (HTTP
+200) carries `checks: [{check_id, check_key, status}]`, the check that key made with
+its `check_key` derived again, so a lost answer is not a lost key. Ask with the API key
+that created the check: another key of the same wallet gets `check_key: null`. The
+same holds for a batch, whose request reads `processing` while it runs and lists the
+checks reserved so far.
+
 The check is paid from the **intents** balance, and a short one is refused
 (`400 insufficient_balance`) rather than topped up: move funds in first with
 `POST /wallet/v1/intents/deposit`, or have the user fund you with `dest=intents`.
@@ -123,7 +132,10 @@ with `request_id` and `poll_url` (`remaining` and `claimed_at` absent): poll
 `GET /wallet/v1/requests/{request_id}` until it reads `completed` (its `result`
 carries `amount_claimed` and `remaining`) or `failed` with `never_executed: true`
 (nothing moved — claim again). Do not claim again while it is `processing`; send an
-`X-Idempotency-Key` so a retried call answers `duplicate_idempotency_key` instead.
+`X-Idempotency-Key` so a retried call answers `duplicate_idempotency_key` naming the
+request (`request_id`, `status`, `poll_url`) instead of claiming twice. Send
+`X-Answer-Within: <seconds>` below your own timeout to be answered `processing` in time
+(see `intents-withdraw.md`, "X-Answer-Within").
 
 Claimed funds land in the recipient's **intents balance**. Use `/intents/withdraw` to move them to a wallet or another chain. When `remaining > 0`, the check stays active for further claims or reclaim.
 
