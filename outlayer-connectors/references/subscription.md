@@ -182,7 +182,10 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 * `409 payment_key_deleted` / `409 payment_key_revoked`: this wallet's nonce-0
   key was deleted, or the credential that claimed it was revoked; it cannot be
   issued again — use a payment key the wallet creates, or a new agent.
-* `payment_key` is in the answer only for the credential that claimed the key;
-  another credential of the wallet redeems the grant without seeing it.
+* `403 payment_key_other_credential` / `409 payment_key_not_recoverable`: the
+  wallet's nonce-0 key was claimed with another of its credentials, or is an
+  older random key. Only the credential that reads the key redeems onto it;
+  nothing was taken from the code. A redeem that succeeds always returns
+  `payment_key`.
 * A sponsored key is still nonce 0: it cannot be bought on. When the sponsor's
   term ends, create a payment key (nonce ≥ 1) and buy on that one.
