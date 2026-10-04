@@ -44,6 +44,13 @@ run ends the task `failed` with `preparer_key_unavailable`.
 daily cap counts what you send yourself and what the owner confirms for you
 apart, each against the same number.
 
+`failed` with `failure_reason: run_failed` carries in `result.error` why the
+approved message did not leave — the daily cap reached meanwhile, the
+credential, Google's refusal — in the connector's own sentence; quote it to
+the owner. `failed` with `run_unreported` means the run ended without saying
+what it did: the message may have left — look in the owner's Sent folder
+through them before sending it again.
+
 `rejected` carries the owner's `reason` when they wrote one — "shorter", "not
 to Bob", "attach the PDF instead". Rewrite the message as they asked and call
 `send` again: a new task, with a new `link` to give them. Never send the same

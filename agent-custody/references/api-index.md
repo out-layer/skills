@@ -174,7 +174,7 @@ Base URL: `https://api.outlayer.ai`
 | `"seed: only [a-zA-Z0-9._-] allowed"` | Seed contains forbidden characters (NUL, colon, whitespace, Unicode, etc) — use SHA-256 hex or alphanumeric |
 | `trial_already_claimed` | This account has already had its trial key; read it again with `GET /wallet/v1/payment-key` |
 | `no_payment_key` | `GET /wallet/v1/payment-key`: the wallet has no nonce-0 key yet — claim the trial or redeem a sponsor code |
-| `payment_key_not_recoverable` | The nonce-0 key was issued at random before keys were derived and was shown once; create a payment key |
+| `payment_key_not_recoverable` | The nonce-0 key was issued at random before keys were derived and was shown once. A sponsor code redeem that sends it as `X-Payment-Key` moves the slot to a derived key; otherwise create a payment key |
 | `sponsor_code_invalid` | The code cannot be redeemed by this wallet now, for any reason. Terminal; ask whoever gave it |
 | `sponsor_cannot_top_up` | The key can already spend more than the code gives; nothing changed |
 | `payment_key_revoked` | The `wk_` the nonce-0 key was claimed with is revoked, and the key with it; create a payment key |

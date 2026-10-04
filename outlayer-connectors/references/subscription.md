@@ -174,18 +174,27 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
   trial, and whatever the wallet's age.
 * **One sponsor while its grant is live.** Redeeming the same code again, or
   another code before the current grant ends, changes nothing and answers what
-  the key holds. After the grant ends, a different code is taken.
+  the key holds. After the grant ends, a different code is taken — never one
+  this wallet redeemed before.
+* The subscription pays for connector calls. It does not lift the free tier's
+  custody limits unless the sponsor set the code up to.
 * `404 sponsor_code_invalid` is the one refusal for every reason the code
   cannot be used. Do not retry; tell your human what it answered.
 * `409 sponsor_cannot_top_up`: the key can already spend more than the code
   gives. Nothing was changed.
-* `409 payment_key_deleted` / `409 payment_key_revoked`: this wallet's nonce-0
-  key was deleted, or the credential that claimed it was revoked; it cannot be
-  issued again — use a payment key the wallet creates, or a new agent.
-* `403 payment_key_other_credential` / `409 payment_key_not_recoverable`: the
-  wallet's nonce-0 key was claimed with another of its credentials, or is an
-  older random key. Only the credential that reads the key redeems onto it;
-  nothing was taken from the code. A redeem that succeeds always returns
-  `payment_key`.
+* `409 payment_key_deleted`: this wallet's nonce-0 key was deleted; it cannot
+  be issued again — use a payment key the wallet creates, or a new agent.
+* `409 payment_key_revoked`: the credential that claimed this wallet's nonce-0
+  key was revoked, and the key with it; it is not issued again. Use a payment
+  key the wallet creates, or a new agent; your human can ask the operator for
+  a subscription on that key.
+* **An older random key** (`409 payment_key_not_recoverable`): send it as the
+  `X-Payment-Key` header with the redeem. The slot moves to a derived key — the
+  answer's `payment_key`, readable with `GET /wallet/v1/payment-key` from then
+  on; the old one stops working.
+* `403 payment_key_other_credential`: the wallet's nonce-0 key is bound to
+  another live credential of the wallet; redeem with that one. Nothing was
+  taken from the code.
+* A redeem that succeeds always returns `payment_key`: use that one.
 * A sponsored key is still nonce 0: it cannot be bought on. When the sponsor's
   term ends, create a payment key (nonce ≥ 1) and buy on that one.

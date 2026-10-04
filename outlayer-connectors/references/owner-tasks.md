@@ -116,7 +116,7 @@ connector, the same `secrets_ref`, the same key.
 ```
 
 `state` is always there; `run` on `approved`, `answering`, `done` and
-`failed`; `result` on `done`; `failure_reason` on `failed`; `reason` on
+`failed`; `result` on `done`, and on `failed` as `run_failed` or `run_trapped`; `failure_reason` on `failed`; `reason` on
 `rejected` when the owner wrote one. `created_at` and `expires_at` are Unix
 seconds.
 
@@ -142,8 +142,13 @@ A task never returns to `open`. An outcome is kept 30 days; after that
 |---|---|---|
 | `preparer_key_unavailable` | your payment key could not pay for the run: deleted, spent, expiring, out of scope, over its own ceiling, or in a vault the platform does not serve | fix the key, then prepare again |
 | `operation_limit_reached` | the answering operation's limit for your key is reached | prepare again later |
+| `build_changed` | the connector published a new build after you prepared the task; nothing was charged | prepare the task again |
 | `operation_priced`, `operation_unknown`, `wallet_unresolved`, `queue_unavailable`, `run_not_started` | the platform could not start or run the run: the connector's price list, your wallet, or the queue | report it; `queue_unavailable` and `run_not_started` are worth one more try |
 | `run_refused:<reason>` | your run refused the task: `hash-mismatch`, `expired`, `void`, `unreported`, … — the host's reason | as the reason says: `void` means the owner's policy changed, read it and prepare again; `unreported` means the action may have happened |
+| `run_failed` | your run took the owner's yes and the connector did NOT carry it out. `result.error` is its own sentence: a limit used up meanwhile, the service's refusal | quote `result.error` to the owner; prepare again only if the work is still wanted |
+| `run_trapped` | your run reported the action done and then failed. `result` is what it reported — the action most likely happened | treat `result` as the outcome: check the service, do not prepare it again unless it shows nothing happened |
+| `run_unreported` | your run took the owner's yes and ended without saying what it did — the run failed, or the service's answer to the action was lost. The action may have happened | check the service before preparing again; tell the owner, with `run` |
+| `run_unfinished` | no word of your run's end within thirty minutes. The action may have happened in part | check the service before preparing again; tell the owner, with `run` |
 
 ## What the owner confirms is what happens
 
@@ -157,7 +162,8 @@ prepare the new one.
 At `confirm` the action is judged again against the owner's policy and limits
 as they are at that moment, and counted then — in your own daily count, as a
 confirmed action beside your direct ones. A refusal at that point closes the
-task as `failed`; the owner sees why.
+task as `failed` (`run_failed`), and `result.error` tells you why; the owner
+sees that it failed.
 
 You pay the preparing operation's price when the task is made, and it is not
 returned if the owner says no or the task expires. `confirm` and the task

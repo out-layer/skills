@@ -252,6 +252,8 @@ outlayer keys trial-key --api-key wk_...   # print the wallet's nonce-0 key agai
 Both take the wallet key from `--api-key`, then `OUTLAYER_WALLET_KEY`. A code
 that cannot be redeemed answers `sponsor_code_invalid` whatever the reason —
 ask whoever gave it; `sponsor_cannot_top_up` means the key already holds more.
+An older nonce-0 key issued at random (`payment_key_not_recoverable`) redeems
+with `--payment-key owner:0:key`; stdout is then the derived key that replaces it.
 
 ## Payment Checks (Agent-to-Agent)
 

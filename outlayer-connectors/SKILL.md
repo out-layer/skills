@@ -106,7 +106,8 @@ credential that claimed it; storing it is optional. The key is bound to that
 credential: if that `wk_` is revoked, the key stops working, and another `wk_`
 of the wallet cannot read it (`payment_key_other_credential`).
 (`409 payment_key_not_recoverable`: an older random key — the copy you kept is
-the only one.)
+the only one. A sponsor code redeem that sends it as `X-Payment-Key` moves the
+slot to a key you can read again.)
 
 * **The week is counted from the wallet's registration, not from the claim.** A
   trial claimed on day six works for one day; on day seven there is nothing left
@@ -192,7 +193,7 @@ Where each door puts them:
 | `operation_limit_reached` | a connector's own technical cap on one operation | wait `retry_after_seconds`; it is far above ordinary use, so look for a loop |
 | `unknown_operation` / "does not sell operation" | the operation is not priced | read the connector's skill for the list |
 | `policy_row_not_owner` | a trading connector was given a policy row that is not your owner's — **terminal** | send no `secrets_ref`; do not try other rows — repeating it suspends your calls |
-| `calls_suspended` | your wallet is blocked on the trading connectors for a while — **terminal** | stop naming other rows; tell your owner |
+| `calls_suspended` | your wallet is blocked on the trading connectors for a while — not terminal: the same call works once the block ends | stop naming other rows; tell your owner |
 | `invalid_secrets_ref` | the `secrets_ref` names no possible row: the account id is invalid, or the profile is not 1–64 bytes or holds an ASCII character other than letter, digit, `-`, `_` | fix the reference — `{"account_id": "<owner>", "profile": "<name>"}` |
 | `Access denied by access condition` | the row exists but its condition does not admit your wallet | ask the owner to whitelist your wallet's 64-character account (`outlayer secrets access`), or name a row that does |
 | `… its time limit passed at <date>` | you WERE granted and the grant has expired | ask the owner for a new grant with a later date |

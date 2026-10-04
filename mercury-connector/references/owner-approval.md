@@ -39,7 +39,7 @@ When a rule says `refuse`, the answer is `policy_denied: the owner's rule N
 | `approved`, `answering` | the owner said yes; the run is making it | poll again |
 | `done` | made, once, exactly as shown. `result` is what the write answers: for a payment `transaction_id` (sent) or `request_id` (queued by Mercury's own approval rules — poll `payment_status` with it) | report it |
 | `rejected` | the owner said no; `reason` is theirs | stop; do not prepare it again unless they ask |
-| `failed` | nothing was made after the owner's yes — the budget was used up meanwhile, or the bank refused | tell the owner; prepare it again only if they still want it |
+| `failed` | `failure_reason: run_failed` — nothing was made after the owner's yes, and `result.error` says why: the budget used up meanwhile, the account no longer the policy's, the bank's refusal. `run_unreported` — the run ended without saying what it did: the payment may have been made | `run_failed`: quote `result.error`, prepare again only if they still want it. `run_unreported`: check `transactions` / `payment_status` before anything else |
 | `void` | the owner changed the policy after the task was made | prepare it again under the policy as it is now, if still wanted |
 | `expired`, `cancelled` | it waited too long, or you withdrew it | prepare it again if still wanted |
 

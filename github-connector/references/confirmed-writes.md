@@ -117,8 +117,9 @@ sees with the new head. Do not tell the owner it was merged or approved.
 A refusal before the owner's answer is taken leaves the task as it was, and an
 open task can be confirmed again. Once the answer is taken the task never
 returns to `open`: a refusal after it — the policy, the day's count, the
-token, GitHub's own refusal — ends the task `failed`, and the sentence ends
-"The task is closed: to make this write, prepare it again". A write that was
+token, GitHub's own refusal — ends the task `failed` (`run_failed`), and the
+sentence ends "The task is closed: to make this write, prepare it again"; you
+read the same sentence in `task_status` as `result.error`. A write that was
 made but whose result could not be left for you ends `failed` too, and its
 sentence says "The write WAS made on GitHub … do not prepare it again": check
 on GitHub (`issue_list`, `pr_get`, `branch_list`) before you prepare anything.

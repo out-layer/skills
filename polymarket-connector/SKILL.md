@@ -28,9 +28,12 @@ Content-Type: application/json
 run has no wallet. If your wallet has an owner, OutLayer attaches their policy
 row (`{owner, "polymarket"}`) itself; any other row, your own included, is refused
 `403 policy_row_not_owner`, and doing it again blocks your wallet on this
-connector for a while (`403 calls_suspended`). If the owner's row does not name
+connector for a while (`403 calls_suspended`). If your owner gave you a
+profile of theirs, name it: `secrets_ref: {"account_id": "<owner>", "profile":
+"<it>"}`. If the owner's row does not name
 your wallet you get `Access denied by access condition`: ask them to add your
-wallet's account. With no policy you trade on the built-in default (any size,
+wallet's account. A row you name that nobody stored is `policy_row_missing`:
+name one that exists, or none. With no policy you trade on the built-in default (any size,
 withdrawals only back to the wallet); `status` shows which applies.
 
 Two envelopes come back. The platform's: `{call_id, status, output,
