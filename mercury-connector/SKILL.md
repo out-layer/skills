@@ -178,6 +178,16 @@ A payee that is not saved yet needs `add_recipient` first (and the policy's
 `allow_new_recipients`); an inline recipient is HTTPS-only because it carries
 account and routing numbers.
 
+### When the owner wants to approve it first
+
+Read `policy.rules` in `status` before a write. When a rule says `ask`, the
+write answers `{"status": "awaiting_owner", "task_id": …, "link": …}` and
+nothing happens at the bank. That is a success: give the owner `link`, do not
+send the write again while the task is open, and learn the outcome with
+`task_status`. When a rule says `refuse`, stop and quote the sentence. How
+rules match, what each outcome of a task means, and the task operations:
+[`references/owner-approval.md`](references/owner-approval.md).
+
 ## Invoicing
 
 Three operations, all HTTPS-only. Pick by what the owner asked for:
@@ -240,6 +250,7 @@ Only an unpaid invoice can be cancelled, and it cannot be undone.
 | `allowed_operations` | every operation, subject to the rest | only these, reads included; `status` always answers |
 | `count_all_outgoing` | **off**: the budget counts only your payments | the budget counts every payment leaving the account, the people's included |
 | `sandbox` | **off**: the production bank | the token is a Mercury sandbox one; every call goes to Mercury's sandbox API and no real money moves |
+| `rules` | every allowed write runs | per write: `allow`, `ask` (waits for the owner) or `refuse`, the first matching rule deciding; never wider than the fields above |
 
 With several accounts and none in the policy, payments are refused. Call
 `accounts` and tell the owner what you see — each account's name and
@@ -268,7 +279,8 @@ narrowest one that does, in the page's own words:
 |---|---|---|
 | `status` | free | ~$0.001 |
 | every read | $0.001 | ~$0.001 |
-| `add_recipient`, `pay_invoice`, `send_invoice`, `cancel_invoice` | $0.01 | ~$0.001 |
+| `add_recipient`, `pay_invoice`, `send_invoice`, `cancel_invoice` | $0.01 — also when it waits for the owner | ~$0.001 |
+| `task_status`, `tasks`, `task_cancel`, `task_delete`, `tasks_unlock`; `confirm` (the platform runs it on the owner's yes, on your key) | free | ~$0.001 |
 
 A run that started is charged whether the bank or the policy then refused; only
 a platform refusal before the guest runs costs nothing. The connector's own
@@ -283,6 +295,8 @@ technical caps, there against a runaway loop and far above ordinary use: 50
 | the sentence says | do |
 |---|---|
 | `no MERCURY_POLICY stored`, `names no spending budget`, `not in the policy's` | stop; the owner changes the policy at the connect page — quote the sentence |
+| `the owner's rule N (…) refuses` | stop; that write is the owner's no — quote the sentence |
+| `policy field rules: rule N …` | the owner's policy cannot be read, so everything but `status` refuses; the owner fixes rule N on the connect page |
 | `exceeds the per-payment limit`, `over the … monthly budget` | stop; smaller, or ask the owner — the numbers are in the sentence |
 | `is HTTPS-only` | call the same operation over HTTPS |
 | `ipNotWhitelisted` and an address | the owner adds that address to the token's allowlist in Mercury, or uses a *with Approval* token |
