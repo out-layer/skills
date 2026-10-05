@@ -106,7 +106,7 @@ Every wallet operation falls into one of three categories:
 
 | Endpoint | Format | Example |
 |----------|--------|---------|
-| `/intents/swap` and `/intents/swap/quote` | Defuse asset ID with prefix | `nep141:wrap.near` |
+| `/intents/swap` and `/intents/swap/quote` | Defuse asset ID with a `nep141:` or `nep245:` prefix, as `/tokens` gives it in `defuse_asset_id` | `nep141:wrap.near`, `nep245:v2_1.omni.hot.tg:10_A2ewyUyDp6qsue1jqZsGypkCxRJ` |
 | `/intents/deposit` | Plain NEAR contract ID | `wrap.near` |
 | `/intents/withdraw` | Either format (auto-prefixed); `near`/`native`/omitted = native NEAR | `near` (native), `wrap.near` or `nep141:wrap.near` (wNEAR) |
 | `/intents/transfer` | Either format (auto-prefixed); **required** (no native concept — send NEAR as `nep141:wrap.near`) | `nep141:usdt.tether-token.near` or `usdt.tether-token.near` |
@@ -116,7 +116,7 @@ Every wallet operation falls into one of three categories:
 | `/payment-check/*` | Plain NEAR contract ID | `17208628f...a1` (USDC) |
 | `/deposit-intent` | Defuse asset id (`source_asset`) | `nep141:base-0x833…omft.near` |
 
-**Rule:** Swap uses `nep141:` prefix. Cross-chain deposit takes
+**Rule:** Swap takes the defuse asset id exactly as `/tokens` lists it (`nep141:` or `nep245:`). Cross-chain deposit takes
 `source_asset` (defuse asset id; chain is derived from the prefix). Withdraw
 accepts either format. Everything else uses plain contract ID.
 

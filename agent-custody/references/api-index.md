@@ -153,7 +153,7 @@ Base URL: `https://api.outlayer.ai`
 | `pending_approval` | Needs multisig approval (not an error) |
 | `"too many approval votes"` | More than **16** approvals or rejections in one signing request (HTTP 400). Send only the votes that count toward the threshold — see "Multisig limits" in `intents-withdraw.md` |
 | HTTP **402** on a vault-bound wallet | The **vault** cannot pay for its on-chain key derivation (this is the vault's gas, not the wallet's balance). The body carries the amount to top up. Distinct from `insufficient_balance`, which is the wallet's own funds |
-| `"token_in must use defuse asset format"` | Missing `nep141:` prefix in swap |
+| `"token_in must be a defuse asset id"` (HTTP 400) | Swap token without a `nep141:`/`nep245:` prefix — pass `defuse_asset_id` from `/tokens` as is |
 | `"1Click swap was refunded"` | Solver couldn't fill - tokens returned to wallet |
 | `"1Click's terms for this order are worse than the ones authorised"` | Limit order: the upstream asked for more, or promised less, than your policy approved. The order was cancelled unfunded — nothing was sent. Re-quote and retry |
 | `"Limit order amount must be at least 0.1 USD"` | Limit order below 1Click's minimum order value |
