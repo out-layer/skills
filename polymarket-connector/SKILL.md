@@ -8,10 +8,28 @@ description: Trade Polymarket prediction markets from an OutLayer custody wallet
 You trade from a deposit wallet that your custody wallet owns. You never see a
 key and you never pay gas: orders are signed inside the TEE, and every on-chain
 step is paid for by Polymarket's relayer. The owner's policy caps what you may
-do; when it refuses, the answer says so — read it, do not retry.
+do; when it refuses, the answer says so — read it, do not retry. This skill is
+the `polymarket` operations, policy, limits and prices. It does not cover how
+any connector call is paid or refused (keys, the trial, the platform's refusal
+codes): [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md);
+nor wallet operations (address, balances, intents deposits):
+[`agent-custody`](https://skills.outlayer.ai/agent-custody/SKILL.md).
 
 Every number in this file was observed on mainnet with real money. Where it
-says "seen", that is what happened.
+says "seen", that is what happened. Mainnet only: there is no testnet
+Polymarket.
+
+## Where to read what
+
+Fetched over HTTP, the relative links below resolve against
+`https://skills.outlayer.ai/polymarket-connector/`.
+
+| the task in front of you | read |
+|---|---|
+| fund, trade, withdraw; the policy; a `polymarket` refusal | this file |
+| search markets and read books at Polymarket, without a call | [`references/finding-markets.md`](references/finding-markets.md) |
+| a withdrawal stuck under the bridge's floor | [`references/stranded-withdrawal.md`](references/stranded-withdrawal.md) |
+| a payment key, the trial, a `/call` refusal `reason` | [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md) |
 
 ## Call shape
 
@@ -26,51 +44,56 @@ Content-Type: application/json
 
 **Send no `secrets_ref`, and always send `X-Wallet-Id`** — without it the
 run has no wallet. If your wallet has an owner, OutLayer attaches their policy
-row (`{owner, "polymarket"}`) itself; any other row, your own included, is refused
-`403 policy_row_not_owner`, and doing it again blocks your wallet on this
-connector for a while (`403 calls_suspended`). If your owner gave you a
-profile of theirs, name it: `secrets_ref: {"account_id": "<owner>", "profile":
-"<it>"}`. If the owner's row does not name
-your wallet you get `Access denied by access condition`: ask them to add your
-wallet's account. A row you name that nobody stored is `policy_row_missing`:
-name one that exists, or none. With no policy you trade on the built-in default (any size,
-withdrawals only back to the wallet); `status` shows which applies.
+row (`{owner, "polymarket"}`) itself; any other account's row, your own
+included, is refused `403 policy_row_not_owner`, and naming such rows can
+block your wallet on both trading connectors for a while
+(`403 calls_suspended`). If your owner gave you a profile of theirs, name it:
+`secrets_ref: {"account_id": "<owner>", "profile": "<it>"}`. If the owner's
+row does not name your wallet you get `Access denied by access condition`:
+ask them to add your wallet's account.
 
-Two envelopes come back. The platform's: `{call_id, status, output,
-compute_cost, time_ms}`. Inside its `output`, the connector's: `{success,
-operation, output, error}`. **A connector refusal arrives as HTTP 200 with
-`output.success: false`**; the word before the colon in `output.error` is the
-contract — `policy_denied`, `invalid`, `region_blocked` — and the sentence
-after it names the rule or the number. Mainnet only.
+**`policy_row_missing`.** A row you name under a profile other than
+`polymarket` that nobody stored is refused, never run with no policy: the
+answer is `status: "failed"` with the top-level `error` starting
+`policy_row_missing:` and no `output` — do not look for `output.success`.
+Name a row that exists, or none. Only the `{owner, "polymarket"}` row may be
+absent: then the built-in default applies.
+
+The connector's answer is `{success, operation, output, error}` inside the
+platform's `output`. **Its refusal is HTTP 200 with `output.success:
+false`**; the word before the colon in `output.error` is the contract —
+`policy_denied`, `invalid`, `region_blocked` — and the sentence after it names
+the rule or the number.
+
+**After a `408 timeout` on `order`** (the refusal itself: `outlayer-connectors`,
+"Reading a refusal") the order may still have reached the venue. Read `orders`
+and `positions` before placing it again.
 
 ## What you need before the first call
 
-* **A payment key the wallet owns.** The trial key (`POST /trial-key` with the
-  wallet's `wk_`) gives 50 connector calls in the wallet's first week (`calls`
-  in its answer is the number to trust) — and **the free operations count**:
-  `status` spends one. Fifty covers a full round trip — `setup` ×3, a deposit
-  and its polls, a few orders, positions, a withdrawal — but not a polling
-  loop: poll when something should have changed. A funded key has no call
-  limit. Creating one (`POST /wallet/v1/create-payment-key
-  {"initial_deposit_usdc": "0.50"}`) takes USDC from the wallet's **plain**
-  balance and needs the wallet's NEAR account to hold **≥ 0.3 NEAR** — with 0.2
-  the chain refuses the transaction, with 0 the account does not exist yet.
+* **A payment key the wallet owns** — the trial or a funded key:
+  [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md),
+  "Which key pays". Every call counts on a trial, free ones included; a full
+  round trip — `setup` ×3, a deposit and its polls, a few orders, positions, a
+  withdrawal — fits in it, a polling loop does not.
 * **USDC on the wallet's intents balance** — that is what `deposit_start`
   draws from, and where withdrawals return. The plain balance is a different
-  pot. Ask the owner for funds with `dest=intents`. USDC already on the
-  **confidential** (shielded) balance works too: `"source": "confidential"`
-  on `deposit_start`, `"destination": "confidential"` on `withdraw_start` —
-  the NEAR wallet never shows on Polygon. Pick the one that holds the money.
-  If the owner set a wallet policy, it must allow the `confidential`
-  capability.
-* **The owner's policy**, `POLYMARKET_POLICY`, in a row under the OWNER's
-  account that names your wallet. Without it you trade on the built-in default;
-  `status` shows it. The owner stores it at
+  pot. Ask the owner for funds with `dest=intents` (the fund link:
+  [`agent-custody`](https://skills.outlayer.ai/agent-custody/references/funding-and-payment-keys.md)).
+  USDC already on the **confidential** (shielded) balance works too:
+  `"source": "confidential"` on `deposit_start` — the NEAR wallet never shows
+  on Polygon. If the owner set a wallet policy, it must allow the
+  `confidential` capability. Withdrawing back to `confidential` needs a stored
+  policy that allows it ("Getting money back out").
+* **A policy, if the owner wants caps.** With none you trade on the built-in
+  default ("The policy"); `status` shows which applies. The owner stores
+  `POLYMARKET_POLICY` in a row under THEIR account that names your wallet, at
   **<https://app.outlayer.ai/connect/polymarket>**: a form for the caps, a field
   for your wallet's account, one wallet transaction. Send them there with your
   account (`GET /wallet/v1/address?chain=near`, the `address`) and say what you
-  need: orders open only when both `max_order_usd` and `max_daily_volume_usd`
-  are set. It applies to your next call; you name nothing.
+  need — a stored policy opens orders only when both `max_order_usd` and
+  `max_daily_volume_usd` are set. It applies to your next call; you name
+  nothing.
 
 ## First calls, in order
 
@@ -83,7 +106,8 @@ after it names the rule or the number. Mainnet only.
    one relayer batch, with the Polygon `tx_hash`) → `done`. Wait a few seconds
    between calls; three calls is normal. Nobody pays gas: the relayer does.
 3. `{"operation": "deposit_start", "amount": "2.5"}` — moves USDC from the
-   wallet's intents balance into collateral. **At least $2.10**: the bridge's
+   wallet's intents balance into collateral. **`amount` is decimal USDC**
+   (`"2.5"`, or the number `2.5`), not minimal units. **At least $2.10**: the bridge's
    floor is $2 judged on what arrives, and the one-click leg takes a few
    cents whatever the amount (quoted 5 → 4.98, 100 → 99.96).
    The call itself takes ~30 s (it waits for the intents withdrawal to be
@@ -105,37 +129,9 @@ priced 0–1; one share pays $1 if that outcome wins.
 order costs `5 × price`. For a one-dollar trade, find an outcome priced near
 0.20; at 0.50 the minimum is already $2.50.
 
-Public data needs no call: `https://gamma-api.polymarket.com/markets` carries
-`bestBid`, `bestAsk`, `spread`, `liquidityNum`, `orderMinSize`, `endDate`,
-`sportsMarketType`. For a sports market `endDate` is the game's start, not
-its resolution: it keeps accepting orders through the game and resolves
-hours later. Crypto up/down markets are the fastest and carry the highest
-fee. An order you may want to cancel later belongs on a market that is
-neither.
-
-## Finding markets without spending a call
-
-Polymarket's public APIs need no key, and a keyword search is cheaper there
-than through the connector. The pattern: search and read at Polymarket, place
-and settle through the connector.
-
-* Search: `GET https://gamma-api.polymarket.com/public-search?q=<words>&limit_per_type=5`
-  → `events[]`, each with `title`, `slug` and `markets[]` carrying
-  `question`, `conditionId`, `bestBid`, `bestAsk`. One event can hold many
-  markets (dates, thresholds): pick the market, not the event.
-* One event in full: `GET https://gamma-api.polymarket.com/events?slug=<slug>`
-  → `markets[]` with `conditionId`, `clobTokenIds` and `outcomes` (both are
-  JSON **strings** — parse them; the n-th token is the n-th outcome),
-  `outcomePrices`, `bestBid`, `bestAsk`, `orderMinSize`,
-  `orderPriceMinTickSize`, `negRisk`, `endDate`, `feesEnabled`.
-* The live book for a token: `GET https://clob.polymarket.com/book?token_id=<token_id>`
-  → `bids[]`, `asks[]` with `price` and `size`; sort them yourself.
-* Show the user `https://polymarket.com/event/<slug>` — the same page the
-  search found.
-
-Then `order` names the `token_id`. The connector's own `markets {"query"}`
-/ `markets {"market"}` give the same facts for a tenth of a cent when a call
-is simpler than an HTTP fetch.
+Polymarket's public APIs need no key and no call: search and read there,
+place and settle through the connector —
+[`references/finding-markets.md`](references/finding-markets.md).
 
 ## Trading
 
@@ -177,9 +173,8 @@ your policy, and from any region.
   `takingAmount`/`makingAmount` is a fill; `status: "live"` is a resting order.
 * A resting order later: it is on `orders` while it rests (`size_matched`
   grows on a partial fill) and gone from `orders` once filled or cancelled;
-  the shares then show on `positions`. So "did my bid fill?" is `orders`
-  (still there → no), then `positions` (there → yes). Poll when something
-  should have changed, not in a loop — each read is a paid call.
+  the shares then show on `positions`. Poll when something should have
+  changed, not in a loop — each read is a paid call.
 * Cancelling takes the unfilled remainder off the book. Whatever
   `size_matched` had already filled stays as a position, and its collateral
   is spent; only an untouched order costs nothing.
@@ -201,8 +196,7 @@ your policy, and from any region.
 
 Polymarket's edge refuses the order route (`POST /order`) from US nodes, and
 OutLayer runs nodes on both sides of that line. Reads, cancels, deposits and
-withdrawals are not affected. Seen: five order runs in a row on the US node,
-then a sell placed straight from the European one.
+withdrawals are not affected.
 
 * Without `submit_mode`: `success: false`, `error: "region_blocked: …"`. The
   call is billed. Retry — another node may take it.
@@ -243,13 +237,42 @@ side redeems for zero and clears the row. Not exercised live yet.
   and 0 for the losing one, `redeemable` turns true, and `cashPnl` becomes the
   final result. `redeem` moves a win into collateral; a loss is a row that
   redeems to nothing.
-* **After you sell**: the row leaves `positions`; the result is the
-  difference between what the sell returned (`makingAmount` in the venue's
-  answer, minus the fees) and what you paid. Note it yourself at the time
-  — the connector keeps no trade history, and `positions` shows only what is
-  held.
+* **After you sell**: the row leaves `positions`; the result is what the
+  sell returned (`makingAmount`, minus the fees) less what you paid. Note it
+  at the time — the connector keeps no trade history.
 * **Collateral is the bottom line**: `status.collateral_usd` plus
   `currentValue` of open positions, against what was deposited.
+
+## The policy (owner's `POLYMARKET_POLICY`)
+
+**No policy is the built-in default:** every market, any size and volume,
+deposits from the wallet's balance, withdrawals only to `intents`. No row, an
+empty value and `{}` all mean no policy. `status.policy` then reads
+`present: false` and the default's `effect`.
+
+**A stored policy replaces the default whole**, and is fail-closed:
+
+| field | in a stored policy |
+|---|---|
+| `max_order_usd` | cap on one order's notional. Absent: no orders |
+| `max_daily_volume_usd` | cap on what is ordered per UTC day, filled or not. Absent: no orders |
+| `max_open_notional_usd` | cap on open orders plus positions, read from the venue. Absent: no cap |
+| `markets` | condition ids or token ids you may trade. Absent or `["any"]`: every market. Another is refused `policy_denied: the owner's policy does not allow market <condition_id> (token <token_id>)` |
+| `allow_deposit`, `max_deposit_usd` | `allow_deposit` is `false` unless set `true` — then `deposit_start` is refused. `max_deposit_usd` absent: no cap |
+| `allow_withdraw`, `withdraw_to` | `allow_withdraw` is `false` unless set `true` — then `withdraw_start` is refused. `withdraw_to` pins the destination; absent: `intents` only |
+
+An unknown field makes the policy unreadable, and an unreadable policy refuses
+every write. `cancel` needs no policy. Read `status.policy` first — the fields
+above sit at its top level, beside `present: true` — and size orders inside
+them: a refused call is still billed.
+
+**Per-wallet profiles** (`{owner, "<profile>"}`, one per wallet, named in
+`secrets_ref`) bind only while the owner's `{owner, "polymarket"}` row exists
+too: a call that names no row runs that one, and with none stored, the
+uncapped default. If your owner caps per
+wallet and has not stored it, tell them: "Your per-wallet policy only binds
+while a policy under the `polymarket` profile exists too — store one there,
+strict or admitting no wallet, at https://app.outlayer.ai/connect/polymarket."
 
 ## Getting money back out — read this twice
 
@@ -258,9 +281,15 @@ side redeems for zero and clears the row. Not exercised live yet.
 ```
 
 then `{"operation": "withdraw_status", "id": "<id>"}` until `step: "done"`,
-`delivered_usd` set. Destination is the wallet's intents balance
-(`"destination": "confidential"` for the shielded one). Seen: 3.164179 sent,
-**3.163539 on intents about 60 seconds after the call** — fee 0.02 %.
+`delivered_usd` set. `amount` is decimal USDC, not minimal units. Seen:
+3.164179 sent, **3.163539 on intents about 60 seconds after the call** — fee
+0.02 %.
+
+`destination` is `intents` (the default) or `confidential` (the shielded
+balance), nothing else. **With no policy only `intents` is allowed.**
+`confidential` needs a stored policy with `"allow_withdraw": true` and
+`"withdraw_to": "confidential"` — a stored policy without `withdraw_to` allows
+`intents` only.
 
 The bridge processes nothing under **$2** (`minCheckoutUsd`, "for deposits
 and withdrawals"). An amount under the floor sent to a withdraw address is not
@@ -274,21 +303,7 @@ $1.43. The connector refuses under $2.10, and the rule to plan by is:
   is still collateral you can trade.
 * **If a withdrawal is stranded anyway** (`withdraw_status` stays at
   `bridging`, `/status/<bridge_out>` empty), join its route:
-  `{"operation": "withdraw_start", "amount": "0.67", "resume": "<its id>"}`.
-  The bridge judges the address as a whole (seen: 1.43 + 0.67 → one transfer
-  of 2.10, `COMPLETED`), so the original amount goes home. Join with the
-  **minimum** that clears the floor — a too-small join is refused with the
-  sentence "send at least N" — because the 1Click
-  leg swaps only its original quote and refunds the rest as native USDC to the
-  wallet's own Polygon address (`/wallet/v1/address?chain=polygon`). Seen:
-  0.663 parked there for 0.67 joined. Getting that home is outside this
-  connector: a 1Click deposit intent for it
-  (`POST /wallet/v1/intents/deposit/cross-chain {"chain":"polygon","token":"USDC","amount":"<units>"}`),
-  an ERC-20 `transfer` from that address signed through
-  `POST /wallet/v1/evm/sign-transaction` and broadcast by you, and ~0.05 POL
-  on the address for gas, which the owner sends there. The joined amount
-  always ends up this way: it is the price of the rescue, not a side effect.
-  The route is good for three days from the original call.
+  [`references/stranded-withdrawal.md`](references/stranded-withdrawal.md).
 
 ## Links to hand the user
 
@@ -313,9 +328,8 @@ not a hash to paste somewhere.
 | order | `min_order_size` shares × price; `tick_size` | venue rejects |
 | a fill | venue category fee; builder fee 0 | — |
 | relayer | every `setup` step, deposit, withdrawal and redeem is a relayer operation, capped per day by the builder's tier (reported: 100/day unverified, 10,000 verified) | `setup`/`deposit_*`/`withdraw_*` refused by the relayer |
-| order | `max_order_usd`, `max_open_notional_usd`, `max_daily_volume_usd` (counts what you asked, filled or not) | `policy_denied:` before signing, still billed |
-| deposit / withdraw | `allow_deposit`, `max_deposit_usd`, `allow_withdraw`, `withdraw_to` | `policy_denied:` |
-| calls | trial: 50 incl. free ones, 7 days; paid: the key's balance | `402` |
+| the owner's policy | every field in "The policy" | `policy_denied:` before signing, still billed |
+| calls | the key: `outlayer-connectors`, "Which key pays" | `402` |
 | region | `POST /order` from US nodes | `region_blocked` |
 | withdrawal size | > $50,000: split, the bridge's pool is finite | slippage |
 
@@ -329,8 +343,7 @@ not a hash to paste somewhere.
 
 Plus compute (~$0.001–0.002 a call). A refused call — by the policy, by the
 region, by the venue — still costs its price. Bridge fees seen: 0.33 % in,
-0.02 % out. On a fill: the venue's category fee (0–7 %, `p(1−p)`-shaped); the
-builder fee is 0.
+0.02 % out. On a fill: the venue's category fee; the builder fee is 0.
 
 `status` is free but capped at 1000 a day. Poll it when something should have
 changed, not in a loop; balances move in about a minute.

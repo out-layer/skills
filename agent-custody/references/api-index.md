@@ -188,5 +188,15 @@ Base URL: `https://api.outlayer.ai`
 | `trial_key_not_purchasable` | `POST /subscription/purchase` with the trial key (`nonce` 0), converted or not (HTTP 400). Terminal for that key — create a payment key (nonce ≥ 1), fund it, buy on it |
 | `Access denied by access condition` | A secret exists, but its condition does not admit your wallet's own 64-character account. Ask the owner to name that account, or name a row that already admits you |
 | `… its time limit passed at <date>` | You WERE admitted and the grant has expired. Ask for a new grant with a later date; being named again without one changes nothing |
-| `invalid_secrets_ref` | The `secrets_ref` names a row that cannot exist: the account is not a NEAR account id, or the profile is empty or longer than 64 characters |
+| `invalid_secrets_ref` | `/call` (400): the `secrets_ref` names a row that cannot exist — the account is not a NEAR account id, or the profile is not 1–64 bytes or holds an ASCII character other than a letter, digit, `-` or `_`. Fix the reference |
+| `trial_disabled` | `POST /trial-key` (404, terminal): this deployment offers no trial. Create and fund a payment key |
+| `policy_row_not_owner` | `/call` on `hyperliquid`/`polymarket` (403, terminal): the call named a policy row of an account that is not the wallet's owner. Send no `secrets_ref` |
+| `calls_suspended` | `/call` (403, `terminal: false`): the wallet is blocked on both trading connectors for a while after naming other accounts' rows; the same call works once the block ends. Stop naming them |
+| `policy_row_missing:` | `/call` on `hyperliquid`/`polymarket`: the run is `status: "failed"` with this prefix on the top-level `error` — the named row's profile is not the connector's id and nobody stored it. Name a stored row, or none |
+| `wallet_not_yours` | `/call` (403, terminal): `X-Wallet-Id` names a wallet the payment key does not identify. Send the wallet's own `wallet_id` |
+| `timeout` | `/call` (408): the call did not finish in the synchronous window; it may still execute and is charged. Do not resend — read `poll_url` (`/calls/{call_id}`) with the same key; send long work with `async: true` |
+| `insufficient_allowance` | `/call` (402, terminal): the subscription's allowance is below this operation's price and the key has no money. Fund the key or extend the subscription |
+| `expires_too_soon` | `/call` (402, terminal): the subscription ends before this operation could finish, and the key has no money. Fund the key or extend the subscription |
+| `call_already_in_flight` | `/call` (429, `terminal: false`): the subscription has a call in flight and the key has no balance for another. Wait for it, or fund the key |
+| `no_bound_identity` | `/call` (409) with `use_bound_identity`: nothing to run as. `terminal: true` — the key names no wallet; `false` — the wallet has no active binding yet. Drop the flag, or bind an account |
 | `agent_connect_denied` | The account-binding pre-flight refused the call BEFORE signing, so no gas was spent. The body carries `class`, `promise_index` and **`terminal`** — read `terminal` first: `true` means retrying is pointless and the owner must act (issue a new grant, re-provision the executor, fund the account, rewrite the request); `false` means the same request may work later unchanged (a freeze lifted, recognized code restored) |

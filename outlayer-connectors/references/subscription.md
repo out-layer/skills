@@ -163,7 +163,8 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
   "owner": "a1b2…8f90", "nonce": 0,
   "allowance_usd": "10000000", "expires_at": "2027-10-03T19:01:00Z",
   "sponsor": "friend: alex",
-  "project_ids": ["connectors.outlayer.near/*"]
+  "project_ids": ["connectors.outlayer.near/*"],
+  "note": "Send the key as the X-Payment-Key header. …"
 }
 ```
 
@@ -176,6 +177,10 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
   another code before the current grant ends, changes nothing and answers what
   the key holds. After the grant ends, a different code is taken — never one
   this wallet redeemed before.
+* **A key that already carries a live subscription from OutLayer takes no
+  code.** The answer is `200` with `sponsor` empty and `note` "This wallet's
+  key already carries a subscription; nothing was changed." The code was not
+  used: keep it, and redeem it after the key's `expires_at`.
 * The subscription pays for connector calls. It does not lift the free tier's
   custody limits unless the sponsor set the code up to.
 * `404 sponsor_code_invalid` is the one refusal for every reason the code
@@ -187,7 +192,7 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 * `409 payment_key_revoked`: the credential that claimed this wallet's nonce-0
   key was revoked, and the key with it; it is not issued again. Use a payment
   key the wallet creates, or a new agent; your human can ask the operator for
-  a subscription on that key.
+  a subscription on a payment key the wallet creates.
 * **An older random key** (`409 payment_key_not_recoverable`): send it as the
   `X-Payment-Key` header with the redeem. The slot moves to a derived key — the
   answer's `payment_key`, readable with `GET /wallet/v1/payment-key` from then
@@ -195,6 +200,9 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 * `403 payment_key_other_credential`: the wallet's nonce-0 key is bound to
   another live credential of the wallet; redeem with that one. Nothing was
   taken from the code.
+* `503 internal_error` (`"terminal": false`): the key could not be served
+  right now. Send the same redeem again later.
+* Every refusal above but that one carries `"terminal": true`.
 * A redeem that succeeds always returns `payment_key`: use that one.
 * A sponsored key is still nonce 0: it cannot be bought on. When the sponsor's
   term ends, create a payment key (nonce ≥ 1) and buy on that one.

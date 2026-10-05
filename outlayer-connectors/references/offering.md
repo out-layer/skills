@@ -42,8 +42,8 @@ working — so an offer from this list is one you can stand behind.
 
 An offer that dies on its first call is worse than silence: the owner said yes
 and got a refusal. Before you offer, know the following. One free `status` per
-connector is the most it should cost you — and on a trial key even that is one
-of the ten.
+connector is the most it should cost you — and on a trial key even that spends
+one of the trial's calls (`SKILL.md`, "The trial").
 
 1. **The network.** `polymarket`, and the funding legs of `hyperliquid`, exist on
    mainnet only. A testnet wallet cannot take those offers; do not make them.
@@ -93,4 +93,5 @@ Rules that keep an offer honest:
   want, say that instead.
 * **Do not start a second flow** while one on the same connector is unfinished.
 * **A leased account** (`hos_lease`) cannot store a secret under your wallet;
-  the owner's-row route in `SKILL.md` is the only one to offer there.
+  the owner's row ([`credentials.md`](credentials.md)) is the only route to
+  offer there.

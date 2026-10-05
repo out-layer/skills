@@ -12,7 +12,21 @@ carries the single scope `gmail.send`, which does not even permit reading back
 which address it belongs to. Do not plan a task around finding a reply.
 
 There is also no way to set the `From` address. Every message leaves as the
-connected account.
+connected account. How any connector is called and paid — which key, the trial,
+the platform's own refusals — is not here: it is in
+<https://skills.outlayer.ai/outlayer-connectors/SKILL.md>.
+
+## Which file to read
+
+The relative links below resolve against `https://skills.outlayer.ai/gmail-connector/`.
+
+| the task in front of you | read |
+|---|---|
+| send a message, read `status`, a refusal | this file |
+| the owner has not connected, or has not granted you | [`references/connect.md`](references/connect.md) |
+| the owner asks about their page: reading or changing the policy, reconnecting | [`references/owner-page.md`](references/owner-page.md) |
+| `send` answered `awaiting_owner`, or you follow a task | [`references/confirmed-sends.md`](references/confirmed-sends.md) |
+| any task state or `failure_reason` | <https://skills.outlayer.ai/outlayer-connectors/references/owner-tasks.md> |
 
 ## Where it runs
 
@@ -45,105 +59,23 @@ live in <https://skills.outlayer.ai/outlayer-connectors/SKILL.md>.
 ## Where the credential comes from
 
 The mailbox owner connects their account once, at
-**<https://app.outlayer.ai/connect/gmail>**. You cannot do it for them — it needs
-their Google consent and their wallet signature — so your job is to send them
-there **and tell them what will happen before they click anything**. Someone who
-does not know what the page does stops at Google's warning screen, or at the
-wallet, and reports that it is broken.
-
-### What they need first
-
-* The NEAR wallet they want to own the credential, connected on the dashboard.
-* A little NEAR in it: the last step is a transaction, and it pays for the
-  storage it uses.
-* **The right network.** The page writes to whichever network the dashboard is
-  switched to — the Testnet / Mainnet toggle at the top; switching disconnects
-  the wallet and asks them to reconnect. Ask them to connect on the network your
-  payment key belongs to, or the credential lands where this connector cannot see
-  it.
-
-### What they will see, in order
-
-1. A page saying "Google will ask you to allow one thing: sending mail." One
-   button, *Connect Google account*.
-2. **Google's consent screen**, asking for `gmail.send` and nothing else. The app
-   is published but not verified by Google, so Google may first show an
-   "unverified app" warning, and it admits at most 100 accounts. That screen is
-   expected; continuing is *Advanced* → *Go to …*.
-3. **Back on the page, with nothing to click.** It turns the consent into a
-   long-lived credential and fetches the key it will be sealed to — a key whose
-   private half exists only inside the keystore enclave. The page says "Google
-   has granted the credential."
-4. **A deliberate stop. Nothing is stored yet.** The page explains the
-   transaction — the credential and the policy are sealed **in their own
-   browser** on the click, and go onto the smart contract under their account,
-   with a rule naming only them — and shows one line, *Policy:
-   anyone, no limits — Customize*. They can narrow it there (who may be written
-   to, how much, attachments, a subject prefix), or leave it and narrow it
-   later. Then one button, *Finish: store the encrypted key on the contract*.
-   Their wallet opens only when they press it, and not a moment before.
-5. A green **Gmail connected**, and a link to the secrets page.
-
-If their wallet is closed or refuses, they land back on step 4: one more click
-finishes it, and the trip through Google is not repeated.
-
-### What it means, in their words
-
-Worth saying up front, because it is what a person hesitates over — and all of it
-is checkable:
-
-* What is stored is a Google credential **for sending only**. It cannot read
-  their mail: the connector never asks for a scope that could, so no message of
-  theirs can reach you.
-* It is **encrypted before it leaves their browser**. Not by us, not on a server.
-  We cannot read it afterwards, and neither can the page.
-* It is stored **under their own account**, with a rule naming only them, until
-  they add somebody.
-* **Nobody can send until they grant an agent**, and removing the grant — or the
-  row — ends it. The credential never moves while they do that.
-
-### If they report an error
-
-| what they saw | what happened |
-|---|---|
-| "The consent screen was dismissed, so nothing was connected." | they closed Google's screen; start again from the page |
-| "This callback did not come from a connection started in this tab." | the page was reached from an old link or another tab; start again from the page itself |
-| "Google refused this authorisation code…" | the code was already used or has expired — it is single-use and lives minutes; start again |
-| "Google returned no refresh token for this consent." | the account had granted this app before. Remove it at `myaccount.google.com/permissions`, then connect again |
-| "This deployment has no Google client configured", or "…no Google OAuth client configured" | the site is missing its half of the Google app — the first message comes from the page, the second from the exchange behind it. Nothing the owner can do; report it |
-
-### Then ask to be granted
-
-The page stores the row under the profile **`gmail`**, with an empty policy (see
-below), readable by the owner alone. To let you send, they open the **secrets
-page**, find the row `gmail` under `connectors.outlayer.testnet/gmail` (or
-`…near/gmail`), and add your **payer account** under Access — optionally with an
-expiry, so the grant lapses on its own. Then you name
-`{"account_id": "<their account>", "profile": "gmail"}`.
-
-Your payer account is the account the payment key belongs to, not any name you
-act under. Ask like this:
+<https://app.outlayer.ai/connect/gmail>, and then grants your payer account on
+the secrets row `gmail`. You cannot do either for them: it takes their Google
+consent and their wallet signature. Say what will happen before they click —
+someone who does not know stops at Google's warning screen and reports that it
+is broken:
 
 > To let me send mail as you: connect your account at
 > https://app.outlayer.ai/connect/gmail — one Google consent for sending only,
 > then one transaction from your wallet; the credential is encrypted in your own
-> browser and stays yours. After that, add `<your payer account>` under Access on
-> the secrets row named `gmail`, and I can send. I never see the credential
-> itself: it is opened inside the enclave, and I only get what an operation
-> answers.
+> browser and stays yours. After that, add my account `<your payer account>`
+> under Access on the secrets row named `gmail`:
+> https://app.outlayer.ai/secrets?project=connectors.outlayer.near/gmail&profile=gmail&access=1
+> I never see the credential itself: it is opened inside the enclave, and I only
+> get what an operation answers.
 
-### Later: the same page looks after the connection
-
-The owner reads their policy, saves a new one and reconnects there. What each
-costs them, and why reading a setting takes a transaction:
-[`references/owner-page.md`](references/owner-page.md).
-
-An owner who brought their own Google OAuth app stores three values instead of
-one and grants them the same way; nothing changes for you.
-
-`X-Use-Owner-Secret: 1` is an older arrangement, where the row sits under your
-own wallet rather than the owner's. It still works, and it is read only when the
-body names no `secrets_ref` — so a body that names one always wins.
+What they need first, each screen they will see, the errors they may report,
+and how the grant works: [`references/connect.md`](references/connect.md).
 
 ## Start here
 
@@ -186,8 +118,10 @@ The full answer:
  "next": "`send` with `to`, `subject` and `body`"}
 ```
 
-`sent_today` counts this wallet's messages through this connector today, in UTC
-days.
+`sent_today` counts the messages you sent yourself today, in UTC days — not
+the ones the owner confirmed for you, which count apart. Only a send made while
+the policy sets `max_per_day` is counted: with no cap nothing counts, and it
+reads 0.
 
 ## Sending
 
@@ -276,18 +210,18 @@ blank cheque:
 | `status` | free | ~$0.001 |
 | `send` | $0.01 | ~$0.001 |
 | `task_status`, `tasks`, `task_cancel`, `task_delete` | free | ~$0.001 |
+| `confirm` (the platform runs it on your key on the owner's yes), `tasks_unlock` (the owner's) | free | ~$0.001 |
 
 A confirmed message is paid for once, by your `send`; the run of `confirm` the
 platform starts on the owner's approval is yours too, and costs you its compute
-only, as any call.
+only.
 
 **A refused send costs exactly what a delivered one costs.** The fee is charged
 before the run, so a message rejected for a malformed address, an unpermitted
 recipient or a dead credential still spends $0.011 — measured, not estimated.
 Check `status` first, and read which refusals below are terminal before retrying
-any of them. On a trial key every call that was accepted is one of your ten, the
-free `status` included — a loop on a refusal that cannot clear spends the trial on
-nothing.
+any of them: a loop on a refusal that cannot clear spends money, or a trial's
+calls, on nothing.
 
 How much you may send is the owner's to decide, through `max_per_day` in their
 policy: a send refused before it leaves gives its place back, so only mail that
@@ -295,7 +229,9 @@ actually left is counted there, in UTC calendar days. The platform adds no quota
 for a caller who pays. The connector itself carries one technical ceiling against
 a runaway loop — **500 sends in a rolling day per calling wallet** — answered as
 `operation_limit_reached` with `retry_after_seconds`. An attempt that ceiling
-refuses still counts toward it: wait, do not retry into it.
+refuses still counts toward it: wait, do not retry into it. `confirm` has a
+ceiling of its own, 500 a day; a confirmed message over it ends its task
+`failed` with `operation_limit_reached`.
 
 ## When it refuses
 
@@ -312,15 +248,16 @@ retries will change it — somebody has to do something.
 | `api_disabled:` | the Gmail API is switched off in the Google Cloud project behind the credential. It arrives as the same HTTP status as a throttle and is **not** one | yes — its owner enables it at `console.cloud.google.com/apis/library/gmail.googleapis.com`, named in the message |
 | `rate_limited:` | Gmail is throttling; nothing was sent | no — wait, then retry |
 | `policy_denied:` | the owner's rules: no policy, an unreadable policy, a recipient they do not allow, too many recipients, attachments they did not permit, or their daily cap | not by retrying; change the request, or ask the owner |
-| `` `…` is not a bare email address `` | an entry in `to` or `cc` has a display name, angle brackets, a comma, a second `@`, or characters an address cannot hold | fix the address |
+| `recipient N of M: the recipient is not a bare email address` | entry N of `to` or `cc` has a display name, angle brackets, a comma, a second `@`, or characters an address cannot hold | fix that address |
 | `` `to` is required `` | no recipient | fix the request |
 | `` `reply_pubkey` must be a secp256k1 public key `` | not 33 or 65 bytes of hex; refused before Google is asked | fix the key |
 | `` `reply_pubkey` is not a point on secp256k1 `` | the bytes are the right length and not a public key | generate a fresh keypair |
 | `an attachment is not base64` | `data` did not decode | fix the attachment |
-| `Gmail refused …: HTTP …` | anything else Google said, in its own words | judge it by what Google said |
+| `Gmail could not be reached for /messages/send:`, `Gmail answer for /messages/send:`, `Gmail's answer for /messages/send is not JSON`, `Gmail refused /messages/send: HTTP 5…` | the request went out, or may have, and its outcome is unknown: **the message MAY have left** | do not send it again blind. Ask the owner to look in their Sent folder; send again only if it is not there |
+| `Gmail refused …: HTTP 4…` | anything else Google refused, in its own words; nothing was sent | judge it by what Google said |
 
-An operation name this connector does not sell is refused by the platform before
-the run, with the list: `Unknown operation "read" for this connector. Known
-operations: confirm, send, status, task_cancel, task_delete, task_status, tasks,
-tasks_unlock.` Nothing runs, so there is no fee and no compute to pay, and on a trial key it is
-not one of your ten.
+Refusals the platform answers before the run — an unknown operation, the key,
+the trial — are read in <https://skills.outlayer.ai/outlayer-connectors/SKILL.md>
+(*Reading a refusal*); the task limits (`inbox_full:`, `muted:`, …) in
+<https://skills.outlayer.ai/outlayer-connectors/references/owner-tasks.md>
+(*Limits you can meet*).

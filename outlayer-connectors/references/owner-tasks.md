@@ -38,15 +38,22 @@ your share like a task (`inbox_full` below).
 
 ## Which connectors ask first, and for what
 
-| connector | operations that can wait for the owner |
-|---|---|
-| `gmail` | `send` |
-| `github` | the thirteen writes: `branch_create`, `file_put`, `commit`, `issue_create`, `issue_comment`, `issue_update`, `pr_create`, `pr_review`, `pr_merge`, `gist_create`, `gist_update`, `repo_star`, `repo_unstar` |
+| connector | operations that can wait for the owner | decided by |
+|---|---|---|
+| `gmail` | `send` | `policy.confirm` |
+| `github` | the thirteen writes: `branch_create`, `file_put`, `commit`, `issue_create`, `issue_comment`, `issue_update`, `pr_create`, `pr_review`, `pr_merge`, `gist_create`, `gist_update`, `repo_star`, `repo_unstar` | `policy.confirm` |
+| `mercury` | `pay_invoice`, `add_recipient`, `send_invoice`, `cancel_invoice` | `policy.rules` |
 
-Owner confirmation is available in `gmail` and `github`. Every other connector
-acts when you call it.
+Owner confirmation is available in `gmail`, `github` and `mercury`; this table
+is complete. Every other connector acts when you call it.
 
-**The owner chooses, in their policy's `confirm` member**: a list of operation
+**`mercury`: the owner's `policy.rules`**, a list of `{when, then}` that
+`status` reports under `policy.rules` (`null` when there are none). The first
+rule whose `when` matches the call decides: `"then": "ask"` answers
+`awaiting_owner`, `"refuse"` refuses, `"allow"` acts. Which calls a `when`
+matches is in the [mercury skill](https://skills.outlayer.ai/mercury-connector/SKILL.md).
+
+**`gmail`, `github`: the owner's `confirm` member**, a list of operation
 names. `status` reports it under `policy.confirm`, exactly as the policy holds
 it:
 
@@ -58,7 +65,8 @@ it:
 **Call `status` before a write**, so that you know whether it will act or wait,
 and say which in the message you send the person who asked: "I'll send it now"
 and "I'll prepare it for your confirmation" are different promises. You do not
-choose: a policy is the owner's, and a write the policy lists always waits.
+choose: a policy is the owner's, and a write the policy lists — or a rule asks
+about — always waits.
 
 ## Whose key you call with, and who carries the task out
 
@@ -92,7 +100,12 @@ refused `task_answer_invalid`, and the call is still paid for.
 
    > I prepared the email to bob@example.com and it is waiting for your
    > confirmation: https://app.outlayer.ai/inbox/0b9c…-0
-   > It waits until 14:00 UTC.
+   > Please approve it before 13:55 UTC.
+
+   The time is `expires_at` less five minutes: an approval in a task's last
+   five minutes is refused `409 task_ending` before the owner signs, because
+   the run it starts could not take the task in time. A task lives 24 hours at
+   most; a connector may give one a shorter life, never under 900 seconds.
 
 2. **Keep `task_id`.** It is how you learn what happened.
 3. **Ask for the outcome when you next have a reason to** — when the owner
@@ -125,11 +138,11 @@ success.
 
 | `state` | what happened | what you do |
 |---|---|---|
-| `open` | the owner has not answered | wait; remind them once if it matters, with the same `link`. Do not prepare it again |
+| `open` | the owner has not answered | wait; remind them once if it matters, with the same `link` and the time to approve by. Do not prepare it again — except in its last five minutes, when an approval is refused `task_ending`: then prepare it again (a new task, a new `link`) instead of reminding |
 | `approved` | the owner approved; the platform queued a run of yours, named in `run`, which has not acted yet | ask again shortly |
 | `answering` | that run took the answer and is carrying the action out now | ask again shortly |
 | `done` | the action was carried out. `result` is what the connector reports — for a send, the message id — with the owner's `note` when they wrote one. For a notice (`kind: notice`): the owner saw it, and there is no `result` | report it to the owner as done; for a notice, nothing |
-| `failed` | the run could not be started, did not start, refused the task, or ended without reporting the action; `failure_reason` says which. The action may have happened in part | read `failure_reason` (below); tell the owner, with `run`; do not assume either way. If the work is still wanted, prepare it again — a new task |
+| `failed` | the run could not be started, did not start, refused the task, or ended without reporting the action; `failure_reason` says which. After `run_trapped`, `run_unreported` and `run_unfinished` the action may have happened; after the others nothing was done | read `failure_reason` (below); tell the owner, with `run`. If the work is still wanted, prepare it again — a new task — after checking the service where the action may have happened |
 | `rejected` | the owner said no. `reason` is what they wrote, when they wrote something | act on the reason: rewrite the action as they asked and call the operation again — a new task, with a new `link` to give them. Without a reason, ask what they want changed. Never prepare the same thing again unchanged |
 | `cancelled` | you withdrew it | — |
 | `expired` | it waited past `expires_at` | ask the owner whether it is still wanted, then prepare it again |
@@ -144,11 +157,11 @@ A task never returns to `open`. An outcome is kept 30 days; after that
 | `operation_limit_reached` | the answering operation's limit for your key is reached | prepare again later |
 | `build_changed` | the connector published a new build after you prepared the task; nothing was charged | prepare the task again |
 | `operation_priced`, `operation_unknown`, `wallet_unresolved`, `queue_unavailable`, `run_not_started` | the platform could not start or run the run: the connector's price list, your wallet, or the queue | report it; `queue_unavailable` and `run_not_started` are worth one more try |
-| `run_refused:<reason>` | your run refused the task: `hash-mismatch`, `expired`, `void`, `unreported`, … — the host's reason | as the reason says: `void` means the owner's policy changed, read it and prepare again; `unreported` means the action may have happened |
+| `run_refused:<reason>` | your run refused the task before taking it, so **nothing was done**. `<reason>` is one of ten, and this list is complete: `hash-mismatch`, `answer-invalid`, `not-the-preparer`, `approval-invalid`, `expired`, `void`, `unreadable`, `unavailable`, `not-found`, `unreported` (here too: the task was never taken) | prepare again if the work is still wanted; for `void`, call `status` and read the policy first |
 | `run_failed` | your run took the owner's yes and the connector did NOT carry it out. `result.error` is its own sentence: a limit used up meanwhile, the service's refusal | quote `result.error` to the owner; prepare again only if the work is still wanted |
 | `run_trapped` | your run reported the action done and then failed. `result` is what it reported — the action most likely happened | treat `result` as the outcome: check the service, do not prepare it again unless it shows nothing happened |
-| `run_unreported` | your run took the owner's yes and ended without saying what it did — the run failed, or the service's answer to the action was lost. The action may have happened | check the service before preparing again; tell the owner, with `run` |
-| `run_unfinished` | no word of your run's end within thirty minutes. The action may have happened in part | check the service before preparing again; tell the owner, with `run` |
+| `run_unreported` | your run took the owner's yes and ended without saying what it did — the run failed, or the service's answer to the action was lost or was a server error. The action may have happened | check the service before preparing again; tell the owner, with `run` |
+| `run_unfinished` | no word of your run's end within thirty minutes. The action may have happened, in whole or in part | check the service before preparing again; tell the owner, with `run` |
 
 ## What the owner confirms is what happens
 
@@ -181,7 +194,15 @@ connector's skill.
 | `task_status` | `task_id` | where one of your tasks stands |
 | `tasks` | — | all your tasks for this owner: `{"tasks": [ … ]}`, each shaped as `task_status` answers, empty when there are none |
 | `task_cancel` | `task_id` | withdraw a task that is still `open`: `{"task_id", "state": "cancelled"}` |
-| `task_delete` | `task_id` | delete one of your tasks, in any state: `{"task_id", "deleted": true}` |
+| `task_delete` | `task_id` | delete one of your tasks that nothing was carried out on: `{"task_id", "deleted": true}`. See below |
+
+`task_delete` deletes a task in one of these states, and no other: `open`,
+`cancelled`, `rejected`, `expired` (an approved one past its life included),
+`void`, or `failed` with `run_failed`, `run_not_started`, `run_refused:*`,
+`preparer_key_unavailable`, `operation_priced`, `operation_unknown`,
+`operation_limit_reached`, `wallet_unresolved`, `build_changed` or
+`queue_unavailable`. Any other — the owner's yes acted on it, or may have — is
+refused `task_closed:`: it is the owner's record as much as yours.
 
 They see **your** tasks only: the ones made by your account, in this connector,
 for this owner — the later turns of a conversation you started included (below).
@@ -279,7 +300,7 @@ in your `tasks`, and `task_status` on `next_task_id` answers it.
 | `display_invalid:` | what you asked for cannot be shown to the owner whole: too long, or it holds characters that are not drawn or that reorder text. The message names which | shorten or clean the request |
 | `task_too_large:` | the prepared action is over what a task holds: more than 10 files, or more than 6 MB of them together | make it smaller |
 | `task_not_found:` | no such task of yours: never made, deleted, or older than 30 days | no |
-| `task_closed:`, `task_expired:` | `task_cancel` on a task that is no longer `open` | no |
+| `task_closed:`, `task_expired:` | `task_cancel` on a task that is no longer `open`; `task_delete` on a task the owner's yes acted on, or may have | no |
 | `task_run_limit:` | this call opened as many tasks, or asked about tasks as many times, as one call may | not in this call. Another call starts from nothing |
 | `task_internal_error:` | the platform could not do what was asked, and will not do better on a repeat. Read `tasks`: a task you did not get an id for may be there | no. Report it |
 | `task_store_unavailable:` | the platform could not reach the task store or the chain | yes, later. This is the only one worth repeating as it is |

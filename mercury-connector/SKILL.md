@@ -1,6 +1,6 @@
 ---
 name: mercury-connector
-description: Operate the wallet owner's Mercury business bank account through the `mercury` connector — pay a recipient, issue and cancel invoices, read accounts, recipients, transactions and payment status — under the owner's spending policy, and send the owner to connect the account at app.outlayer.ai/connect/mercury. Use when an agent with an OutLayer wallet must move USD out of, or invoice into, a Mercury account, or when the owner talks about paying a contractor, invoicing a client or what the company spent.
+description: Operate the wallet owner's Mercury business bank account through the `mercury` connector — pay a recipient, issue and cancel invoices, read accounts, recipients, transactions and payment status — under the owner's spending policy, and send the owner to connect the account at app.outlayer.ai/connect/mercury. Also covers writes the owner's rules make wait for their approval, which answer `awaiting_owner`. Use when an agent with an OutLayer wallet must move USD out of, or invoice into, a Mercury account, or when the owner talks about paying a contractor, invoicing a client or what the company spent.
 ---
 
 # Mercury connector
@@ -10,8 +10,24 @@ neither can waive the other: the owner's `MERCURY_POLICY` (enforced in the
 enclave, before anything reaches the bank) and Mercury's own approval rules. A
 refusal tells you which layer refused — read it rather than retrying.
 
-When to offer this, and how to say it so the owner can refuse, is in
-[`outlayer-connectors/references/offering.md`](https://skills.outlayer.ai/outlayer-connectors/references/offering.md).
+Not here: cards, approving a payment Mercury queued (a person does that in
+Mercury's app), and your own wallet's funds
+(<https://skills.outlayer.ai/agent-custody/SKILL.md>). How any connector is
+called and paid — which key, the trial, the platform's own refusals — is in
+<https://skills.outlayer.ai/outlayer-connectors/SKILL.md>; when to offer this,
+and how to say it so the owner can refuse, in
+<https://skills.outlayer.ai/outlayer-connectors/references/offering.md>.
+
+## Which file to read
+
+The relative links below resolve against `https://skills.outlayer.ai/mercury-connector/`.
+
+| the task in front of you | read |
+|---|---|
+| `status`, reading, paying, invoicing, a refusal | this file |
+| the owner has not connected, or has not granted you | [`references/connect.md`](references/connect.md) |
+| a write answered `awaiting_owner`, the owner's `rules`, or you follow a task | [`references/owner-approval.md`](references/owner-approval.md) |
+| any task state or `failure_reason`; `inbox_full`, `muted` and the other task limits | <https://skills.outlayer.ai/outlayer-connectors/references/owner-tasks.md> |
 
 ## Where it runs
 
@@ -38,82 +54,30 @@ Content-Type: application/json
  "secrets_ref": {"account_id": "<owner's account>", "profile": "mercury"}}
 ```
 
-Answers are `{"success": bool, "output": {...}, "error": "..."}`.
+The connector's answer is `{success, operation, output, error, logs}` inside the
+platform's `output` — the envelope is in
+[outlayer-connectors](https://skills.outlayer.ai/outlayer-connectors/SKILL.md).
 
 ## Where the credential comes from
 
-The owner connects once, at **<https://app.outlayer.ai/connect/mercury>**. You
-cannot do it for them — it needs a token from their Mercury settings and their
-wallet signature — so your job is to send them there **and tell them what
-happens before they paste anything**. A wrong token scope means a new token,
-not a setting, so the scope is the thing to say first.
+The owner connects once, at <https://app.outlayer.ai/connect/mercury>, with a
+Mercury API token they create, and then grants your payer account on the
+secrets row `mercury`. You cannot do either for them: it takes their Mercury
+settings and their wallet signature. Say what will happen before they paste
+anything — a token's scope cannot be edited afterwards:
 
-### What they need first
+> To let me work with your Mercury account: create an API token in Mercury
+> (Settings → API Tokens → Custom; "Read + Send Money with Approval" keeps
+> every payment waiting for a person in Mercury's app) and connect it at
+> https://app.outlayer.ai/connect/mercury — the token is encrypted in your own
+> browser, you set what I may pay, and one transaction from your wallet
+> stores it under your account. Then add my account `<your payer account>`
+> under Access on the secrets row `mercury`:
+> https://app.outlayer.ai/secrets?project=connectors.outlayer.near/mercury&profile=mercury&access=1
+> I never see the token: it is opened inside the enclave.
 
-* The NEAR wallet that will own the credential, connected on the dashboard,
-  with a little NEAR in it: the last step is a transaction and pays for storage.
-* **The right network** — the page writes to whichever the dashboard is
-  switched to. Ask them to connect on the network your payment key belongs to.
-* **A Mercury API token**, created at Mercury → Settings → API Tokens →
-  *Custom*. Its scope cannot be edited afterwards:
-  * *Read + Send Money with Approval* — every payment you make waits for a
-    person in Mercury's app. The usual choice, and the safe first one. An
-    owner who chose it keeps it: never suggest a token without approval to
-    get a payment through.
-  * *Read + Send Money* — payments go out directly, inside the policy. Mercury
-    then requires an IP allowlist on the token, and the addresses to allow are
-    OutLayer's enclave nodes, not the owner's: the connector names the address
-    to add the first time a payment is refused with `ipNotWhitelisted`.
-  * *Read* only — accounts, payees, the ledger and invoices, nothing else.
-
-### What they will see, in order
-
-1. **A page that explains the scopes, then one field: the token.** They paste
-   it and press *Continue with this token*. The token stays in that browser tab
-   — nothing is sent to us — and the page asks Mercury, from their browser,
-   which accounts it reaches.
-2. **A deliberate stop. Nothing is stored yet.** The page says so in those
-   words, lists the accounts the token reaches, and shows the policy form:
-   most per payment, budget per 30 days, payees, rails, account, the two
-   switches (new payees, invoicing), and which operations at all. An empty
-   policy is **read-only**; both amounts are needed before any payment runs.
-   With one account the page pins it; with several, payments are refused until
-   they name one.
-3. **One button, *Finish: store the encrypted credential on the contract*.**
-   Their wallet opens only when they press it. The token and the policy are
-   sealed in their browser to a key that exists only inside the keystore
-   enclave, and stored under their account with a rule naming them alone.
-4. **Mercury connected**, and a link to grant an agent. If their wallet is
-   closed or refuses, they land back on step 2: one more click, no new paste.
-
-### What it means, in their words
-
-* A token alone moves nothing. Until the policy names a budget, you can only
-  read.
-* The token is encrypted before it leaves their browser. We cannot read it
-  afterwards, and neither can you: the connector opens it inside the enclave.
-* Nobody can use it until they grant an agent, and removing the grant — or the
-  row, or the token in Mercury — ends it at once.
-* Payments you queue are approved in Mercury's app by a **different Mercury
-  user** from the one who created the token, and only if an **approval rule**
-  names that approver for the amount. A request no rule covers exists in the
-  API and appears to nobody. Say this before the first payment, not after.
-* **Mercury deletes a token unused for 45 days.** Your `status` call is a use.
-  If you hold this connection, call `status` at least every few weeks.
-
-### Then ask to be granted
-
-The row is stored under the profile **`mercury`**, readable by the owner alone.
-To let you act, they open the secrets page —
-`https://app.outlayer.ai/secrets?project=connectors.outlayer.near/mercury&profile=mercury&access=1`
-(the testnet pair on testnet) — and add your **payer account** under Access,
-optionally with an expiry. Your payer account is the 64-character account of
-the wallet that owns your payment key: `GET /wallet/v1/address?chain=near`,
-the `address`. Then you name
-`{"account_id": "<their account>", "profile": "mercury"}` in `secrets_ref`.
-
-A grant made seconds ago can still be refused: the condition is read from the
-chain. Wait a minute, repeat the free `status`, then conclude.
+Each scope, each screen they will see, what it means for them, and how the
+grant works: [`references/connect.md`](references/connect.md).
 
 ## Start here
 
@@ -147,8 +111,23 @@ All HTTPS-only but `payment_status`.
 
 ```json
 {"operation": "pay_invoice", "recipient_id": "<from `recipients`>", "amount_usd": 120.50,
- "payment_method": "ach", "note": "invoice 2026-09"}
+ "payment_method": "ach", "external_memo": "Invoice INV-2026-081", "note": "invoice 2026-09"}
 ```
+
+| field | rule |
+|---|---|
+| `amount_usd` | required. A JSON number in **dollars**, not minimal units: `120.50` is $120.50. Rounded to cents; at least `0.01` |
+| `recipient_id` or `recipient` | exactly one. `recipient_id` from `recipients`; `recipient` is an inline payee (the `add_recipient` fields), HTTPS-only, and needs `allow_new_recipients` |
+| `payment_method` | `ach` (default), `check`, `domesticWire` or `internationalWire`, within the policy's rails. An `internationalWire` needs a `recipient_id` |
+| `wire_purpose_category` | required for a wire, one of `employee`, `landlord`, `vendor`, `contractor`, `subsidiary`, `transferToMyExternalAccount`, `familyMemberOrFriend`, `forGoodsOrServices`, `angelInvestment`, `savingsOrInvestments`, `expenses`, `travel`, `other` |
+| `wire_purpose_info` | required with `vendor`, `contractor` and `other` |
+| `external_memo` | what the payee's bank statement shows |
+| `note` | an internal note, kept with the connector's marker in front |
+| `account_id` | optional, and it never chooses: a payment draws on the policy's account, or on the login's only one. An id other than that one is refused |
+| `idempotency_key` | at most 200 characters. Defaults to this call's id, so a new call is a new payment: when you may repeat a payment, pass a key of your own and repeat it with the same key |
+
+Mercury refuses an identical send — the same recipient, account and amount —
+within 24 hours with HTTP 400, even under another idempotency key.
 
 Two outcomes, both normal:
 
@@ -182,9 +161,14 @@ account and routing numbers.
 
 Read `policy.rules` in `status` before a write. When a rule says `ask`, the
 write answers `{"status": "awaiting_owner", "task_id": …, "link": …}` and
-nothing happens at the bank. That is a success: give the owner `link`, do not
-send the write again while the task is open, and learn the outcome with
-`task_status`. When a rule says `refuse`, stop and quote the sentence. How
+nothing happens at the bank. That is a success: give the owner `link` in a
+sentence that says what waits —
+
+> I prepared the payment of $120.50 to Acme Hosting by ACH. Nothing is paid
+> until you approve it: https://app.outlayer.ai/inbox/…
+
+— do not send the write again while the task is open, and learn the outcome
+with `task_status`. When a rule says `refuse`, stop and quote the sentence. How
 rules match, what each outcome of a task means, and the task operations:
 [`references/owner-approval.md`](references/owner-approval.md).
 
@@ -286,7 +270,8 @@ A run that started is charged whether the bank or the policy then refused; only
 a platform refusal before the guest runs costs nothing. The connector's own
 technical caps, there against a runaway loop and far above ordinary use: 50
 `pay_invoice`, 50 `add_recipient` and 20 `send_invoice` in a day, answered as
-`operation_limit_reached` with `retry_after_seconds`.
+`operation_limit_reached` with `retry_after_seconds`, and 100 `confirm` runs a
+day — a task approved past that ends `failed` with `operation_limit_reached`.
 
 ## When it refuses
 

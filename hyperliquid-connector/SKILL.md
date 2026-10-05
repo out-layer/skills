@@ -9,10 +9,26 @@ You trade from the wallet's `trading` sub-key: an address Hyperliquid knows
 as the account. You never see a key and you never pay gas — every action is
 signed inside the TEE, checked against the owner's policy before it is sent,
 and HyperCore has no gas. If the policy says no, the answer says why: read
-it, do not retry.
+it, do not retry. This skill is the `hyperliquid` operations, policy, limits
+and prices. It does not cover how any connector call is paid or refused
+(keys, the trial, the platform's refusal codes):
+[`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md);
+nor wallet operations (address, balances, intents deposits):
+[`agent-custody`](https://skills.outlayer.ai/agent-custody/SKILL.md).
 
 Every number in this file was observed on mainnet with real money. Where it
 says "seen", that is what happened.
+
+## Where to read what
+
+Fetched over HTTP, the relative links below resolve against
+`https://skills.outlayer.ai/hyperliquid-connector/`.
+
+| the task in front of you | read |
+|---|---|
+| fund, trade, withdraw; the policy; a `hyperliquid` refusal | this file |
+| a withdrawal 1Click refunded to the wallet's own EVM address | [`references/refund-recovery.md`](references/refund-recovery.md) |
+| a payment key, the trial, a `/call` refusal `reason` | [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md) |
 
 ## Call shape
 
@@ -27,74 +43,74 @@ Content-Type: application/json
 
 **Send no `secrets_ref`, and always send `X-Wallet-Id`** — without it the
 run has no wallet. If your wallet has an owner, OutLayer attaches their policy
-row (`{owner, "hyperliquid"}`) itself; any other row, your own included, is refused
-`403 policy_row_not_owner`, and doing it again blocks your wallet on this
-connector for a while (`403 calls_suspended`). If your owner gave you a
-profile of theirs, name it: `secrets_ref: {"account_id": "<owner>", "profile":
-"<it>"}`. If the owner's row does not name
-your wallet you get `Access denied by access condition`: ask them to add your
-wallet's account. A row you name that nobody stored is `policy_row_missing`:
-name one that exists, or none. With no policy you trade on the built-in default (any size,
-withdrawals only back to the wallet); `status` shows which applies.
+row (`{owner, "hyperliquid"}`) itself; any other account's row, your own
+included, is refused `403 policy_row_not_owner`, and naming such rows can
+block your wallet on both trading connectors for a while
+(`403 calls_suspended`). If your owner gave you a profile of theirs, name it:
+`secrets_ref: {"account_id": "<owner>", "profile": "<it>"}`. If the owner's
+row does not name your wallet you get `Access denied by access condition`:
+ask them to add your wallet's account.
 
-Two envelopes come back. The platform's: `{call_id, status, output,
-compute_cost, time_ms}`. Inside its `output`, the connector's: `{success,
-operation, output, error}`. **A connector refusal arrives as HTTP 200 with
-`output.success: false`**; the word before the colon in `output.error` is
-the contract — `policy_denied`, `invalid`, `signature_mismatch` — and a venue
-refusal reads `Hyperliquid rejected …` / `Hyperliquid refused …` with the
-venue's own sentence.
+**`policy_row_missing`.** A row you name under a profile other than
+`hyperliquid` that nobody stored is refused, never run with no policy: the
+answer is `status: "failed"` with the top-level `error` starting
+`policy_row_missing:` and no `output` — do not look for `output.success`.
+Name a row that exists, or none. Only the `{owner, "hyperliquid"}` row may be
+absent: then the built-in default applies.
 
-Testnet: `https://testnet-api.outlayer.ai/call/connectors.outlayer.testnet/hyperliquid`;
+The connector's answer is `{success, operation, output, error}` inside the
+platform's `output`. **Its refusal is HTTP 200 with `output.success:
+false`**; the word before the colon in `output.error` is the contract —
+`policy_denied`, `invalid`, `signature_mismatch` — and a venue refusal reads
+`Hyperliquid rejected …` / `Hyperliquid refused …` with the venue's own
+sentence.
+
+**After a `408 timeout`** (the refusal itself: `outlayer-connectors`, "Reading
+a refusal") the order may still have reached the venue. Read `orders` and
+`positions` before placing it again.
+
+Testnet: substitute `testnet-api.outlayer.ai` and `connectors.outlayer.testnet`;
 the owner's page stores `HYPERLIQUID_TESTNET=1` in the same row there. Trading
 works on testnet; funding does not (1Click has no testnet).
 
 ## What you need before the first call
 
-* **A payment key the wallet owns.** The trial key (`POST /trial-key` with
-  the wallet's `wk_`) gives 50 connector calls in the wallet's first week
-  (`calls` in its answer is the number to trust), free operations included. A funded key has no call limit; creating one
-  needs the wallet's NEAR account to hold **≥ 0.3 NEAR**.
+* **A payment key the wallet owns** — the trial or a funded key:
+  [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md),
+  "Which key pays".
 * **USDC on the wallet's intents balance** — what `deposit_start` draws from
-  and where withdrawals return. The plain balance is a different pot. Ask the
-  owner to fund with `dest=intents`.
-* **The owner's policy**, `HYPERLIQUID_POLICY`, in a row under the OWNER's
-  account that names your wallet. Without it you trade on the built-in default;
-  `status` shows it. The owner stores it at **<https://app.outlayer.ai/connect/hyperliquid>**:
-  a form for the caps, a field for your wallet's account, one wallet
-  transaction. Send them there with your account (`GET /wallet/v1/address?chain=near`,
-  the `address`) and say what you need: orders open only when all three of
+  and where withdrawals return by default. The plain balance is a different
+  pot. Ask the owner to fund with `dest=intents`.
+* **A policy, if the owner wants caps.** With none you trade on the built-in
+  default (below); `status` shows which applies. The owner stores
+  `HYPERLIQUID_POLICY` in a row under THEIR account that names your wallet, at
+  **<https://app.outlayer.ai/connect/hyperliquid>**: a form for the caps, a
+  field for your wallet's account, one wallet transaction. Send them there with
+  your account (`GET /wallet/v1/address?chain=near`, the `address`) and say what
+  you need — a stored policy opens orders only when all three of
   `max_order_usd`, `max_daily_volume_usd` and `max_leverage` are set. It
   applies to your next call; you name nothing.
 
 ## Funding the wallet — how to ask for it
 
-`deposit_start` draws from the wallet's **intents** USDC. Three ways to put
-it there, in order of convenience:
-
-* **The dashboard**, one link for the owner to open with their NEAR wallet:
-  `https://app.outlayer.ai/wallet/fund?to=<near_account_id>&token=17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1&amount=15&dest=intents`
-  — `to` is the wallet's NEAR account (`GET /wallet/v1/address?chain=near`),
-  `token` is native USDC, `dest=intents` puts it on the intents balance
-  (without it the USDC lands on the plain balance, a different pot). Seen:
-  11 USDC arrived on intents within a minute.
-* **A direct transfer** from any NEAR account: `ft_transfer_call` on the
-  USDC contract to `intents.near` with `msg` = the wallet's NEAR account id
-  — that is exactly what the dashboard signs.
-* **From the wallet's own plain balance**: `POST /wallet/v1/intents/deposit
-  {"token": "<usdc>", "amount": "<units>"}` (needs NEAR for gas on the wallet).
-
-Do not route NEAR-side money through a 1Click quote to reach intents: it
-adds a fee and an amount-matching rule for nothing.
+`deposit_start` draws from the wallet's **intents** USDC (native USDC,
+`17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`). Ask the
+owner with the fund link and `dest=intents` — without it the USDC lands on the
+plain balance, a different pot; the link and the other ways in are
+[`agent-custody`](https://skills.outlayer.ai/agent-custody/references/funding-and-payment-keys.md).
+Seen: 11 USDC arrived on intents within a minute. Do not route NEAR-side money
+through a 1Click quote to reach intents: it adds a fee for nothing.
 
 ## First calls, in order
 
 1. `{"operation": "status"}` — free, ~3 s. `addresses.trading` (your
    account), `perp.account_value_usd`, `perp.withdrawable_usd`, `spot.usdc`,
-   `activation` (`user_exists`, `next_outbound_fee_usdc`), the policy caps,
-   today's volume, and `limits` — the floors below.
+   `activation` (`user_exists`, `next_outbound_fee_usdc`), `policy`,
+   `today.volume_usd`, and `limits` — the floors below.
 2. `{"operation": "deposit_start", "amount": "15"}` — moves USDC from the
    wallet's intents balance to your Hyperliquid account through 1Click.
+   **`amount` is decimal USDC as a string** (`"15"`, `"2.5"`), not minimal
+   units — on every operation that takes one.
    **At least 2 USDC**; the fee is a flat ~0.33 USDC whatever the amount
    (seen: 15 → 14.683633; quoted 5 → 4.68, 50 → 49.67, 100 → 99.66). So
    fund once with what you need — one deposit of 20 costs half of two of 10,
@@ -107,10 +123,11 @@ adds a fee and an amount-matching rule for nothing.
    deposit is what creates a new account — nothing else is needed.
    `"to": "spot"` parks it on spot instead (`deposit_continue` then does the
    class transfer). USDC on the **confidential** (shielded) balance works
-   too: `"source": "confidential"` here, `"destination": "confidential"` on
-   `withdraw_start` — the NEAR wallet never shows on HyperCore. Pick the one
-   that holds the money; a wallet policy, if the owner set one, must allow
-   the `confidential` capability.
+   too: `"source": "confidential"` — the NEAR wallet never shows on
+   HyperCore. Pick the one that holds the money; a wallet policy, if the
+   owner set one, must allow the `confidential` capability. Withdrawing back
+   to `confidential` needs a stored policy that allows it ("Getting money
+   back out").
 3. `{"operation": "leverage", "coin": "ETH", "leverage": 2}` — **required
    once per coin before the first order in it**: a fresh account trades at
    the market's maximum otherwise, and the connector refuses an order
@@ -166,14 +183,12 @@ read there, place and settle through the connector.
   `prevDayPx` — enough to rank by volume, funding or move.
 * `{"type": "l2Book", "coin": "ETH"}` → `levels[0]` bids, `levels[1]` asks,
   each `{px, sz, n}` — the depth a market order will eat.
-* `{"type": "allMids"}` → `{coin: mid}` for everything at once.
 * `{"type": "candleSnapshot", "req": {"coin": "ETH", "interval": "1h",
   "startTime": <ms>, "endTime": <ms>}}` → OHLCV.
 
 Show the user `https://app.hyperliquid.xyz/trade/<COIN>`. The connector's
-own `markets {"coins": [...]}` gives the same numbers for a tenth of a cent
-when a call is simpler than an HTTP fetch; it also filters out delisted
-markets and is what the policy's `coins` list is checked against.
+own `markets {"coins": [...]}` gives the same numbers for a tenth of a cent,
+without delisted markets.
 
 ### Did it fill?
 
@@ -190,15 +205,38 @@ Cancel every resting order (`orders` → `cancel` each `oid`), then close each
 position with the opposite side, `reduce_only: true`, `kind: market`, for the
 whole `size`. Check `positions` is empty before withdrawing.
 
-## What the policy caps (owner's `HYPERLIQUID_POLICY`)
+## The policy (owner's `HYPERLIQUID_POLICY`)
 
-`max_order_usd` per order (at the limit price, or mark ± slippage for a
-market order), `max_position_notional_usd` after the order,
-`max_daily_volume_usd` per UTC day (a resting order counts when placed, a
-reduce-only order counts but is never refused), `max_leverage`, `coins`;
-`allow_deposit` + `max_deposit_usd`; `allow_withdraw` + `withdraw_to`.
-Read `status.policy.caps` first and size orders inside them instead of
-discovering the caps by refusal — a refused call is still billed.
+**No policy is the built-in default:** every coin, any size and volume,
+leverage up to the market's cap, deposits from the wallet's balance,
+withdrawals only to `intents`. No row, an empty value and `{}` all mean no
+policy. `status.policy` then reads `present: false` and the default's
+`effect`.
+
+**A stored policy replaces the default whole**, and is fail-closed:
+
+| field | in a stored policy |
+|---|---|
+| `max_order_usd` | cap on one order's notional (at the limit price, or mark ± slippage for a market order); not applied to a reduce-only close. Absent: no orders |
+| `max_daily_volume_usd` | cap per UTC day; a resting order counts when placed, a reduce-only order counts but is never refused. Absent: no orders |
+| `max_leverage` | cap on `leverage`. Absent: no `leverage`, so no orders |
+| `max_position_notional_usd` | cap on a coin's position after the order. Absent: no cap |
+| `coins` | the coins you may trade. Absent or `["any"]`: every listed market |
+| `allow_deposit`, `max_deposit_usd` | `allow_deposit` is `false` unless set `true` — then `deposit_start` is refused. `max_deposit_usd` absent: no cap |
+| `allow_withdraw`, `withdraw_to` | `allow_withdraw` is `false` unless set `true` — then `withdraw_start` is refused. `withdraw_to` pins one destination (`intents`, `confidential` or a HyperCore `0x` address); absent: any destination |
+
+An unknown field makes the policy unreadable, and an unreadable policy refuses
+every write. Read `status.policy` first — the fields above sit at its top
+level, beside `present: true` — and size orders inside them instead of
+discovering the caps by refusal: a refused call is still billed.
+
+**Per-wallet profiles** (`{owner, "<profile>"}`, one per wallet, named in
+`secrets_ref`) bind only while the owner's `{owner, "hyperliquid"}` row exists
+too: a call that names no row runs that one, and with none stored, the
+uncapped default. If your owner caps per
+wallet and has not stored it, tell them: "Your per-wallet policy only binds
+while a policy under the `hyperliquid` profile exists too — store one there,
+strict or admitting no wallet, at https://app.outlayer.ai/connect/hyperliquid."
 
 ## Wins and losses, where to read them
 
@@ -226,7 +264,9 @@ when perp cannot release it — close positions first), the 1Click route is
 quoted for exactly the amount (a refused quote moves nothing), and a
 HyperCore spot transfer sends the amount to the quoted address. Destinations:
 `intents`, `confidential` (the shielded balance), or a HyperCore `0x` account
-(done at once, no 1Click).
+(done at once, no 1Click). **With no policy only `intents` is allowed**; any
+other needs a stored policy with `"allow_withdraw": true` and `withdraw_to`
+set to that destination or absent.
 
 * **The account's first outbound transfer costs 1 USDC on top of the
   amount**, taken from spot; `status.activation.next_outbound_fee_usdc` says
@@ -273,8 +313,8 @@ HyperCore spot transfer sends the amount to the quoted address. Destinations:
 | first outbound transfer | 1 USDC once, from spot | `withdraw_start` reserves it |
 | withdrawal to the wallet | 2 USDC sent; 1Click takes 0.2 flat | refused before anything moves |
 | order (policy) | `max_order_usd`, `max_position_notional_usd`, `max_daily_volume_usd` (counts what you asked) | `policy_denied:` before signing, still billed |
-| deposit / withdraw (policy) | `allow_deposit`, `max_deposit_usd`, `allow_withdraw`, `withdraw_to` | `policy_denied:` |
-| calls | trial: 50 incl. free ones, 7 days; paid: the key's balance; `order` 500/day, `leverage` 100/day per wallet | `402` / refused |
+| deposit / withdraw (policy) | `allow_deposit`, `max_deposit_usd`, `allow_withdraw`, `withdraw_to` — "The policy" | `policy_denied:` |
+| calls | the key: `outlayer-connectors`, "Which key pays"; `order` 500/day, `leverage` 100/day per wallet | `operation_limit_reached` |
 
 ## Costs
 

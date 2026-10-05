@@ -42,19 +42,22 @@ run ends the task `failed` with `preparer_key_unavailable`.
 `thread_id`, `to`, `cc`, `subject`, `attachments`, `sent_today`,
 `remaining_today`, and the owner's `note` when they wrote one. The owner's
 daily cap counts what you send yourself and what the owner confirms for you
-apart, each against the same number.
+apart, each against the same number: in this `result`, `sent_today` and
+`remaining_today` are the confirmed count, and `status`'s `sent_today` is
+never it.
 
-`failed` with `failure_reason: run_failed` carries in `result.error` why the
-approved message did not leave — the daily cap reached meanwhile, the
-credential, Google's refusal — in the connector's own sentence; quote it to
-the owner. `failed` with `run_unreported` means the run ended without saying
-what it did: the message may have left — look in the owner's Sent folder
-through them before sending it again.
+What a Gmail task's ending means:
 
-`rejected` carries the owner's `reason` when they wrote one — "shorter", "not
-to Bob", "attach the PDF instead". Rewrite the message as they asked and call
-`send` again: a new task, with a new `link` to give them. Never send the same
-message again unchanged. Every other state, and what to do in it:
+| `state` / `failure_reason` | for this message | do |
+|---|---|---|
+| `failed`, `run_refused:<reason>` or `run_refused:unreported` | refused before the owner's answer was taken: nothing was sent | `send` it again if it is still wanted — a new task |
+| `failed`, `run_failed` | the approved message did not leave; `result.error` is the connector's sentence — the daily cap reached meanwhile, the credential, Google's refusal — ending "The task is closed: to send this message, prepare it again" | quote `result.error` to the owner |
+| `failed`, `run_unreported` | Gmail's answer to the send was lost, or Google failed after the request went out: **the message MAY have left**, and there is no `result` | ask the owner to look in their Sent folder; send it again only if it is not there |
+| `failed`, `operation_limit_reached` | `confirm` met its ceiling of 500 runs a day; nothing was sent | `send` it again later, if still wanted |
+| `rejected` | the owner said no; `reason` is what they wrote — "shorter", "not to Bob", "attach the PDF instead" | rewrite the message as they asked and call `send` again: a new task, with a new `link`. Never send the same message again unchanged |
+
+Every other state and `failure_reason`, what `task_delete` may delete, and what
+to do in each:
 https://skills.outlayer.ai/outlayer-connectors/references/owner-tasks.md
 
 ## What a message to be confirmed must fit
@@ -78,6 +81,6 @@ theirs, in their policy.
 
 `tasks_unlock` is the owner's, from their inbox: called by you it is refused
 `not_the_owner:`. `confirm` runs only when the platform starts it on the
-owner's approval: called by you it is refused `task_answer_invalid:`, fee
-included. Never ask the owner to give you anything that would let you call
-them.
+owner's approval: called by you it is refused `task_answer_invalid:`. It has
+no fee, and the run's compute is still yours. Never ask the owner to give you
+anything that would let you call them.

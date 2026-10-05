@@ -53,8 +53,9 @@ answered you directly — for a `commit`, its `commit`, `url` and
 `writes_today` — and the owner's `note` when they wrote one. `rejected` carries the owner's `reason` when they wrote one ("request
 changes instead of approving", "put it on a branch"): do what it says and call
 the write again — a new task, with a new `link` to give them. Never prepare the
-same write again unchanged. Every state and what to do in it:
-https://skills.outlayer.ai/outlayer-connectors/references/owner-tasks.md
+same write again unchanged. How a GitHub task can fail is below; every other
+state and `failure_reason`, what `task_delete` may delete, and what to do in
+each: https://skills.outlayer.ai/outlayer-connectors/references/owner-tasks.md
 
 ## What the owner is shown
 
@@ -108,21 +109,20 @@ write.
 | `commit` | the branch's head as it is at confirmation; the branch moves without force |
 
 A pull request that moved between your call and the owner's yes ends the task
-`failed` with `conflict`. Read it again (`pr_get`, `pr_files`), review what is
-there now, and prepare the merge or the review again — a new task the owner
-sees with the new head. Do not tell the owner it was merged or approved.
+`failed` with `failure_reason: run_failed`, and `result.error` starting
+`conflict:`. Nothing was merged or approved. Read it again (`pr_get`,
+`pr_files`), review what is there now, and prepare the merge or the review
+again — a new task the owner sees with the new head. Do not tell the owner it
+was merged or approved.
 
-## Refusals at `confirm`
+## How a confirmed write fails
 
-A refusal before the owner's answer is taken leaves the task as it was, and an
-open task can be confirmed again. Once the answer is taken the task never
-returns to `open`: a refusal after it — the policy, the day's count, the
-token, GitHub's own refusal — ends the task `failed` (`run_failed`), and the
-sentence ends "The task is closed: to make this write, prepare it again"; you
-read the same sentence in `task_status` as `result.error`. A write that was
-made but whose result could not be left for you ends `failed` too, and its
-sentence says "The write WAS made on GitHub … do not prepare it again": check
-on GitHub (`issue_list`, `pr_get`, `branch_list`) before you prepare anything.
+| `state` / `failure_reason` | for this write | do |
+|---|---|---|
+| `failed`, `run_refused:<reason>` or `run_refused:unreported` | refused before the owner's answer was taken — the policy gone or unreadable, a task that no longer holds: nothing was written | prepare it again if it is still wanted — a new task |
+| `failed`, `run_failed` | refused after the answer was taken, before anything changed on GitHub: the policy, the day's count, the token, or GitHub's own 4xx refusal. `result.error` is the connector's sentence, ending "The task is closed: to make this write, prepare it again" | quote `result.error` to the owner; prepare again only if still wanted |
+| `failed`, `run_unreported` | a request reached GitHub and its outcome is not known — GitHub answered 5xx, its answer was lost, or a later step failed after an earlier one was made — or the write was made and its result could not be kept. There is no `result`. **The write MAY have been made** | check GitHub first (`issue_list`, `pr_get`, `branch_list`, `file_get`, `gist_list`); prepare it again only if nothing is there |
+| `failed`, `operation_limit_reached` | `confirm` met its ceiling of 200 runs a day; nothing was written | prepare it again later, if still wanted |
 
 ## The daily cap
 
@@ -135,6 +135,6 @@ confirmed write's `result` it is the second.
 
 `tasks_unlock` is the owner's, from their inbox: called by you it is refused
 `not_the_owner:`. `confirm` runs only when the platform starts it on the
-owner's approval: called by you it is refused `task_answer_invalid:`, and
-the call is still paid for. Never ask the owner to give you anything that
+owner's approval: called by you it is refused `task_answer_invalid:`. It has
+no fee, and the run's compute is still yours. Never ask the owner to give you anything that
 would let you call them.
