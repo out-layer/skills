@@ -13,7 +13,7 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.ai/wallet/v1/tokens"
 ```
-Response includes `defuse_asset_id` for each token - use this in swap calls.
+Response includes `defuse_asset_id` for each token - use a `nep141:` or `nep245:` one in swap calls (`1cs_v1:` ids are refused).
 
 > ⚠️ **`symbol` is NOT unique — never resolve a token by symbol.** The same
 > display symbol appears once per chain (e.g. "USDC" returns ~17 entries:

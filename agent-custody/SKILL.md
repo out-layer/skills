@@ -82,7 +82,7 @@ Every wallet operation falls into one of three categories:
 
 | Category | Who pays gas | NEAR on wallet needed? | Endpoints |
 |----------|-------------|----------------------|-----------|
-| **On-chain** | Agent's wallet | Yes (~0.001 NEAR/tx) | `/call`, `/transfer`, `/delete`, `/intents/deposit`, `/intents/ft-withdraw`, `/storage-deposit` |
+| **On-chain** | Agent's wallet | Yes (~0.001 NEAR/tx) | `/call`, `/transfer`, `/delete`, `/intents/deposit`, `/storage-deposit` |
 | **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/transfer`, `/intents/swap`, `/payment-check/*` |
 | **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
 | **Confidential** | 1Click solver (settles on private shard `intents.far`) | No | `/confidential/shield`, `/confidential/unshield`, `/confidential/withdraw`, `/confidential/transfer`, `/confidential/swap`, `/confidential/deposit/cross-chain` — see `references/confidential.md` |
@@ -110,13 +110,12 @@ Every wallet operation falls into one of three categories:
 | `/intents/deposit` | Plain NEAR contract ID | `wrap.near` |
 | `/intents/withdraw` | Either format (auto-prefixed); `near`/`native`/omitted = native NEAR | `near` (native), `wrap.near` or `nep141:wrap.near` (wNEAR) |
 | `/intents/transfer` | Either format (auto-prefixed); **required** (no native concept — send NEAR as `nep141:wrap.near`) | `nep141:usdt.tether-token.near` or `usdt.tether-token.near` |
-| `/intents/ft-withdraw` | Plain NEAR contract ID | `wrap.near` |
 | `/balance` (wallet) | Plain NEAR contract ID | `wrap.near` |
 | `/balance?source=intents` | Either format (auto-prefixed) | `wrap.near` or `nep141:wrap.near` |
 | `/payment-check/*` | Plain NEAR contract ID | `17208628f...a1` (USDC) |
 | `/deposit-intent` | Defuse asset id (`source_asset`) | `nep141:base-0x833…omft.near` |
 
-**Rule:** Swap takes the defuse asset id exactly as `/tokens` lists it (`nep141:` or `nep245:`). Cross-chain deposit takes
+**Rule:** Swap takes a `nep141:` or `nep245:` defuse asset id exactly as `/tokens` lists it (not `1cs_v1:`). Cross-chain deposit takes
 `source_asset` (defuse asset id; chain is derived from the prefix). Withdraw
 accepts either format. Everything else uses plain contract ID.
 
