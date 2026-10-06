@@ -1,6 +1,6 @@
 ---
 name: hyperliquid-connector
-description: Trade Hyperliquid perpetuals from an OutLayer custody wallet through the `hyperliquid` connector — leverage, limit and market orders, cancels, positions, funding in and out — under the wallet owner's policy. Use when an agent with an OutLayer wallet needs to open, manage or close perp positions on Hyperliquid.
+description: Trade Hyperliquid perpetuals from an OutLayer custody wallet through the `hyperliquid` connector — leverage, limit and market orders, stop-loss and take-profit (trigger) orders, cancels, positions, funding in and out — under the wallet owner's policy. Use when an agent with an OutLayer wallet needs to open, manage, protect or close perp positions on Hyperliquid.
 ---
 
 # Hyperliquid connector
@@ -17,7 +17,8 @@ nor wallet operations (address, balances, intents deposits):
 [`agent-custody`](https://skills.outlayer.ai/agent-custody/SKILL.md).
 
 Every number in this file was observed on mainnet with real money. Where it
-says "seen", that is what happened.
+says "seen", that is what happened. Stop-loss and take-profit orders are in
+their own file, which says what is observed.
 
 ## Where to read what
 
@@ -27,6 +28,8 @@ Fetched over HTTP, the relative links below resolve against
 | the task in front of you | read |
 |---|---|
 | fund, trade, withdraw; the policy; a `hyperliquid` refusal | this file |
+| a stop-loss or take-profit — on a position, with an entry, or alone | [`references/tpsl.md`](references/tpsl.md) |
+| ranking or researching markets without a paid call (Hyperliquid's public info endpoint) | [`references/market-data.md`](references/market-data.md) |
 | a withdrawal 1Click refunded to the wallet's own EVM address | [`references/refund-recovery.md`](references/refund-recovery.md) |
 | a payment key, the trial, a `/call` refusal `reason` | [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md) |
 
@@ -150,10 +153,11 @@ spot twice.
 | see markets | `{"operation": "markets", "coins": ["ETH", "BTC"]}` → `mark_px`, `mid_px`, `oracle_px`, `funding`, `open_interest`, `sz_decimals`, `max_leverage`, `only_isolated` |
 | limit order | `{"operation": "order", "coin": "ETH", "side": "buy", "size": "0.004", "kind": "limit", "price": "2500", "tif": "Gtc"}` (`tif`: `Gtc`, `Ioc`, `Alo` = post-only) |
 | market order | `{"operation": "order", "coin": "ETH", "side": "buy", "size": "0.004", "kind": "market"}` — IOC priced at mark ± `slippage_bps` (default 50, cap 500); fills at the book, not at that price (seen: priced 2672.4, filled 2660.2) |
-| close | the opposite side with `"reduce_only": true` — the owner's size caps do not apply to a close |
+| close | the opposite side with `"reduce_only": true` — the owner's caps do not apply to a close |
+| stop-loss / take-profit | `{"operation": "order", "coin": "ETH", "grouping": "positionTpsl", "sl": {"trigger_px": "2400"}}` — the venue fires it on the mark price between your checks; every shape: [`references/tpsl.md`](references/tpsl.md) |
 | your own id | `"cloid": "0x<32 hex>"` on an order; cancel with it |
 | cancel | `{"operation": "cancel", "coin": "ETH", "oid": 555397050502}` or `"cloid": "0x…"` |
-| open orders | `{"operation": "orders"}` |
+| open orders | `{"operation": "orders"}` — a trigger order carries `isTrigger`, `triggerPx` |
 | positions | `{"operation": "positions"}` → `size`, `entry_px`, `position_value_usd`, `unrealized_pnl_usd`, `liquidation_px`, `leverage`, `margin_used_usd`, `funding`, plus `account_value_usd`, `withdrawable_usd` |
 | spot ↔ perp | `{"operation": "class_transfer", "amount": "10", "to": "perp"}` — internal, free, instant |
 
@@ -168,27 +172,6 @@ close as well.** Seen: `Order must have minimum value of $10. asset=1` on a
 0.003 ETH ($8) reduce-only sell, while the full 0.004 ($10.6) close went
 through. So never open a position you cannot close in one order of ≥ $10,
 and do not try to trim a small position in pieces.
-
-### Finding a market without spending a call
-
-Hyperliquid's info endpoint is public, no key, same host the connector
-reads: `POST https://api.hyperliquid.xyz/info` with a JSON body. Search and
-read there, place and settle through the connector.
-
-* `{"type": "meta"}` → `universe[]`: every perp with `name`, `szDecimals`,
-  `maxLeverage`, `onlyIsolated`, `isDelisted`. The coin name is what `order`
-  takes.
-* `{"type": "metaAndAssetCtxs"}` → the same list plus, in the same order,
-  `markPx`, `midPx`, `oraclePx`, `funding`, `openInterest`, `dayNtlVlm`,
-  `prevDayPx` — enough to rank by volume, funding or move.
-* `{"type": "l2Book", "coin": "ETH"}` → `levels[0]` bids, `levels[1]` asks,
-  each `{px, sz, n}` — the depth a market order will eat.
-* `{"type": "candleSnapshot", "req": {"coin": "ETH", "interval": "1h",
-  "startTime": <ms>, "endTime": <ms>}}` → OHLCV.
-
-Show the user `https://app.hyperliquid.xyz/trade/<COIN>`. The connector's
-own `markets {"coins": [...]}` gives the same numbers for a tenth of a cent,
-without delisted markets.
 
 ### Did it fill?
 
@@ -217,16 +200,17 @@ policy. `status.policy` then reads `present: false` and the default's
 
 | field | in a stored policy |
 |---|---|
-| `max_order_usd` | cap on one order's notional (at the limit price, or mark ± slippage for a market order); not applied to a reduce-only close. Absent: no orders |
-| `max_daily_volume_usd` | cap per UTC day; a resting order counts when placed, a reduce-only order counts but is never refused. Absent: no orders |
-| `max_leverage` | cap on `leverage`. Absent: no `leverage`, so no orders |
+| `max_order_usd` | cap on one order's notional at the dearest price it can fill at: a buy at its limit (mark + slippage for a market buy), a sell at the higher of its limit and the market. Absent: no orders that open |
+| `max_daily_volume_usd` | cap per UTC day; an order counts when placed, a TP/SL at its trigger or limit + 10%. Absent: no orders that open |
+| `max_leverage` | cap on `leverage`. Absent: no `leverage`, so no orders that open |
 | `max_position_notional_usd` | cap on a coin's position after the order. Absent: no cap |
 | `coins` | the coins you may trade. Absent or `["any"]`: every listed market |
 | `allow_deposit`, `max_deposit_usd` | `allow_deposit` is `false` unless set `true` — then `deposit_start` is refused. `max_deposit_usd` absent: no cap |
 | `allow_withdraw`, `withdraw_to` | `allow_withdraw` is `false` unless set `true` — then `withdraw_start` is refused. `withdraw_to` pins one destination (`intents`, `confidential` or a HyperCore `0x` address); absent: any destination |
 
-An unknown field makes the policy unreadable, and an unreadable policy refuses
-every write. Read `status.policy` first — the fields above sit at its top
+None of these refuses a reduce-only order or a TP/SL, whatever the policy
+says; `coins` does. An unknown field makes the policy unreadable, and an
+unreadable policy refuses every write. Read `status.policy` first — the fields above sit at its top
 level, beside `present: true` — and size orders inside them instead of
 discovering the caps by refusal: a refused call is still billed.
 
@@ -332,8 +316,8 @@ the venue — still costs its price. Venue fees: taker 0.045 %, maker 0.015 %
 
 * `policy_denied: no leverage has been set for ETH — call leverage first` —
   the one every new coin hits.
-* `policy_denied: order notional 74.18 USD exceeds max_order_usd 50.00` —
-  the owner's caps, with the numbers.
+* `policy_denied: order notional 74.18 USD (at the dearest price it can fill
+  at) exceeds max_order_usd 50.00` — the owner's caps, with the numbers.
 * `Hyperliquid rejected the order: Order must have minimum value of $10.` —
   the venue's floor, closes included.
 * `Hyperliquid rejected the order: Reduce only order would increase position`

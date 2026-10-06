@@ -262,7 +262,7 @@ has its operation fee refunded.
 
 | connector | what it is | skill |
 |---|---|---|
-| `hyperliquid` | perpetuals: markets, leverage, orders, cancels, positions; funding through 1Click from the intents or confidential balance | https://skills.outlayer.ai/hyperliquid-connector/SKILL.md |
+| `hyperliquid` | perpetuals: markets, leverage, orders, stop-loss and take-profit, cancels, positions; funding through 1Click from the intents or confidential balance | https://skills.outlayer.ai/hyperliquid-connector/SKILL.md |
 | `polymarket` | prediction markets: find markets, buy and sell outcome shares, positions, claim, fund and withdraw | https://skills.outlayer.ai/polymarket-connector/SKILL.md |
 | `gmail` | send mail from the owner's Gmail address under their recipient policy; cannot read the mailbox | https://skills.outlayer.ai/gmail-connector/SKILL.md |
 | `github` | issues, comments, files, commits, pull requests, reviews and gists in the owner's account, under their policy | https://skills.outlayer.ai/github-connector/SKILL.md |
