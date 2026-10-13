@@ -64,7 +64,7 @@ trait OutLayer {
 |-----------|------|-------------|
 | `source` | JSON | GitHub repo, Project ID, or WASM URL |
 | `resource_limits` | Option\<JSON\> | Memory, instructions, time limits |
-| `input_data` | Option\<String\> | JSON input for WASM |
+| `input_data` | Option\<String\> | JSON input for WASM. Up to 32 KB is free; every byte above that is held at 0.00001 NEAR while the request is pending and returned at settlement — attach what `estimate_execution_cost(resource_limits, input_len)` answers, and more gas for a large input (the settlement callback reserves 25 MGas per byte above 32 KB, ~52 TGas for 2 MiB) |
 | `secrets_ref` | Option\<JSON\> | `{ "profile": "...", "account_id": "..." }` |
 | `response_format` | Option\<String\> | `"Text"` (default), `"Json"`, or `"Bytes"` |
 | `payer_account_id` | Option | Who gets refund on failure |

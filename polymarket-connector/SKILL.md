@@ -112,8 +112,16 @@ and `positions` before placing it again.
    cents whatever the amount (quoted 5 → 4.98, 100 → 99.96).
    The call itself takes ~30 s (it waits for the intents withdrawal to be
    accepted); the collateral appeared within 75 s after that. Then
-   `{"operation": "deposit_status", "id": "<id>"}` → `step: "done"` with
-   `credited_usd` and the Polygon transaction. Seen: 2.50 in, 2.491823 credited.
+   `{"operation": "deposit_status", "id": "<id>"}` until `step: "done"`:
+   `bridging` (1Click on its way) → `delivered` (1Click put the money on the
+   bridge's address: `delivered_usd`, `transfer.result.destination_tx_hash`)
+   → `done` (the bridge took it and credited the collateral: `credited_usd`,
+   equal to `delivered_usd` — the bridge credits it whole). Judged by the
+   transfer and the bridge's address, not by the collateral, so an order
+   placed meanwhile changes neither figure. `failed`: nothing was credited —
+   `transfer.result.reason` says why; check the wallet's balance before
+   starting again. Seen: 3.991659 delivered, 3.991659 credited within half a
+   minute; 2.50 in → 2.491823 after 1Click's fee.
 
 ## Finding something to trade
 
