@@ -148,14 +148,18 @@ Base URL: `https://api.outlayer.ai`
 | `policy_denied` | Operation blocked by policy rules |
 | `wallet_frozen` | Wallet frozen by controller |
 | `insufficient_balance` | Not enough funds |
-| `unsupported_token` | Token not supported - check `/tokens` |
+| `unsupported_chain` | HTTP 400: the chain is not in the 1Click catalog right now (`GET /wallet/v1/tokens`); the message names what is. Terminal for the request as sent |
+| `unsupported_token` | HTTP 400: the asset is not one this route carries — not in the catalog, no listing of its symbol on that chain, 1Click's "tokenIn is not valid", or a `1cs_v1:` id on another chain given as a source. Terminal for the request as sent |
+| `no_liquidity` | HTTP 400 on swap, quote or withdraw: 1Click found no route with liquidity for this pair at this amount. Try another amount or route, not the same request again |
+| `upstream_rejected` | HTTP 400 on swap, quote or withdraw: 1Click refused on grounds of its own (an amount under the bridge minimum, for one); `message` is 1Click's text, verbatim. The same request fails the same way again |
+| `route_unavailable` | HTTP 503 + `Retry-After` on swap, quote or withdraw: 1Click did not answer (a 5xx, a timeout, "Failed to get quote"). Nothing is known about the route — wait the header's seconds and send the same request again |
+| `operation_limit_reached` | HTTP 429 + `Retry-After` on any custody operation (transfer, withdraw, swap, dry-run, …): the wallet's ceiling — the free tier allows **100 custody operations per wallet per day**, dry-runs included, swap quotes not. The body carries `limit`, `window`, `operation` and `retry_after_seconds` (null when unknown); `terminal` is false. Wait it out, or lift it with a subscription on the wallet's own key |
 | `pending_approval` | Needs multisig approval (not an error) |
 | `"too many approval votes"` | More than **16** approvals or rejections in one signing request (HTTP 400). Send only the votes that count toward the threshold — see "Multisig limits" in `intents-withdraw.md` |
 | HTTP **402** on a vault-bound wallet | The **vault** cannot pay for its on-chain key derivation (this is the vault's gas, not the wallet's balance). The body carries the amount to top up. Distinct from `insufficient_balance`, which is the wallet's own funds |
-| `"token_in must be a defuse asset id"` (HTTP 400) | Swap token without a `nep141:`/`nep245:` prefix — use a `nep141:` or `nep245:` `defuse_asset_id` from `/tokens`; `1cs_v1:` entries are not swappable |
+| `"token_in must be an asset id with a nep141:, nep245: or 1cs_v1: prefix"` (HTTP 400) | Swap token without a prefix — use an id from `/tokens`. A `1cs_v1:` id on another chain as `token_in` is `unsupported_token` (a source is named by its id on intents.near; `1cs_v1:near:nep141:…` is accepted) |
 | `"amount_in must be an integer amount…"` / `"min_amount_out must be an integer amount…"` (HTTP 400) | Swap amounts are decimal strings of integer minimal units — no decimal point, exponent or whitespace. A floor that cannot be read is refused, never treated as 0 |
 | `"Quote amount_out (X) is less than min_amount_out (Y); nothing was signed"` (HTTP 400) | The fresh quote fell below your floor. Re-quote and retry, or lower `min_amount_out` |
-| `"1Click: …"` (HTTP 400) on swap or withdraw | 1Click refused the request itself (amount below the bridge minimum, no liquidity on the route, unknown asset); the text is 1Click's own. A 503 means 1Click could not answer — retry |
 | `"1Click swap was refunded"` | Solver couldn't fill - tokens returned to wallet |
 | `"1Click's terms for this order are worse than the ones authorised"` | Limit order: the upstream asked for more, or promised less, than your policy approved. The order was cancelled unfunded — nothing was sent. Re-quote and retry |
 | `"Limit order amount must be at least 0.1 USD"` | Limit order below 1Click's minimum order value |

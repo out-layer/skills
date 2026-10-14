@@ -115,9 +115,10 @@ Every wallet operation falls into one of three categories:
 | `/payment-check/*` | Plain NEAR contract ID | `17208628f...a1` (USDC) |
 | `/deposit-intent` | Defuse asset id (`source_asset`) | `nep141:base-0x833…omft.near` |
 
-**Rule:** Swap takes a `nep141:` or `nep245:` defuse asset id exactly as `/tokens` lists it (not `1cs_v1:`). Cross-chain deposit takes
-`source_asset` (defuse asset id; chain is derived from the prefix). Withdraw
-accepts either format. Everything else uses plain contract ID.
+**Rule:** A source asset (`token_in`, a withdraw's `token`) is its id on intents.near as `/tokens` lists it — `nep141:`, `nep245:`, or the
+NEAR-side `1cs_v1:near:nep141:…` (same balance); a `1cs_v1:` id on another chain is refused as a source. A destination (`token_out`)
+takes any listed id, `1cs_v1:` included, sent to 1Click as given. Cross-chain deposit takes `source_asset` (its chain is read from the
+id and the catalog). Withdraw accepts either format. Everything else uses plain contract ID.
 
 ## 1. Register Wallet
 

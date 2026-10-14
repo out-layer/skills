@@ -4,15 +4,15 @@
 
 ### Supported chains
 
-NEAR, Ethereum, Bitcoin, Solana, Arbitrum, Base, Polygon, Optimism, Avalanche, BSC, TON, Aptos, Sui, StarkNet, Tron, Stellar, Dogecoin, XRP, Zcash, Litecoin, Bitcoin Cash, Berachain, Aleo, Cardano, Dash.
+Every chain the 1Click token catalog lists — `GET /wallet/v1/tokens`, the `chains` of its entries (37 chains on 2026-10-14: NEAR, Ethereum, Bitcoin, Solana, Arbitrum, Base, Polygon, Optimism, Avalanche, BSC, HyperCore, TON, Aptos, Sui, StarkNet, Tron, Stellar, Dogecoin, XRP, Zcash, Litecoin, Bitcoin Cash, Berachain, Aleo, Cardano, Dash, Monad, Scroll, X Layer, …). The set is read from 1Click every hour: a chain 1Click adds is served without a release. Spell `chain` as 1Click's id (`eth`, `sol`, `ton`, `xrp`) or, where one exists, the long name (`ethereum`, `solana`, `zcash`); case does not matter. A chain the catalog does not list is `400 unsupported_chain`, and the message names what it does list — never retry it as sent.
 
-Use `GET /wallet/v1/tokens` for the full current list.
+Addresses: on the chains the wallet derives an address on (EVM, Solana, NEAR, Bitcoin) `to` is checked for shape before the quote; on every other chain 1Click judges it at the quote, before anything moves, and a bad one comes back `400 upstream_rejected` in 1Click's words.
 
 ## Cross-Chain Deposit & Withdraw
 
 Deposit tokens from any supported chain (Solana, Ethereum, Base, Arbitrum, etc.) into intents balance, or withdraw from intents to any chain. No gas tokens needed on source/destination chains - 1Click handles execution.
 
-Supported chains: `near`, `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`. The returned `deposit_address` is always on the chain that matches the source asset (64-char hex for NEAR, `0x…` for EVM, base58 for Solana, `bc1…`/`1…`/`3…` for Bitcoin).
+Chains: the catalog's, as above. The returned `deposit_address` is always on the chain that matches the source asset (64-char hex for NEAR, `0x…` for EVM, base58 for Solana, `bc1…`/`1…`/`3…` for Bitcoin, the chain's own format elsewhere).
 
 > **NEAR source? Use `/wallet/v1/intents/deposit` instead.** When the funds
 > are already on NEAR (in the agent's wallet), skip this endpoint and call

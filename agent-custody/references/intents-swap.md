@@ -13,7 +13,7 @@ Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are at
 curl -s -H "Authorization: Bearer $API_KEY" \
   "https://api.outlayer.ai/wallet/v1/tokens"
 ```
-Response includes `defuse_asset_id` for each token - use a `nep141:` or `nep245:` one in swap calls (`1cs_v1:` ids are refused).
+Response includes `defuse_asset_id` for each token. `token_in` is the asset's id on intents.near — `nep141:…`, `nep245:…`, or its NEAR-side 1Click id `1cs_v1:near:nep141:…` (the same balance); a `1cs_v1:` id on another chain is a delivery, not a balance, and is refused as a source (`400 unsupported_token`). `token_out` takes any `nep141:`, `nep245:` or `1cs_v1:` id the catalog lists, sent to 1Click as given — for a `1cs_v1:<chain>:…` destination 1Click decides which id lands on intents.near (ZEC bought as `1cs_v1:sol:spl:…` arrives as `nep141:zec.omft.near`).
 
 > ⚠️ **`symbol` is NOT unique — never resolve a token by symbol.** The same
 > display symbol appears once per chain (e.g. "USDC" returns ~17 entries:
