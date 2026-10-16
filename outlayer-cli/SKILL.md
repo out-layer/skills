@@ -1,6 +1,6 @@
 ---
 name: outlayer-cli
-description: Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents - project scaffolding, GitHub/WASM deploys, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.
+description: Deploy, run, and manage OutLayer WASI agents from the command line. Use when building, deploying, or operating OutLayer agents - project scaffolding, publishing and deploying .wasm builds, HTTPS and on-chain execution, secrets management, payment keys, FastFS uploads, version control, and earnings.
 metadata:
   install: "curl -fsSL https://raw.githubusercontent.com/out-layer/outlayer-cli/main/install.sh | sh"
   config: ~/.outlayer/
@@ -25,11 +25,13 @@ outlayer login testnet      # testnet
 # Or login with Agent Custody wallet key (for AI agents)
 outlayer login --wallet-key wk_...
 
-# Create + deploy
+# Create, build, publish, deploy
 outlayer create my-agent
 cd my-agent
-# edit src/main.rs, push to GitHub
-outlayer deploy my-agent
+# edit src/main.rs
+./build.sh
+outlayer upload out/my-agent.wasm             # prints SHA256 and the FastFS URL
+outlayer deploy my-agent <FastFS URL>
 
 # Create payment key for HTTPS calls
 outlayer keys create
@@ -117,7 +119,7 @@ owner = "alice.near"
 
 [build]
 target = "wasm32-wasip2"
-source = "github"
+source = "wasm_url"
 
 [run]
 payment_key_nonce = 1
@@ -126,22 +128,17 @@ payment_key_nonce = 1
 ## Deploy
 
 ```bash
-outlayer deploy my-agent                        # from current git repo (origin remote + HEAD commit)
-outlayer deploy my-agent <wasm-url>             # from WASM URL (FastFS, etc.)
-outlayer deploy my-agent --no-activate          # deploy without activating
+outlayer deploy my-agent <wasm-url>             # create the project or add a version, and activate it
+outlayer deploy my-agent <wasm-url> --no-activate   # add the version without activating
+outlayer deploy my-agent <wasm-url> --hash <sha256> # name the hash (omitted: the CLI downloads the file and computes it)
 ```
 
-GitHub deploy reads `origin` remote URL and current HEAD commit from the local git repo. The WASM is compiled on OutLayer workers from source.
-
-**Deploying a commit that is NOT the head of a branch, from a repo with more than 5 branches, is
-refused** (HTTP 422, "Repository has N branches (limit 5)"). To find which branch contains an
-arbitrary commit, OutLayer would have to compare it against every branch, one GitHub API call
-each — enough to exhaust the shared unauthenticated quota for everyone.
-
-The normal `outlayer deploy` is unaffected: your checked-out HEAD *is* a branch head, and that
-resolves in a single call. You only meet this when deploying an older or detached commit. Then
-either push that commit as the head of a branch, or build the WASM yourself and deploy it as a
-URL — `outlayer deploy my-agent <wasm-url>` skips repository resolution entirely.
+A version is a published `.wasm`, named by its sha256: what a caller runs and pays for cannot
+change under that version afterwards. Build it yourself (`./build.sh` in a scaffold, or
+`cargo build --target wasm32-wasip2 --release`), publish it with `outlayer upload`, then deploy
+the URL. The worker refuses a file whose bytes do not match the hash. Any `https://` URL works; FastFS is the default. For a reproducible build (same pinned
+Docker image, same hash on every machine) use `scripts/build_github_wasm.sh --dir ./my-agent
+--target wasm32-wasip2` from the OutLayer repository (`https://github.com/out-layer/outlayer`).
 
 ## Run (Execute Agent)
 
@@ -160,10 +157,6 @@ outlayer run alice.near/my-agent '{}' --version abc123       # specific version
 
 # Attach secrets
 outlayer run alice.near/my-agent '{}' --secrets-profile default --secrets-account alice.near
-
-# Run from GitHub (on-chain only)
-outlayer run --github github.com/user/repo '{"command": "hello"}'
-outlayer run --github github.com/user/repo --commit abc123 '{"input": 1}'
 
 # Run from WASM URL (on-chain only)
 outlayer run --wasm https://main.fastfs.io/alice.near/outlayer.near/abc.wasm '{"cmd": "hi"}'
@@ -184,7 +177,7 @@ Content-Type: application/json
 
 ### On-chain mode
 
-Calls `request_execution` on `outlayer.near` contract via NEAR transaction. Used when no payment key is available, or when `--github`/`--wasm` flags are used.
+Calls `request_execution` on `outlayer.near` contract via NEAR transaction. Used when no payment key is available, or when `--wasm` is used.
 
 ## Secrets
 
@@ -196,8 +189,9 @@ outlayer secrets set '{"API_KEY":"sk-...","DB_URL":"postgres://..."}'
 
 # Accessor types (which agent can read these secrets)
 outlayer secrets set '{"KEY":"val"}' --project alice.near/my-agent
-outlayer secrets set '{"KEY":"val"}' --repo github.com/user/repo --branch main
-outlayer secrets set '{"KEY":"val"}' --wasm-hash abc123...
+outlayer secrets set '{"KEY":"val"}' --wasm-hash abc123...   # the row a direct `run --wasm` reads
+# Rows bound to a repository are listed and can only be deleted; set/update/access refuse --repo
+outlayer secrets delete --repo github.com/user/repo --branch main
 
 # Named profile
 outlayer secrets set '{"KEY":"val"}' --profile production
@@ -209,8 +203,10 @@ outlayer secrets set '{"API_KEY":"sk-..."}' --generate PROTECTED_DB:hex64   # mi
 # Generation types: hex16, hex32, hex64, ed25519, ed25519_seed, password, password:N
 
 # Access control
-outlayer secrets set '{"KEY":"val"}' --access allow-all                     # default
+outlayer secrets set '{"KEY":"val"}' --access allow-all                     # everyone who names it
 outlayer secrets set '{"KEY":"val"}' --access whitelist:alice.near,bob.near
+# Without --access: a row that exists keeps its condition; a new project row admits only you;
+# a new hash row admits everyone.
 
 # Update (merge - preserves existing keys, preserves all PROTECTED_* variables)
 outlayer secrets update '{"NEW_KEY":"val"}' --project alice.near/my-agent
@@ -379,9 +375,9 @@ outlayer login
 outlayer create my-agent --template contract
 cd my-agent
 # write your agent in src/main.rs
-git init && git add -A && git commit -m "init"
-git remote add origin git@github.com:user/my-agent.git && git push
-outlayer deploy my-agent
+./build.sh
+outlayer upload out/my-agent.wasm
+outlayer deploy my-agent <FastFS URL printed by upload>
 outlayer keys create                    # save the key!
 outlayer run alice.near/my-agent '{"test": true}'
 ```
@@ -413,7 +409,8 @@ outlayer secrets update '{"NEW_SECRET":"value"}' --project alice.near/my-agent
 outlayer login --wallet-key wk_15807dbda...
 
 # All commands work transparently - signing goes through coordinator
-outlayer deploy my-agent
+outlayer upload out/my-agent.wasm
+outlayer deploy my-agent <FastFS URL printed by upload>
 outlayer run alice.near/my-agent '{"test": true}'
 outlayer secrets set '{"API_KEY":"sk-..."}' --project alice.near/my-agent
 outlayer keys create

@@ -62,13 +62,13 @@ trait OutLayer {
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | JSON | GitHub repo, Project ID, or WASM URL |
-| `resource_limits` | Option\<JSON\> | Memory, instructions, time limits |
+| `source` | JSON | Project ID or WASM URL |
+| `resource_limits` | Option\<JSON\> | Memory, instructions, time limits. Always pass `Some` (even `{}`, which takes the defaults): a request without it runs nothing |
 | `input_data` | Option\<String\> | JSON input for WASM. Up to 32 KB is free; every byte above that is held at 0.00001 NEAR while the request is pending and returned at settlement — attach what `estimate_execution_cost(resource_limits, input_len)` answers, and more gas for a large input (the settlement callback reserves 25 MGas per byte above 32 KB, ~52 TGas for 2 MiB) |
 | `secrets_ref` | Option\<JSON\> | `{ "profile": "...", "account_id": "..." }` |
 | `response_format` | Option\<String\> | `"Text"` (default), `"Json"`, or `"Bytes"` |
 | `payer_account_id` | Option | Who gets refund on failure |
-| `params` | Option\<JSON\> | `force_rebuild`, `compile_only`, `store_on_fastfs` |
+| `params` | Option\<JSON\> | `attached_usd`: payment to the project owner (Project source only) |
 
 ## Source Formats
 
@@ -83,27 +83,21 @@ let source = serde_json::json!({
 });
 ```
 
-### GitHub
-
-```rust
-let source = serde_json::json!({
-    "GitHub": {
-        "repo": "https://github.com/owner/repo",
-        "commit": "HEAD"
-    }
-});
-```
+`version_key: null` runs the active version; otherwise name the version's wasm hash.
 
 ### WASM URL
 
 ```rust
 let source = serde_json::json!({
     "WasmUrl": {
-        "url": "https://alice.near.fastfs.io/outlayer.near/abc.wasm",
-        "hash": "abc123..."
+        "url": "https://main.fastfs.io/alice.near/outlayer.near/<sha256>.wasm",
+        "hash": "<sha256>",
+        "build_target": "wasm32-wasip2"
     }
 });
 ```
+
+`url` is `https://` on the default port; the worker refuses a file whose bytes do not match `hash`.
 
 ## Complete Example: Coin Flip
 

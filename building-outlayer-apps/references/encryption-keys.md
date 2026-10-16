@@ -34,7 +34,7 @@ the module has checked who may read what it opens.
   tables in [signing-keys.md](signing-keys.md), "The model". A `project` key
   follows the project's on-chain uuid: every version opens what an earlier
   version sealed. A `wasm` key follows the exact build: a new build cannot open
-  what the old one sealed. A GitHub-sourced run is never issued keys.
+  what the old one sealed.
 - The keystore derives
   `HMAC-SHA256(master, "encryption-key:v1:{project|wasm}:{project_uuid|wasm_sha256}:{caller}:{account_id}:{path}")`,
   `{caller}` being `signer` or `predecessor`.
@@ -354,7 +354,6 @@ runs", except the `type` and `secp256k1` rows:
 |---|---|
 | a `wasm32-wasip1` build declares keys | build for `wasm32-wasip2` |
 | more than 3 encryption keys, a bad `path` or one declared twice, an unknown field (`type` included), a `bind` other than `project`/`wasm`, a `caller` other than `signer`/`predecessor` | fix `manifest.json`, publish a new version |
-| keys declared on a GitHub-sourced run, when the manifest reaches the worker | publish the code as a wasm URL |
 | a `project` key on a run with no project | run it through its project |
 | a `wasm` key on a run through a project | run the wasm URL directly, or declare the key `project` |
 | a `predecessor` key on a run that carries no predecessor | call through a contract, or declare the key `signer` |

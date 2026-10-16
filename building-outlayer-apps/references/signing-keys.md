@@ -69,10 +69,8 @@ Keys are issued strictly by how the code is run:
 | `project` (default) | a run through a project whose version is a wasm URL version | the project's on-chain uuid + the chosen caller | keeps the key | that caller, running any version of that project |
 | `wasm` | a direct run from a wasm URL, with no project | the code's sha256 + the chosen caller | gets new keys | that caller, running that exact binary directly |
 
-There is no other `bind` value, and no repository binding.
+There is no other `bind` value.
 
-- A GitHub-sourced run is never issued signing keys — a project version built
-  from a repo, or a repo run directly. Publish a wasm URL instead.
 - One key whose `bind` or `caller` does not match how the code is run refuses
   the whole run before it starts. The worker reads the run off the job the
   coordinator gave it, never off the module, and sends the job's
@@ -81,9 +79,7 @@ There is no other `bind` value, and no repository binding.
   those fields on the trust of the worker's TEE attestation, as it does for
   secrets, checks every `bind` and `caller` against them, and for `project`
   also checks on chain that the running code's sha256 is a wasm URL version of
-  that project and that the project exists with the owner its id names. A
-  direct GitHub build is refused by the worker alone: the keystore sees only
-  the hash of the bytes.
+  that project and that the project exists with the owner its id names.
 - One run never holds both kinds. The manifest is inside the wasm, so declare
   the one `bind` that matches how this module will be run: `project` for a
   project, `wasm` for a direct run.
@@ -271,7 +267,7 @@ refused.
 
 ## 6. Upload, then run it the way its `bind` says
 
-Both kinds start from a wasm URL; a GitHub-sourced run is never issued signing keys.
+Both kinds start from a published wasm URL.
 
 ```bash
 outlayer upload target/wasm32-wasip2/release/my-signer.wasm   # prints the FastFS URL
@@ -514,7 +510,6 @@ its output is attested with it.
 |---|---|
 | a `wasm32-wasip1` build declares keys | build for `wasm32-wasip2` |
 | more than 3 keys, a bad `path` or one declared twice (under any type), an unknown field, a `type` other than `ed25519`/`secp256k1`, a `bind` other than `project`/`wasm`, a `caller` other than `signer`/`predecessor` | fix `manifest.json`, publish a new version |
-| keys declared on a GitHub-sourced run (a project version from a repo, or a repo run directly), when the manifest reaches the worker | publish the code as a wasm URL |
 | a `project` key on a run with no project | run it through its project |
 | a `wasm` key on a run through a project | run the wasm URL directly, or declare the key `project` |
 | a `predecessor` key on a run that carries no predecessor | call through a contract, or declare the key `signer` |
@@ -528,5 +523,4 @@ Inside a run, a call answers `Err(String)` for an undeclared `path` or a `vault`
 argument that is not the key's declared vault; `sign` for an ed25519 message
 over 65536 bytes or a secp256k1 message that is not exactly 32 bytes;
 `sign-nep413` as in section 8. A module that imports the interface and declares
-no key gets `Err` for every path. A GitHub-sourced module whose manifest does not reach the
-worker runs, and every call answers `Err`.
+no key gets `Err` for every path.

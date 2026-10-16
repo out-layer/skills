@@ -181,6 +181,19 @@ my-app/
 
 ## Deployment
 
+### Publish
+OutLayer runs only a published `.wasm`, named by its sha256: what a caller runs and pays for
+cannot change under a version afterwards. Build it yourself, publish it, deploy the URL:
+
+```bash
+cargo build --target wasm32-wasip2 --release          # or ./build.sh in a scaffold from `outlayer create`
+outlayer upload target/wasm32-wasip2/release/my-app.wasm   # prints SHA256 and the FastFS URL
+outlayer deploy my-app <FastFS URL>                    # creates the project or adds a version, activates it
+```
+
+Any `https://` URL works for `deploy`. Commands and flags:
+[`outlayer-cli`](https://skills.outlayer.ai/outlayer-cli/SKILL.md).
+
 ### Via Blockchain
 ```bash
 near call $OUTLAYER_CONTRACT request_execution '{

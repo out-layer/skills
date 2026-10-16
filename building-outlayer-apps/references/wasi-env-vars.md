@@ -35,7 +35,7 @@ let value = std::env::var("VAR_NAME").unwrap();
 | `OUTLAYER_PROJECT_NAME` | `my-app` | Project name |
 | `OUTLAYER_PROJECT_UUID` | UUID | Internal ID |
 
-Not set when running via GitHub URL directly.
+Not set when a WASM URL is run directly (`WasmUrl` source).
 
 ## Payment Variables
 
