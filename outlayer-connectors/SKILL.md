@@ -77,7 +77,8 @@ and the refusal names the project, not the network.
 
 `{call_id, status, output, error, compute_cost, instructions, time_ms,
 poll_url, attestation_url}`, fields with nothing to say absent. `status` is
-`completed` or `failed` (`pending` on an `async: true` call, with `poll_url`).
+`completed` or `failed`; `pending` with `poll_url` on an `async: true` call or
+a sync call the API restarted during — `GET` it, never resend (charged twice).
 `compute_cost` is USDC minimal units (6 decimals). `attestation_url` is the
 run's TEE attestation, absent on a failed call. **The connector's own answer,
 `{success, operation, output, error, logs}`, is inside `output`**; a
