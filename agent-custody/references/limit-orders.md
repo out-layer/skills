@@ -4,7 +4,7 @@
 
 ## Limit Orders
 
-A limit order is a swap that **waits for your price**. You say what you are selling (or buying), how much, and at what price; the order rests on 1Click and fills — possibly in several slices — when the market reaches it. It ends when it is fully filled, when you cancel it, or at its deadline (7 days unless you set one). MAINNET only, funded from your **intents** balance (deposit first, as for a swap).
+A limit order is a swap that **waits for your price**. You say what you are selling (or buying), how much, and at what price; the order rests on 1Click and fills — possibly in several slices — when the market reaches it. It ends when it is fully filled, when you cancel it, or at its deadline (7 days unless you set one). MAINNET only, funded from your **intents** balance (deposit first, as for a swap) — or, with `deposit_type: "confidential_intents"`, from your **confidential** balance (shield first; see "Funding from the confidential balance" below).
 
 Use a swap (`/intents/swap`) when you want the trade now at the market's price. Use a limit order when the price matters more than the timing.
 
@@ -55,10 +55,11 @@ curl -s -X POST -H "Content-Type: application/json" \
 | `quantity` | yes | Base amount, smallest units (string) |
 | `price` | yes | Quote per one whole base, positive decimal string (≤ 64 chars) |
 | `recipient` | no | Where the filled output goes. Omitted → your own intents balance. The policy's address rules apply either way: under a `whitelist`, your own intents account must be on the list for the default to pass |
-| `recipient_type` | no | 1Click's `recipientType`, lower-cased: `intents` (default — `recipient` is a NEAR account inside intents), `confidential_intents` (the same, on the confidential shard - the policy must then permit the `confidential` capability too) or `destination_chain` (`recipient` is an address on the output asset's own chain, and is then required) |
+| `recipient_type` | no | 1Click's `recipientType`, lower-cased: `intents` (default — `recipient` is a NEAR account inside intents), `confidential_intents` (the same, on the confidential shard - the policy must then permit the `confidential` capability too) or `destination_chain` (`recipient` is an address on the output asset's own chain, and is then required). With `deposit_type: "confidential_intents"` only `confidential_intents` (or nothing) is accepted |
+| `deposit_type` | no | Which of your balances funds the order and gets the unfilled remainder back: `intents` (default — your public intents balance) or `confidential_intents` (your confidential balance; the order then pays out to the confidential balance too) |
 | `deadline` | no | RFC 3339 expiry. Omitted → 7 days |
 
-The unfilled remainder **always** comes back to your own intents balance, whoever the `recipient` is.
+The unfilled remainder **always** comes back to your own wallet, on the balance the order was funded from, whoever the `recipient` is.
 
 Response — 1Click's order **as it stood when it was created**, plus `request_id` and `transfer_intent_hash` (the transfer that funds it). It says `awaiting_deposit` with a zero `deposited_amount`: 1Click picks the deposit up within seconds, so read the order once to see it `open`.
 ```json
@@ -113,13 +114,39 @@ the order is then cancelled). Follow the order itself by `order_id` as usual.
 | `app_fees` | 1Click's own fee on your input, basis points |
 | `estimated_withdraw_fee`, `estimated_refund_fee` (`_formatted`) | 1Click's own estimate of what paying out / refunding will cost, passed through as given (`0` on every intents-to-intents order observed so far) |
 | `payouts` | The legs once there are any: `withdrawal`, `allWithdrawals`, `refund` — each `{status, txHash}`, or `{status: "FAILED", reason}` |
-| `recipient` / `recipient_type`, `refund_to` / `refund_type` | Where the output goes, and where the remainder comes back (always your wallet) |
-| `order_type`, `deposit_mode`, `deposit_type`, `confidentiality`, `time_in_force` | Constants today: `limit`, `simple`, `intents`, `basic`, `gtc` |
+| `recipient` / `recipient_type`, `refund_to` / `refund_type` | Where the output goes, and where the remainder comes back (always your wallet, on the balance the order was funded from — `refund_type` equals `deposit_type`) |
+| `deposit_type` | The balance that funded the order: `intents` or `confidential_intents` |
+| `order_type`, `deposit_mode`, `confidentiality`, `time_in_force` | Constants today: `limit`, `simple`, `basic`, `gtc` |
 | `transfer_intent_hash`, `request_id` | The only two fields that are OutLayer's and not 1Click's: the transfer that funded the order, and this create call |
 
 Always send an `X-Idempotency-Key` (see "X-Idempotency-Key — one key per operation" in `intents-withdraw.md`): a repeated key is not executed again, so a retry cannot rest — and fund — a second order.
 
 If 1Click's own figures for the order turn out worse than the terms your policy authorised (it asks for more, or pays out less), OutLayer cancels the still-unfunded order and answers `400` — nothing is sent.
+
+### Funding from the confidential balance
+
+`"deposit_type": "confidential_intents"` rests the order from your **confidential** balance (`confidential.md`): the order is funded from it, pays out to it, and refunds the unfilled remainder to it. It is one mode, taken whole — a confidential order whose output landed in the open would not be confidential, so `recipient_type: "intents"` or `"destination_chain"` beside it is refused (`400`, "mixed routing is not offered"); say `confidential_intents` or nothing. `recipient` may still name another account's confidential balance; the policy judges it as `to`.
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "X-Idempotency-Key: $(uuidgen)" \
+  -d '{
+    "base_asset":  "nep141:wrap.near",
+    "quote_asset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "side": "sell",
+    "quantity": "1000000000000000000000000",
+    "price": "5",
+    "deposit_type": "confidential_intents"
+  }' \
+  "https://api.outlayer.ai/wallet/v1/limit-orders"
+```
+
+- **Policy**: the order pays out to the confidential shard, so it needs **both** `limit_order` and `confidential` under a policy (each with its `requires_approval`), as a public order with `recipient_type: "confidential_intents"` does.
+- **Balance**: your confidential balance of the asset you send is checked first — short of it, `insufficient_balance` names the confidential balance and says to shield first. Nothing is created.
+- **Availability**: `503` where confidential intents are not configured, like every `/confidential/*` route.
+- **The answer** is the same shape; `deposit_type` and `refund_type` read `confidential_intents`, and `transfer_intent_hash` is the hash of the confidential funding intent (it never appears on the public chain). A `status: "processing"` answer settles from the order itself — poll `poll_url` as usual; do not retry.
+- **Read and cancel** work exactly as for a public order, on a frozen wallet too; `cancel-all` covers orders of both kinds.
 
 ### Is it done? — `is_payout_status_final`
 
@@ -152,7 +179,7 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" \
 # → { "known": 2, "cancelled": 2, "failed": 0, "remaining": 0, "complete": true }
 ```
 
-**What `cancel-all` does.** It asks 1Click to cancel every limit order of THIS wallet that is not yet finished paying out - the orders placed through this API with this wallet, nothing else. For each one: matching stops, whatever already filled is still paid out to the order's `recipient`, and the unfilled remainder is refunded to your own intents balance.
+**What `cancel-all` does.** It asks 1Click to cancel every limit order of THIS wallet that is not yet finished paying out - the orders placed through this API with this wallet, nothing else. For each one: matching stops, whatever already filled is still paid out to the order's `recipient`, and the unfilled remainder is refunded to your own wallet, on the balance the order was funded from.
 
 **What it does not do.** It does not touch other wallets, and it does not touch anything you placed on other venues (a connector's orders or positions are cancelled through that connector). It does not wait: a cancel is a request 1Click completes later, so an order goes `pending_cancel` first, may still fill a last slice, and is over only when `is_payout_status_final` is true.
 

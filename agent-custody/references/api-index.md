@@ -34,7 +34,7 @@
 | Sign a Solana transaction | `POST /wallet/v1/solana/sign-transaction` with `{chain:"solana", unsigned_tx}` (base64 serialized tx **message**) — you assemble + broadcast; gated by `solana_sign.raw_tx` (default-OFF) |
 | Delete the wallet | Use `POST /wallet/v1/delete` - deletes on-chain account, sends NEAR to beneficiary. Wallet must have NEAR balance |
 | Ask user to fund your wallet | Generate a fund link (see `funding-and-payment-keys.md`) or share your NEAR address |
-| Sell or buy at a price you choose, not the market's | `POST /wallet/v1/limit-orders` - the order rests on 1Click until it fills, you cancel it, or 7 days pass. See `limit-orders.md` |
+| Sell or buy at a price you choose, not the market's | `POST /wallet/v1/limit-orders` - the order rests on 1Click until it fills, you cancel it, or 7 days pass. Add `deposit_type: "confidential_intents"` to fund it from (and pay out to) your confidential balance. See `limit-orders.md` |
 | See how a resting order is doing | `GET /wallet/v1/limit-orders/{order_id}` (live). `GET /wallet/v1/limit-orders?open=true` lists your orders as last recorded - it does not refresh them. Paged: `limit` 1..100 (default 50; more answers 400) and `offset` |
 | Pull a resting order (or all of them) | `POST /wallet/v1/limit-orders/{order_id}/cancel`, or `POST /wallet/v1/limit-orders/cancel-all` - never policy-gated, works on a frozen wallet |
 | Pay another agent (write a check) | `POST /wallet/v1/payment-check/create` - get `check_key` to send |
@@ -124,7 +124,7 @@
 | Cancel a limit order | POST | `/wallet/v1/limit-orders/{order_id}/cancel` | - |
 | Cancel all resting orders | POST | `/wallet/v1/limit-orders/cancel-all?offset={n}&limit={1..50}` | - |
 | Create payment check | POST | `/wallet/v1/payment-check/create` | gasless |
-| Batch create checks | POST | `/wallet/v1/payment-check/batch-create` | gasless |
+| Batch create checks | POST | `/wallet/v1/payment-check/batch-create` | gasless (`403 policy_denied` on a wallet whose policy requires approval) |
 | Claim payment check | POST | `/wallet/v1/payment-check/claim` | gasless |
 | Check status | GET | `/wallet/v1/payment-check/status?check_id={id}` | - |
 | List checks | GET | `/wallet/v1/payment-check/list` | - |
@@ -153,7 +153,7 @@ Base URL: `https://api.outlayer.ai`
 | `no_liquidity` | HTTP 400 on swap, quote or withdraw: 1Click found no route with liquidity for this pair at this amount. Try another amount or route, not the same request again |
 | `upstream_rejected` | HTTP 400 on swap, quote or withdraw: 1Click refused on grounds of its own (an amount under the bridge minimum, for one); `message` is 1Click's text, verbatim. The same request fails the same way again |
 | `route_unavailable` | HTTP 503 + `Retry-After` on swap, quote or withdraw: 1Click did not answer (a 5xx, a timeout, "Failed to get quote"). Nothing is known about the route — wait the header's seconds and send the same request again |
-| `operation_limit_reached` | HTTP 429 + `Retry-After` on any custody operation (transfer, withdraw, swap, dry-run, …): the wallet's ceiling — the free tier allows **100 custody operations per wallet per day**, dry-runs included, swap quotes not. The body carries `limit`, `window`, `operation` and `retry_after_seconds` (null when unknown); `terminal` is false. Wait it out, or lift it with a subscription on the wallet's own key |
+| `operation_limit_reached` | HTTP 429 + `Retry-After` on any custody operation (transfer, withdraw, swap, dry-run, swap quote, NEP-413/EVM/Solana signing, …): the wallet's ceiling — the free tier allows **1000 custody operations per wallet per rolling 24 h**, dry-runs and swap quotes included; reads are not counted. The body carries `limit`, `window`, `operation` and `retry_after_seconds` (null when unknown); `terminal` is false. Wait it out, or lift it with a subscription on the wallet's own key |
 | `pending_approval` | Needs multisig approval (not an error) |
 | `"too many approval votes"` | More than **16** approvals or rejections in one signing request (HTTP 400). Send only the votes that count toward the threshold — see "Multisig limits" in `intents-withdraw.md` |
 | HTTP **402** on a vault-bound wallet | The **vault** cannot pay for its on-chain key derivation (this is the vault's gas, not the wallet's balance). The body carries the amount to top up. Distinct from `insufficient_balance`, which is the wallet's own funds |

@@ -259,7 +259,7 @@ Two rules for all four:
 ## Guidelines
 
 - **Always check balance before any operation.** Query `/wallet/v1/balance` before swap, transfer, call, or withdraw.
-- **Use quote to preview swap rates.** The quote endpoint is free - no gas, no state change.
+- **Use quote to preview swap rates.** No gas, no state change — but each quote counts against the wallet's custody ceiling, like a dry-run.
 - **Tokens must be in intents balance before swapping.** Use `/intents/deposit` to move FT from wallet, or request funds with `dest=intents` to skip this step.
 - **`min_amount_out` is optional** but recommended for slippage protection.
 - **Cross-chain transfers need deposit + withdraw.** Only for moving tokens without swapping.

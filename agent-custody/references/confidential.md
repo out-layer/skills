@@ -25,6 +25,7 @@ offered here", not an error to retry.
 | `POST /wallet/v1/confidential/swap/quote` | quote a swap | same |
 | `POST /wallet/v1/confidential/deposit/cross-chain` | cross-chain DEPOSIT (returns bridge address; alias `/confidential/deposit-intent`) | `{ source_asset, amount }` |
 | `GET  /wallet/v1/confidential/balance` | read confidential balances | `?token=` (optional) |
+| `POST /wallet/v1/limit-orders` with `deposit_type: "confidential_intents"` | a limit order funded from, paying out to and refunding to the confidential balance — see `limit-orders.md` | the order's parameters |
 
 The action endpoints are **asynchronous**: they return
 `{ request_id, status: "pending_deposit", intent_hash, deposit_address }`. Poll

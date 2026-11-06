@@ -73,6 +73,39 @@ The check is paid from the **intents** balance, and a short one is refused
 The balance is checked BEFORE the policy, so a wallet with nothing in intents
 answers `insufficient_balance` whatever its policy says.
 
+Each create counts as one custody operation against the wallet's ceiling
+(`429 operation_limit_reached`, nothing reserved); a claim or a reclaim does not.
+
+### A wallet whose policy requires approval
+
+A check moves money, so it is held to the owner's approval rules like a transfer or
+a swap: `approval.threshold` applies, `approval.excluded_types: ["payment_check"]`
+lifts it, and `capabilities.payment_check.requires_approval` demands it on its own.
+On such a wallet the create answers:
+
+```json
+{
+  "check_id": "3a2b1c0d-…",
+  "check_key": "9f8a7b6c…64_hex_chars",
+  "status": "pending_approval",
+  "approval_id": "7c1d…",
+  "required": 2,
+  "approved": 0,
+  "request_hash": "e3b0…",
+  "poll_url": "/wallet/v1/payment-check/status?check_id=3a2b1c0d-…",
+  "token": "…", "amount": "1000000", "created_at": "…"
+}
+```
+
+Keep the `check_key`: it is the check, but its account holds nothing until the
+owner's approvers meet the threshold (`approval_id` is what they vote on; the
+approval expires after 24 hours). Poll `poll_url` until the check reads `unclaimed`
+— the funding is sent for you once the threshold is met — then hand the key over.
+A claim or reclaim before that is refused (`400 bad_request`, "Check is awaiting the
+owner's approval"). A veto, an approval that expires unmet, or the check's own
+`expires_in` running out while it waits, ends the check `failed`; create a new one. Do not use `batch-create` on such a wallet: it is refused
+`403 policy_denied` ("create them one at a time") and creates nothing.
+
 ### Batch create payment checks
 
 Create up to 10 checks in a single request.
@@ -86,8 +119,11 @@ curl -s -X POST -H "Content-Type: application/json" \
 
 Response: `{"checks": [<same as single create>, ...]}` - one entry per check, same
 fields, each with its own `status`. The balance must cover the whole batch, or nothing
-is created. If the batch stops part way (rare: the relay is down), the checks already
-created are listed with their keys and `"error"` says which were not created.
+is created; each check is decided by the policy and counted as one custody operation
+before any is reserved. A wallet whose policy requires approval gets no batch
+(`403 policy_denied`): create its checks one at a time. If the batch stops part way
+(rare: the relay is down), the checks already created are listed with their keys and
+`"error"` says which were not created.
 
 ### Claim a payment check
 
@@ -165,6 +201,7 @@ Response:
 
 | Status | Meaning |
 |--------|---------|
+| `pending_approval` | The owner's approvers have not met the threshold yet - poll; the account is empty and claims are refused |
 | `creating` | Funding transfer not confirmed yet - poll; claims wait for it |
 | `unclaimed` | Funds waiting - check not yet claimed |
 | `claiming` / `reclaiming` | A claim or reclaim is in flight - poll; another one is refused meanwhile |
@@ -173,7 +210,7 @@ Response:
 | `partially_reclaimed` | Sender reclaimed part - remaining available for claim |
 | `reclaimed` | Sender took all remaining funds back |
 | `expired` | Unclaimed and past `expires_at` - sender can reclaim |
-| `failed` | The funding transfer never executed - nothing moved, create a new check |
+| `failed` | The funding never executed, was vetoed, or its approval expired unmet - nothing moved, create a new check |
 
 ### List payment checks
 

@@ -136,7 +136,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.ai/wallet/v1/intents/withdraw/dry-run"
 ```
 
-`{ would_succeed, reason?, message? }`. A bridge refusal is `would_succeed: false` with `reason` set to the same code the real withdraw answers in `error` — `no_liquidity`, `upstream_rejected` (1Click's words in `message`), `unsupported_token` — beside `wallet_frozen`, `policy_denied`, `storage_not_registered`, `recipient_not_found`, `insufficient_balance`, `invalid_request`. What was never assessed is an error, not a reason: `503 route_unavailable` (1Click did not answer), `400 unsupported_chain`, `429 operation_limit_reached`. **A dry-run counts against the wallet's daily custody ceiling** (100 per day on the free tier) like the real call; quote fees before each payment only as often as that allows, or lift the ceiling with a subscription.
+`{ would_succeed, reason?, message? }`. A bridge refusal is `would_succeed: false` with `reason` set to the same code the real withdraw answers in `error` — `no_liquidity`, `upstream_rejected` (1Click's words in `message`), `unsupported_token` — beside `wallet_frozen`, `policy_denied`, `storage_not_registered`, `recipient_not_found`, `insufficient_balance`, `invalid_request`. What was never assessed is an error, not a reason: `503 route_unavailable` (1Click did not answer), `400 unsupported_chain`, `429 operation_limit_reached`. **A dry-run counts against the wallet's daily custody ceiling** (1000 per day on the free tier) like the real call; quote fees before each payment only as often as that allows, or lift the ceiling with a subscription.
 
 ### Transfer inside Intents (`/intents/transfer`) vs Withdraw
 
