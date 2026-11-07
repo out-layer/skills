@@ -81,7 +81,7 @@ Login with `--wallet-key` calls `/wallet/v1/sign-message` to derive the account 
 |---------|------------------------------|
 | `outlayer deploy` | Routes `add_version`/`create_project` via `/wallet/v1/call` |
 | `outlayer run` (on-chain) | Routes `request_execution` via `/wallet/v1/call` |
-| `outlayer keys create/topup/delete` | Routes `store_secrets`/`top_up_payment_key_with_near`/`delete_payment_key` via `/wallet/v1/call` |
+| `outlayer keys create/topup/delete` | Routes `store_secrets`/`ft_transfer_call`/`delete_payment_key` via `/wallet/v1/call` |
 | `outlayer secrets set/delete` | Routes `store_secrets`/`delete_secrets` via `/wallet/v1/call` |
 | `outlayer secrets update` | Signs NEP-413 via `/wallet/v1/sign-message`, then stores via `/wallet/v1/call` |
 | `outlayer earnings withdraw` | Routes `withdraw_developer_earnings` via `/wallet/v1/call` |
@@ -230,7 +230,7 @@ Required for HTTPS API execution. Each key has a nonce and a USDC balance.
 outlayer keys create                   # create new key → prints key string (save it!)
 outlayer keys list                     # list keys with balances
 outlayer keys balance <nonce>          # check specific key balance
-outlayer keys topup <nonce> <amount>   # top up with NEAR (auto-swaps to USDC on mainnet)
+outlayer keys topup <nonce> --usd <amount>   # top up with the stablecoin; a top-up with NEAR is on the website
 outlayer keys delete <nonce>           # delete key: storage deposit refunded, remaining balance forfeited; its nonce is not freed
 ```
 
