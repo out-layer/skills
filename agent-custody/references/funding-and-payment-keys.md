@@ -32,7 +32,7 @@ https://app.outlayer.ai/wallet/fund?to={near_account_id}&amount=10&token=1720862
 
 A policy defines spending limits, address whitelists, and multisig rules.
 
-**Available policy types:** spending limits, address whitelist/blacklist, allowed tokens, transaction types, time restrictions, rate limits, multisig approval, capability toggles (`raw_sign`, `swap`, `cross_chain_withdraw`, `limit_order`, `payment_check`, EVM signing `evm_sign`, and Solana signing `solana_sign` — both default-DENY under a policy, set `allowed:true` to permit, each with a `raw_tx` sub-flag default-OFF), authorized API keys, webhooks.
+**Available policy types:** spending limits, address whitelist/blacklist, allowed tokens, transaction types, time restrictions, rate limits, multisig approval, capability toggles (`raw_sign` — on `near` only when `chains` lists it, `swap`, `cross_chain_withdraw`, `limit_order`, `payment_check`, EVM signing `evm_sign`, and Solana signing `solana_sign` — both default-DENY under a policy, set `allowed:true` to permit, each with a `raw_tx` sub-flag default-OFF; `intents_call` — a `call` to `intents.near` itself, or an Agent Connect promise aimed at it, denied with or without a policy, because it acts as the wallet's intents account and can add a key that signs for it outside the TEE for good), authorized API keys, webhooks.
 
 **Message to user:**
 > Please configure a security policy for your wallet:

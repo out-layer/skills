@@ -126,7 +126,7 @@ fi
 
 ## Pattern 5: Move Tokens to Another NEAR Account via Intents
 
-Deposit into intents → withdraw to another account. The withdraw is **gasless** - no NEAR needed on the wallet's implicit account. **Note:** receiver must have storage on the token contract. Use `/storage-deposit` to register if needed.
+Deposit into intents → withdraw to another account. The withdraw is **gasless** - no NEAR needed on the wallet's implicit account. **Note:** receiver must have storage on the token contract. Use `/storage-deposit` (paid in NEAR) or `/intents/storage-deposit` (paid in intents wNEAR, gasless) to register if needed.
 
 ```bash
 # 1. Deposit wNEAR into intents balance (on-chain, needs gas)

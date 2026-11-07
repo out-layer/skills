@@ -12,7 +12,31 @@ curl -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/j
   "https://api.outlayer.ai/wallet/v1/storage-deposit"
 ```
 
-Idempotent - returns `already_registered: true` if storage already exists. Optional `account_id` field to register storage for a different account (default = wallet's own address). Costs ~0.00125 NEAR.
+Idempotent - returns `already_registered: true` if storage already exists. Optional `account_id` field to register storage for a different account (default = wallet's own address). Costs ~0.00125 NEAR from the wallet's on-chain account.
+
+### `/intents/storage-deposit` - register token storage, paid from intents wNEAR
+
+The same registration paid with the wallet's **wNEAR inside intents** (`nep141:wrap.near`), gasless: use it when the wallet holds no native NEAR. Same body: `token` (`usdc.near` or `nep141:usdc.near`), optional `account_id` (default = wallet's own address). Mainnet only.
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"token":"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","account_id":"receiver.near"}' \
+  "https://api.outlayer.ai/wallet/v1/intents/storage-deposit"
+```
+
+| Answer | Meaning | Do |
+|---|---|---|
+| `status: "success"`, `already_registered: true` | The account already had storage; nothing was paid | Proceed |
+| `status: "success"`, `amount` | Registered; `amount` yoctoNEAR of wNEAR paid (the token's storage minimum) | Proceed |
+| `status: "processing"`, `poll_url` | The intent was sent; the registration is not visible yet | `GET` the `poll_url` until `success` or `failed`; do not resend |
+| `status: "pending_approval"` | The wallet's policy needs approvers | Wait for the approval like any other request |
+| `status: "failed"`, `result.wnear_spent: true` | The token contract refused the deposit; the wNEAR is not refunded | Do not retry the same token and account; tell the user |
+| `400 insufficient_balance` | Intents wNEAR below the deposit | Swap into `nep141:wrap.near`, or use `/storage-deposit` with native NEAR |
+| `400 bad_request`, "above the 1250000000000000000000" | The token asks more than 0.00125 NEAR for storage | Register through `/call` (`storage_deposit` on the token, paid in NEAR) |
+| `403 policy_denied` | The policy does not list `intents_storage_deposit` (`call` does not permit it) | Ask the owner to add the type, or use `/storage-deposit` |
+| `409 conflict` | A deposit for this token and account is already under way; the message names its request | Poll that request; do not send another |
+
+wNEAR spent on a storage deposit is never refunded, so the call pays exactly the token's minimum, at most 0.00125 NEAR, and an already registered account costs nothing.
 
 ### Transfer FT tokens (USDT, wNEAR, etc.)
 
@@ -34,6 +58,8 @@ curl -s -X POST -H "Content-Type: application/json" \
 ```
 
 Response: `{"request_id": "uuid", "status": "success", "tx_hash": "...", "result": ...}`
+
+A call to `intents.near` itself answers `403 policy_denied`: it would act as the wallet's intents account (add a key, move any balance). Use the `/wallet/v1/intents/*` endpoints; do not ask the owner to open `capabilities.intents_call` to work around it.
 
 ### Delete wallet
 **WARNING:** FT tokens and Intents balances are lost. Transfer all assets first. Wallet must have NEAR balance (for gas to execute the on-chain delete).

@@ -20,7 +20,7 @@
 | List available tokens for swaps | Use `GET /wallet/v1/tokens` - returns ~200 tokens across 20+ chains |
 | Withdraw native NEAR (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain: "near"` and `token: "near"` (default). Unwraps your wNEAR → native NEAR; receiver needs **no** storage. Recipient account must already exist (or be a 64-char implicit account) |
 | Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. **For non-NEAR chains pass `"async": true` and poll the result (the bridge rarely finishes in the sync window).** For NEAR delivering wNEAR (`token: "nep141:wrap.near"`): receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
-| Register token storage | Use `POST /wallet/v1/storage-deposit` - needed before withdrawing to accounts without storage |
+| Register token storage | Use `POST /wallet/v1/storage-deposit` (paid in NEAR) or `POST /wallet/v1/intents/storage-deposit` (paid in intents wNEAR, gasless) - needed before withdrawing to accounts without storage |
 | Transfer tokens to another account's intents balance | Use `POST /wallet/v1/intents/transfer` with `{ to, amount, token }` — gasless; stays **inside** `intents.near` (recipient is credited there, not on-chain). NOT a withdrawal — use this when the recipient also holds an intents balance. Recipient need not exist on-chain (64-hex implicit is fine) |
 | Move FT from wallet into Intents | Use `POST /wallet/v1/intents/deposit` - on-chain, needs gas |
 | Call a NEAR smart contract | Use `POST /wallet/v1/call` - on-chain, needs gas |
@@ -94,6 +94,7 @@
 | Spend from bound account | POST | `/wallet/v1/binding/transfer` | `to`, `amount`, `token?`, `memo?` |
 | Delete wallet | POST | `/wallet/v1/delete` | on-chain |
 | Register token storage | POST | `/wallet/v1/storage-deposit` | on-chain |
+| Register token storage, paid in intents wNEAR | POST | `/wallet/v1/intents/storage-deposit` | gasless |
 | Move FT: wallet → intents.near | POST | `/wallet/v1/intents/deposit` | on-chain |
 | Withdraw native NEAR / wNEAR / cross-chain (gasless, default) | POST | `/wallet/v1/intents/withdraw` | gasless |
 | Dry-run withdrawal | POST | `/wallet/v1/intents/withdraw/dry-run` | - |
@@ -148,7 +149,7 @@ Base URL: `https://api.outlayer.ai`
 | `policy_denied` | Operation blocked by policy rules |
 | `wallet_frozen` | Wallet frozen by controller |
 | `insufficient_balance` | Not enough funds |
-| `storage_not_registered` | HTTP 400: `/intents/withdraw` of a NEP-141 to an account with no storage on the token contract. Call `POST /wallet/v1/storage-deposit` with `{"token":"<contract>","account_id":"<receiver>"}` (without `account_id` it registers your own wallet) and retry, or withdraw to a registered `to`. Paid in NEAR from the wallet's own account. Nothing moved |
+| `storage_not_registered` | HTTP 400: `/intents/withdraw` of a NEP-141 to an account with no storage on the token contract. Register the receiver with `{"token":"<contract>","account_id":"<receiver>"}` (without `account_id` it registers your own wallet) and retry, or withdraw to a registered `to`: `POST /wallet/v1/intents/storage-deposit` pays from your intents wNEAR, `POST /wallet/v1/storage-deposit` pays in NEAR from the wallet's own account. Nothing moved |
 | `recipient_not_found` | HTTP 400: `/intents/withdraw` of native NEAR to a named account that does not exist — `native_withdraw` would burn the wNEAR. Nothing moved |
 | `unsupported_chain` | HTTP 400: the chain is not in the 1Click catalog right now (`GET /wallet/v1/tokens`); the message names what is. Terminal for the request as sent |
 | `unsupported_token` | HTTP 400: the asset is not one this route carries — not in the catalog, no listing of its symbol on that chain, 1Click's "tokenIn is not valid", or a `1cs_v1:` id on another chain given as a source. Terminal for the request as sent |

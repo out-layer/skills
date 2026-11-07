@@ -83,7 +83,7 @@ Every wallet operation falls into one of three categories:
 | Category | Who pays gas | NEAR on wallet needed? | Endpoints |
 |----------|-------------|----------------------|-----------|
 | **On-chain** | Agent's wallet | Yes (~0.001 NEAR/tx) | `/call`, `/transfer`, `/delete`, `/intents/deposit`, `/storage-deposit` |
-| **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/transfer`, `/intents/swap`, `/payment-check/*` |
+| **Gasless** | Solver relay | No | `/intents/withdraw`, `/intents/transfer`, `/intents/swap`, `/intents/storage-deposit`, `/payment-check/*` |
 | **Cross-chain** | 1Click solver | No | `/deposit-intent`, `/intents/withdraw` (chain: solana/ethereum/etc.) |
 | **Confidential** | 1Click solver (settles on private shard `intents.far`) | No | `/confidential/shield`, `/confidential/unshield`, `/confidential/withdraw`, `/confidential/transfer`, `/confidential/swap`, `/confidential/deposit/cross-chain` — see `references/confidential.md` |
 | **Read / no tx** | Nobody | No | `/balance`, `/address`, `/tokens`, `/requests`, `/sign-message`, `/evm/sign-typed-data`, `/evm/sign-message`, `/evm/sign-transaction`, `/solana/sign-message`, `/solana/sign-transaction`, `/deposit-status`, `/deposits`, `/confidential/balance` |
