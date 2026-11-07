@@ -148,6 +148,8 @@ Base URL: `https://api.outlayer.ai`
 | `policy_denied` | Operation blocked by policy rules |
 | `wallet_frozen` | Wallet frozen by controller |
 | `insufficient_balance` | Not enough funds |
+| `storage_not_registered` | HTTP 400: `/intents/withdraw` of a NEP-141 to an account with no storage on the token contract. Call `POST /wallet/v1/storage-deposit` with `{"token":"<contract>","account_id":"<receiver>"}` (without `account_id` it registers your own wallet) and retry, or withdraw to a registered `to`. Paid in NEAR from the wallet's own account. Nothing moved |
+| `recipient_not_found` | HTTP 400: `/intents/withdraw` of native NEAR to a named account that does not exist — `native_withdraw` would burn the wNEAR. Nothing moved |
 | `unsupported_chain` | HTTP 400: the chain is not in the 1Click catalog right now (`GET /wallet/v1/tokens`); the message names what is. Terminal for the request as sent |
 | `unsupported_token` | HTTP 400: the asset is not one this route carries — not in the catalog, no listing of its symbol on that chain, 1Click's "tokenIn is not valid", or a `1cs_v1:` id on another chain given as a source. Terminal for the request as sent |
 | `no_liquidity` | HTTP 400 on swap, quote or withdraw: 1Click found no route with liquidity for this pair at this amount. Try another amount or route, not the same request again |
