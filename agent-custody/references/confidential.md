@@ -172,6 +172,7 @@ curl -s $BASE/wallet/v1/confidential/balance                          -H "Author
 | 502 | `confidential_jwt_expired` / `keystore_error` | upstream (1Click / keystore) hiccup; the coordinator already retried auth once. Safe to retry |
 | 403 | `policy_denied` / `wallet_frozen` | blocked by the wallet's on-chain policy (same engine as `/intents/withdraw`). Don't retry without changing the policy |
 | 400 | `bad_request` | bad input — missing `to`/`token`, `token_in == token_out` on swap, quote `amount_out` below `min_amount_out`, etc. (note: `chain="near"` on withdraw is **valid** — native NEAR delivery) |
+| 400 | `bad_request`, "1Click's intent is not the transfer that was quoted" | 1Click returned a message that is not exactly the quoted transfer (this wallet, the quote's deposit address, the quoted asset and amount, nothing else). Nothing was signed, nothing moved. Not an input error: retry the same request later; if it persists, tell the user the confidential route is refusing its own quotes |
 
 ### Privacy model — read this before relying on "confidential"
 
