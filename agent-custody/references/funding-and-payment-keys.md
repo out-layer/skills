@@ -85,5 +85,6 @@ the credential that claimed it.
 leaked `wk_` cannot fetch one. The nonce-0 key is read only by the credential
 that claimed it: if that `wk_` leaks, revoking it ends the nonce-0 key too
 (another `wk_` of the wallet could never read it). A payment key string that
-leaked is itself the secret: delete that key (`outlayer keys delete <nonce>`)
-and create another. When in doubt, create a new agent.
+leaked is itself the secret: close that key (`outlayer keys close <nonce>`; a day
+later `outlayer keys claim <nonce>` returns its unspent on-chain deposits and deletes
+it — `keys delete` forfeits them) and create another. When in doubt, create a new agent.
