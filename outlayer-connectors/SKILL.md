@@ -203,6 +203,7 @@ body's field; `—` means the body has none.
 | 402 | `trial_expired` | true | past the wallet's first week → same |
 | 403 | `no_deposit` | — | `X-Attached-Deposit` on a trial or granted key → drop it, or pay from a funded key |
 | 400 | `trial_key_not_purchasable` | true | `POST /subscription/purchase` with the trial key → buy on a key with nonce ≥ 1 |
+| 403 | `grant_key_not_purchasable` | true | buying with an OutLayer grant → buy on a key you funded |
 | 400 | `max_per_call_exceeded` | — | the key's per-call ceiling is below the run's compute → another key, or less compute |
 | 400 | `compute_limit_too_low` | — | `X-Compute-Limit` below the minimum the sentence names → raise it |
 | 429 | `rate_limit_exceeded` | — | too many calls on this key; no `Retry-After` → pause, then send slower |

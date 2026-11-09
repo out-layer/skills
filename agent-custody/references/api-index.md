@@ -195,6 +195,7 @@ Base URL: `https://api.outlayer.ai`
 | `trial_expired` | The trial key is past the wallet's first week. Terminal; create and fund a payment key |
 | `out_of_funds` | The allowance is spent or has burned. TERMINAL — fund a payment key or buy a subscription |
 | `trial_key_not_purchasable` | `POST /subscription/purchase` with the trial key (`nonce` 0), converted or not (HTTP 400). Terminal for that key — create a payment key (nonce ≥ 1), fund it, buy on it |
+| `grant_key_not_purchasable` | `POST /subscription/purchase` with a key OutLayer funded with a grant (HTTP 403). Terminal for that key — buy on a payment key you funded yourself |
 | `Access denied by access condition` | A secret exists, but its condition does not admit your wallet's own 64-character account. Ask the owner to name that account, or name a row that already admits you |
 | `… its time limit passed at <date>` | You WERE admitted and the grant has expired. Ask for a new grant with a later date; being named again without one changes nothing |
 | `invalid_secrets_ref` | `/call` (400): the `secrets_ref` names a row that cannot exist — the account is not a NEAR account id, or the profile is not 1–64 bytes or holds an ASCII character other than a letter, digit, `-` or `_`. Fix the reference |

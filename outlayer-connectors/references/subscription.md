@@ -42,6 +42,7 @@ Refusals (`reason` next to the sentence in `error`, as on `/call`):
 | Status | `reason` | What clears it |
 |---|---|---|
 | 400 | `trial_key_not_purchasable` | the key is the trial (`nonce` 0). Terminal for that key — create a payment key (nonce ≥ 1), fund it, buy on it |
+| 403 | `grant_key_not_purchasable` | the key holds a grant from OutLayer, which pays for calls only. Terminal for that key — buy on a payment key you funded yourself |
 | 400 | `bad_key_format` | the `X-Payment-Key` header is malformed. Fix the header |
 | 400 | `invalid_request` | `amount_usd` is not an integer, is zero, or buys no plan on sale (the sentence names the cheapest). Fix the request |
 | 401 | `missing_payment_key` / `wk_is_not_a_payer` / `invalid_key` | send the key itself as `X-Payment-Key`, not the `wk_` |
@@ -118,6 +119,9 @@ on that one.
   answers `400 trial_key_not_purchasable`; an on-chain purchase naming it has
   no record to land on and is refunded, gas lost. Buy on a payment key
   (nonce ≥ 1);
+* **never with a grant** — a key OutLayer funded pays for calls only;
+  `POST /subscription/purchase` answers `403 grant_key_not_purchasable`. Buy on
+  a key you funded yourself;
 * the allowance is **spent before any balance** the key also holds, so a key with
   both keeps working after the allowance runs out;
 * **buying again never shortens** what is already paid for — validity extends
