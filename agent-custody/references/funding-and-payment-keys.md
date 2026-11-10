@@ -87,4 +87,6 @@ that claimed it: if that `wk_` leaks, revoking it ends the nonce-0 key too
 (another `wk_` of the wallet could never read it). A payment key string that
 leaked is itself the secret: close that key (`outlayer keys close <nonce>`; a day
 later `outlayer keys claim <nonce>` returns its unspent on-chain deposits and deletes
-it — `keys delete` forfeits them) and create another. When in doubt, create a new agent.
+it — `keys delete` forfeits them) and create another. Do not close or delete a key
+while a NEAR top-up of it is in progress: the swapped USDC is delivered by the swap
+account and would go back there, not to you. When in doubt, create a new agent.

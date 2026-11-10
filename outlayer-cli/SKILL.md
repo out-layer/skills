@@ -231,7 +231,7 @@ outlayer keys create                   # create new key → prints key string (s
 outlayer keys list                     # list keys with balances
 outlayer keys balance <nonce>          # check specific key balance
 outlayer keys topup <nonce> --usd <amount>   # top up with the stablecoin; a top-up with NEAR is on the website
-outlayer keys close <nonce>            # stop the key (no new calls) and start its refund; claim in 24 h
+outlayer keys close <nonce>            # stop the key (no new calls) and start its refund; claim in 24 h. Not while a NEAR top-up of it is in progress: the swapped USDC would go back to the swap account
 outlayer keys claim <nonce>            # 24 h after close: unspent stablecoin deposited on chain comes back, the key is deleted
 outlayer keys delete <nonce>           # delete key: storage deposit refunded, remaining balance FORFEITED (use close+claim to get it back); its nonce is not freed
 ```
