@@ -64,7 +64,7 @@ trait OutLayer {
 |-----------|------|-------------|
 | `source` | JSON | Project ID or WASM URL |
 | `resource_limits` | Option\<JSON\> | Memory, instructions, time limits. Always pass `Some` (even `{}`, which takes the defaults): a request without it runs nothing |
-| `input_data` | Option\<String\> | JSON input for WASM. Up to 32 KB is free; every byte above that is held at 0.00001 NEAR while the request is pending and returned at settlement — attach what `estimate_execution_cost(resource_limits, input_len)` answers, and more gas for a large input (the settlement callback reserves 25 MGas per byte above 32 KB, ~52 TGas for 2 MiB) |
+| `input_data` | Option\<String\> | JSON input for WASM, at most 1.5 MiB. Up to 32 KB is free; every byte above that is held at 0.00001 NEAR while the request is pending and returned at settlement — attach what `estimate_execution_cost(resource_limits, input_len, output_len)` answers, and more gas for a large input (the settlement callback reserves 25 MGas per byte above 32 KB, ~52 TGas for 2 MiB). An output of 1 KB or more is stored until settlement and needs 0.00001 NEAR per byte in the deposit, or the request fails with `output_storage_unpaid:` and the amount to attach: pass the largest output expected as `output_len`, or attach more (the rest is refunded) |
 | `secrets_ref` | Option\<JSON\> | `{ "profile": "...", "account_id": "..." }` |
 | `response_format` | Option\<String\> | `"Text"` (default), `"Json"`, or `"Bytes"` |
 | `payer_account_id` | Option | Who gets refund on failure |
