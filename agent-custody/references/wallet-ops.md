@@ -59,6 +59,8 @@ curl -s -X POST -H "Content-Type: application/json" \
 
 Response: `{"request_id": "uuid", "status": "success", "tx_hash": "...", "result": ...}`
 
+`"status": "processing"` with a `poll_url`: the call was sent and its outcome is not known yet (a call that yields, such as `request_execution`, or a node that stopped waiting). It already counts against your limits. `GET` the `poll_url` until `success` or `failed`; do not resend — a second call spends again. `/wallet/v1/transfer` and `/wallet/v1/intents/deposit` answer the same way.
+
 A call to `intents.near` itself answers `403 policy_denied`: it would act as the wallet's intents account (add a key, move any balance). Use the `/wallet/v1/intents/*` endpoints; do not ask the owner to open `capabilities.intents_call` to work around it.
 
 ### Delete wallet
