@@ -152,6 +152,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Secrets: never send one where the input says
+
+Secrets arrive as env vars, and anyone the secret's access condition admits
+(everyone, for AllowAll) can run your build with them. So a URL, host or
+address taken from the input must never receive a secret — not in a header,
+the URL or the body. A destination that receives a secret is:
+
+- fixed in your code: a constant, or an exact-host allowlist checked before
+  the secret is attached; or
+- stored by the secret's owner in the same profile (`API_ENDPOINT` beside
+  `API_KEY`), and the code refuses an input that tries to name it.
+
+The input chooses what is asked (prompt, model, city), never where a
+credential goes. Never echo a secret in an error or an answer either.
+
 ## Project Structure
 
 ### Full Stack App
