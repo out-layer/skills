@@ -349,8 +349,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 2. **Output**: Write to `stdout` (not stderr)
 3. **Format**: JSON only
 4. **Size**:
-   - Blockchain: ≤900 bytes
-   - HTTPS: Up to 10MB
+   - Blockchain: up to 1.5 MiB; an output of 1024 bytes or more is stored and
+     paid from the request's deposit (0.00001 NEAR per byte)
+   - HTTPS: up to 10 MiB
 5. **MUST flush**: `stdout().flush()`
 
 ## Common Pitfalls
