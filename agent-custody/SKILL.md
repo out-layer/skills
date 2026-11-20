@@ -122,7 +122,12 @@ id and the catalog). Withdraw accepts either format. Everything else uses plain 
 
 ## 1. Register Wallet
 
-Call the registration endpoint. **No auth, no signature, no CLI, no wallet of
+**If `OUTLAYER_WK` is set in your environment, you already have a wallet**: your
+owner created it and set its policy. Use that key as `$API_KEY`, do not
+register another, and read the policy before you plan
+(`GET /wallet/v1/policy`).
+
+Otherwise call the registration endpoint. **No auth, no signature, no CLI, no wallet of
 your own** — an empty POST is the whole thing, and the network is decided by
 which host you send it to.
 
@@ -222,7 +227,7 @@ both fields in the same body is rejected with a 400.)
 
 ## Things only the user can do — hand them a link
 
-Four steps need a human: they need a NEAR key you do not have, or money you
+Five steps need a human: they need a NEAR key you do not have, or money you
 cannot spend. For each there is a page. **Send the link with a sentence saying
 what it is for** — a bare URL from an agent asking for account access is what a
 phishing attempt looks like.
@@ -232,9 +237,10 @@ phishing attempt looks like.
 | **Act under their account** | "Open this and sign once — it lets me act as `alice.near` instead of a hex address: `https://app.outlayer.ai/wallet/connect?key={api_key}`" |
 | **A credential for a connector** | "The <service> connector needs its API token. Store it here — it is encrypted in your browser and I never see it: `https://app.outlayer.ai/secrets?project={connector_project_id}&name={VAR_NAME}`" |
 | **A limit on what you may spend** | "I can spend from your account now. Set a cap, an address list, or an approval threshold here: `https://app.outlayer.ai/wallet?key={api_key}`" |
+| **To pay an address the policy does not list** | "My policy lets me pay only listed addresses, and `{address}` is not one of them. It is <who it is and why I need to pay it>. Open this to add it, check the address, and sign: `https://app.outlayer.ai/wallet?wallet={near_account_id}&add_address={address}`" — see `references/funding-and-payment-keys.md` §4 |
 | **Money to work with** | "Fund me here: `https://app.outlayer.ai/wallet/fund?to={near_account_id}&amount={amount}&token={token}&msg={message}&dest=intents`" |
 
-Two rules for all four:
+Two rules for all five:
 
 * **Never ask for the secret itself in chat.** Not the token, not the seed
   phrase, not the private key. The pages encrypt in the browser precisely so

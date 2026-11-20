@@ -27,7 +27,7 @@ Write for a small-context model that reads only what it is pointed at.
 
 | Topic | Owner |
 |---|---|
-| Hosts, auth headers, amounts and decimals, gas categories, token-id formats, register, balance, address, send NEAR, the four user-only links, transaction statuses | `agent-custody/SKILL.md` |
+| Hosts, auth headers, amounts and decimals, gas categories, token-id formats, register, balance, address, send NEAR, the five user-only links, transaction statuses | `agent-custody/SKILL.md` |
 | Deterministic wallets, `Bearer near:`, sub-agents, sovereign vaults, key recovery | `agent-custody/references/register-and-auth.md` |
 | FT transfer, `/call`, storage deposit, NEP-413 / `auth-sign`, delete, auto-registration table | `…/wallet-ops.md` |
 | EVM and Solana signing | `…/signing-evm-solana.md` |

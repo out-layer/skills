@@ -38,6 +38,49 @@ A policy defines spending limits, address whitelists, and multisig rules.
 > Please configure a security policy for your wallet:
 > https://app.outlayer.ai/wallet?key={api_key}
 
+### A wallet under an address list
+
+An owner who created the wallet for you usually starts it protected: money
+leaves only to the addresses the policy lists (at first the owner's own account
+and the wallet's), contract calls are off, and every other capability is off
+until the owner switches it on. Read it before you plan:
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" "https://api.outlayer.ai/wallet/v1/policy"
+```
+
+`rules.addresses` is `{"mode": "whitelist", "list": [...]}` when there is a
+list. A send to any other address is refused before anything moves:
+
+```json
+{"error": "policy_denied", "message": "Address '0x1111…' is not in whitelist"}
+```
+
+* **Do not retry it, and do not look for another route.** A swap, a payment
+  check or a different endpoint aimed at the same recipient is refused by the
+  same policy or by a capability that is off.
+* **Ask the owner to add the address**, with a link that names it:
+
+  ```
+  https://app.outlayer.ai/wallet?wallet={near_account_id}&add_address={address}
+  ```
+
+  The page shows the address, puts it on the list, and the owner signs one
+  transaction. Several addresses: repeat `add_address`. The link carries no
+  key — the owner opens it in the browser where the wallet was set up. Say in
+  your message who the address belongs to and what the payment is for; the
+  page shows the owner only the address itself.
+* **A connector's funding address is an address like any other.** The first
+  deposit to Hyperliquid or Polymarket under an address list is refused with
+  the venue address in the message (it is derived for your wallet, so nobody
+  can list it in advance). Send the owner that address in the same link.
+* After the owner signs, the list on the service follows the chain within
+  seconds; read the policy again, then repeat the operation.
+
+`Transaction type '…' is not allowed by policy` and a capability that is off
+are the owner's decisions too: tell the owner what you were trying to do and
+link `https://app.outlayer.ai/wallet?wallet={near_account_id}`.
+
 ## 5. Upgrade to Paid (Payment Key)
 
 When the trial is spent or expired — or to run your own WASI, which the trial does not cover — create a payment key. Wallet must have USDC or NEAR balance.
