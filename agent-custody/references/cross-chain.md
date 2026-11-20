@@ -38,7 +38,7 @@ curl -s -X POST -H "Content-Type: application/json" \
 
 | Param | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `source_asset` | yes | - | Defuse asset id (e.g. `nep141:eth-…omft.near`) from `GET /wallet/v1/tokens`. The source chain is derived from the prefix; supported prefixes cover `near`, `solana`, `ethereum`, `base`, `arbitrum`, `bitcoin`, `bsc`, `polygon`, `optimism`, `avalanche`, plus the omft natives (`zcash`, `dogecoin`, `litecoin`, `bitcoincash`, `xrp`, `dash`, `cardano`, `tron`, `sui`, `aptos`, `aleo`, `gnosis`, `berachain`, `movement`, `plasma`, `starknet`). |
+| `source_asset` | yes | - | Defuse asset id (e.g. `nep141:eth-…omft.near`) from `GET /wallet/v1/tokens`. The source chain is the one the catalog lists the asset on, not a word in its id: `nep141:bnb-….omdep.near` is a `bsc` asset. |
 | `amount` | yes | - | Amount in minimal units. USDC: 6 decimals (`"1000000"` = 1 USDC). |
 | `refund_address` | no | - | Address on the source chain a failed bridge refunds to, format-checked for the chain. With a wallet policy, the owner decides: its `refund_addresses.<chain>` entry, else the wallet's own address on that chain (NEAR, Solana, EVM chains, HyperCore) — your `refund_address` is then ignored and `hint` says so. It is used without a policy, and on a chain the wallet has no address of its own on (Bitcoin, Zcash, Tron, …) that the policy names no entry for — there it is required: without it the request fails with HTTP 400. |
 | `destination_asset` | no | NEAR USDC | Defuse asset id for destination token. Override to receive wNEAR etc. |
