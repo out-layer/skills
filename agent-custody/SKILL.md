@@ -257,7 +257,7 @@ Two rules for all five:
 | `success` | Completed | Read result fields |
 | `failed` | Failed | Check `result` for error details |
 | `processing` | In progress | Poll `GET /wallet/v1/requests/{id}` |
-| `pending_approval` | Needs multisig | Inform user, provide dashboard link |
+| `pending_approval` | The owner's approval is needed: the policy asks for every such operation, the payment took the period's total past what runs unattended, or the address is new to an address list that asks | Tell the user what it is and why it waits, give `https://app.outlayer.ai/wallet/approvals/{approval_id}`, poll `GET /wallet/v1/requests/{id}`. Do not split it or send it another way — `references/funding-and-payment-keys.md` §4 |
 | `pending_deposit` | Confidential op accepted by 1Click, waiting for solver settlement | Poll `GET /wallet/v1/requests/{id}` (typical 5–30s) |
 | `refunded` | Confidential op failed mid-flight; funds refunded inside the confidential balance | Inspect `result.swap_details.refundReason`; safe to retry |
 | `partially_failed` | Only for `w_execute_extension` on a bound account: some promises in the request succeeded and some did not. **Not an error** — the wallet runs its promises independently, so the ones that succeeded moved real money | Read `result.promises[]`: each has `index`, `receiver`, `status` (`success` / `failed` / `unknown`) and the chain's `failure`. Retry only the failed ones |

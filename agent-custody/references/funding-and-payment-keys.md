@@ -77,6 +77,52 @@ list. A send to any other address is refused before anything moves:
 * After the owner signs, the list on the service follows the chain within
   seconds; read the policy again, then repeat the operation.
 
+**A list that asks.** When `rules.addresses.unlisted` is `"ask"`, a payment to
+an address off the list is not refused. Only these four are asked about;
+everything else aimed at such an address is refused exactly as without it, so
+do not expect an approval for it:
+
+| Operation toward an address off the list | Answer |
+|---|---|
+| `/wallet/v1/transfer` (native NEAR) | `pending_approval` |
+| `/wallet/v1/intents/withdraw` on NEAR | `pending_approval` |
+| `/wallet/v1/intents/transfer` | `pending_approval` |
+| `/wallet/v1/intents/withdraw` to another chain (when the policy permits such withdrawals at all) | `pending_approval` |
+| `/wallet/v1/call` — any contract call | `403 policy_denied` |
+| `/wallet/v1/delete` | `403 policy_denied` |
+| a limit order, a storage deposit, a confidential operation | `403 policy_denied` |
+
+A payment check has no address and is not covered by the list at all.
+
+For one of the four: it answers `pending_approval` with an
+`approval_id`, like any operation that waits for the owner, however small its
+amount; above a limit it is still refused. Tell the owner who the address belongs to and what the payment is for,
+and give them `https://app.outlayer.ai/wallet/approvals/{approval_id}`; the
+page marks the address as new in the browser where the wallet was set up. Approving pays it once and does not list it, so
+the next payment to it asks again — if you will pay it regularly, say so, and
+the owner can add it to the list from the same page. Do not split the payment
+or aim it elsewhere while it waits; poll the request.
+
+**An amount that runs without asking.** `approval.auto_up_to` is
+`{"daily": {"<token>": "<amount>"}}` (also `hourly`, `monthly`): while what the
+wallet spent in that token in the window, plus this payment, is at most the
+amount, a transfer or a withdrawal on NEAR to a listed address runs at once. Past it, each payment
+answers `pending_approval` until the window turns over — the UTC day, the
+clock hour, the calendar month. What the limits count is what counts here, payments
+the owner approved included. A token with no entry always waits, and so does
+every other operation: a swap, a limit order, a payment check, a send to
+another chain, a contract call. The limits in `rules.limits` still refuse above them,
+approved or not. Read the policy before a payment you know is large for it, and
+tell the owner an approval is coming instead of discovering it; the policy read
+reports the hour's and the day's spend under `usage`, not the month's.
+
+**x402 under an address list.** Paying an x402 resource is an EIP-3009
+signature made through `/wallet/v1/evm/sign-typed-data`, which needs the
+`evm_sign` capability; a protected wallet has it off, and the request is
+refused. Do not ask the owner to switch it on as a routine step:
+that signature pays any address, outside the list. Pay by transfer to a listed
+address instead.
+
 `Transaction type '…' is not allowed by policy` and a capability that is off
 are the owner's decisions too: tell the owner what you were trying to do and
 link `https://app.outlayer.ai/wallet?wallet={near_account_id}`.

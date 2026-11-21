@@ -81,6 +81,7 @@ Each create counts as one custody operation against the wallet's ceiling
 A check moves money, so it is held to the owner's approval rules like a transfer or
 a swap: `approval.threshold` applies, `approval.excluded_types: ["payment_check"]`
 lifts it, and `capabilities.payment_check.requires_approval` demands it on its own.
+`approval.auto_up_to` does not apply to a check: it waits whatever the window says.
 On such a wallet the create answers:
 
 ```json
