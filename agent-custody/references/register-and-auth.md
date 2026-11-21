@@ -91,13 +91,13 @@ curl -s -X PUT -H "Content-Type: application/json" \
     "seed": "sub-task",
     "key_hash": "sha256hex64chars...",
     "pubkey": "ed25519:<base58>",
-    "message": "api-key:sub-task:1712000000",
+    "message": "api-key:sub-task:1712000000:<key_hash>",
     "signature": "<base58_no_prefix>"
   }' \
   "https://api.outlayer.ai/wallet/v1/api-key"
 ```
 
-Signed message format: `"api-key:<seed>:<unix_timestamp>"`. Timestamp window: **±5 minutes**.
+Signed message format: `"api-key:<seed>:<unix_timestamp>:<key_hash>"` — and `…:<key_hash>:<vault_id>` when `vault_id` is sent. The signature names the key it registers: `key_hash` (and `vault_id`) in the message must equal the fields beside it, or the call is refused. The form without `key_hash` is refused. Timestamp window: **±5 minutes**.
 
 Response: `{"wallet_id": "...", "near_account_id": "..."}`
 
@@ -190,6 +190,63 @@ Under the current schema each `(account_id, seed, vault_id)` tuple maps to a **d
 
 Both succeed (no rebind refusal). The two sub-wallets are cryptographically isolated — funds at one are inaccessible from the other.
 
+## A wallet whose owner can leave with its keys
+
+A wallet registered with `POST /register` and no vault has no exit: its keys stay in OutLayer. A wallet
+created for an **owner** — a NEAR account registered in the keystore DAO — can be taken
+out by that owner with no OutLayer service: after a wait the owner chose at
+registration — 24–48 hours on mainnet, 1–60 minutes on testnet — the owner holds the keys. Offer it when the user asks who controls the keys, or before the
+wallet holds an amount that matters.
+
+You cannot create such a wallet yourself. The owner's registration is a transaction a
+person signs in their NEAR wallet. You ask, they sign, you check:
+
+```bash
+# 1. Ask for a key and a link. No auth. Optional body: {"seed": "trading"}.
+curl -s -X POST -H "Content-Type: application/json" -d '{}' \
+  "https://api.outlayer.ai/wallet/v1/exit-link"
+# → {"api_key": "wk_…", "link": "<token>", "expires_at": 1767225600}
+```
+
+2. **Save `api_key`** — it is shown once — and give the user
+   `https://app.outlayer.ai/exit?link=<link>`. A link from `testnet-api.outlayer.ai` is a testnet
+   link: the same page, with the network switched to testnet in the UI. Open it for them
+   rather than printing it.
+   Tell them what the page will ask: a registration fee paid once per account from their
+   NEAR account, a choice of the exit window, and a signature that creates the wallet.
+3. Poll until they are done — `401` until then, the address after:
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" \
+  "https://api.outlayer.ai/wallet/v1/address?chain=near"
+# → {"wallet_id": "…", "address": "…", "exit_owner": {"account_id": "alice.near", "generation": 1}}
+```
+
+**Check who the owner is before you use the wallet.** Whoever opens the link and signs
+becomes the owner — and can leave with everything the wallet holds. Ask the user which NEAR
+account they will sign with, and compare it with `exit_owner.account_id` in the answer. If
+they differ, do not fund the wallet: ask for a new link and discard this key.
+
+The link lives 24 hours. A `409` on the page means one of three things, and the page says
+which: the link was already used, or the owner already has a wallet with that seed — a
+link only ever creates a new wallet, so ask for a new link; or the owner is in the middle of
+claiming their keys — the same link works once the claim has settled.
+
+**Moving from a wallet you already use.** The wallet with an exit is a NEW wallet at a NEW
+address. Nothing moves by itself: transfer the funds to the new address with the old key
+(`/wallet/v1/transfer`, `/wallet/v1/intents/transfer`), and open the venue accounts again
+under the new wallet — a Hyperliquid or Polymarket account belongs to the wallet it was
+opened from. Tell the user both before they sign.
+
+**After the owner exits**, a call that needs the wallet's keys — an address, a signature,
+a transfer — answers `403`, and its message says the owner of this wallet has exited and
+its keys were handed to the owner. The same answer comes while the owner's claim is in
+flight, and a claim that failed can be made again for days. Either way the owner is
+leaving: stop using this wallet, move nothing more into it, and tell the user. Ask the user whether they want a new one, and start again from step 1.
+
+You cannot start, approve or claim an exit: those are transactions from the owner's account,
+and a call from the wallet to the keystore DAO is refused.
+
 ## Create Sub-Agents
 
 ### From a custody wallet (Bearer wk_...)
@@ -235,7 +292,7 @@ No `sign-message`, no NEAR signatures, no crypto libraries. Just derive a key, r
 If you have your own NEAR private key (bot, server), sign directly without `sign-message`:
 
 ```python
-# Sign "api-key:<seed>:<timestamp>" with your NEAR ed25519 key
+# Sign "api-key:<seed>:<timestamp>:<key_hash>" with your NEAR ed25519 key
 # See "Deterministic Wallets" section for details
 ```
 

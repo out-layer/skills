@@ -115,7 +115,7 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 # Response: {"auth_message":"auth:user-42:1712000000","auth_timestamp":1712000000,"signature":"<base58_no_prefix>","public_key":"ed25519:..."}
 ```
 
-`purpose` is one of `bearer` (→ `auth:<seed>:<ts>`, add `vault_id` to scope it), `register` (→ `register:<seed>:<ts>`), or `api-key` (→ `api-key:<seed>:<ts>`). Send `auth_message` and `signature` verbatim; the timestamp is server-generated, not client-supplied.
+`purpose` is one of `bearer` (→ `auth:<seed>:<ts>`, add `vault_id` to scope it), `register` (→ `register:<seed>:<ts>`), or `api-key` (→ `api-key:<seed>:<ts>:<key_hash>`, add `vault_id` to scope it; `key_hash` — the sha256 of the key to register, 64 lower-case hex — is required for this purpose and refused for the others). Send `auth_message` and `signature` verbatim; the timestamp is server-generated, not client-supplied.
 
 **Verification (external service, NEP-413 only):**
 

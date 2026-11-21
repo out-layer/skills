@@ -28,7 +28,7 @@ Paths below are relative to this file. Fetched over HTTP, the base is
 
 | The task in front of you | Read |
 |---|---|
-| Register with a NEAR key you own, deterministic wallets, sub-agents, sovereign vaults, recover a lost key | `references/register-and-auth.md` |
+| Register with a NEAR key you own, deterministic wallets, sub-agents, sovereign vaults, a wallet whose owner can leave with its keys, recover a lost key | `references/register-and-auth.md` |
 | Send an FT token, call a contract, register token storage, sign a NEP-413 message, delete the wallet | `references/wallet-ops.md` |
 | Sign EIP-712 / EIP-191 / a raw EVM transaction, or a Solana message / transaction | `references/signing-evm-solana.md` |
 | Swap tokens: quote, execute, read the realized fill | `references/intents-swap.md` |
