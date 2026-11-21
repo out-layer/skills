@@ -124,12 +124,17 @@ No endpoint needed. Add a new key to your NEAR account, start signing with it. R
 
 By default every custody wallet's keys derive from OutLayer's shared TEE master. A **sovereign vault** replaces that shared master with a per-customer one derived via NEAR's MPC network — recoverable by the customer if OutLayer ever shuts down. The vault is just a small on-chain contract that anchors a per-customer master in keystore-TEE memory; it does **not** issue API keys itself. API keys are always minted through `/register`, with or without a vault binding. The architecture is symmetric:
 
-| | Default master | Per-vault master |
-|---|---|---|
-| Wallets per master | ∞ | ∞ |
-| How to mint | `POST /register` | `POST /register {"vault_id": "..."}` |
-| Each wallet | own `wk_`, own `wallet_id`, own derived address | same, plus `vault_id` in DB |
-| Recovery if OutLayer stops | none | 7-day DAO cessation OR 24h-30d unilateral exit |
+| | Default master | Owner's master | Per-vault master |
+|---|---|---|---|
+| Wallets per master | ∞ | ∞ per owner account | ∞ |
+| How to mint | `POST /register` | `POST /wallet/v1/exit-link`, completed by the owner (see "A wallet whose owner can leave with its keys" below) | `POST /register {"vault_id": "..."}` |
+| Each wallet | own `wk_`, own `wallet_id`, own derived address | same, plus `exit_owner` in `GET /wallet/v1/address` | same, plus `vault_id` in DB |
+| Set-up cost | none | 0.05 NEAR once per owner account | 1 NEAR on the vault account |
+| The user can leave with the keys | no | yes: 24–48 h after starting an exit, with or without OutLayer | yes: 7-day DAO cessation OR 24h-30d unilateral exit |
+| Secrets leave too | — | no | yes |
+
+A vault is not the only exit. A user who asks "what if OutLayer stops?" or "who holds the
+keys?" needs no vault to get an answer: the owner's master costs one transaction.
 
 **The FIRST call against a vault is slow — allow for it.** A per-vault master lives only in the
 keystore's memory, so the first request that touches a vault after a keystore restart or upgrade

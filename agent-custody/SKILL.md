@@ -207,7 +207,7 @@ Response:
   "public_key": "ed25519:<base58>"
 }
 ```
-The NEAR account is the **`address`** field (there is no `account_id` field here — that name only appears on `/wallet/v1/balance`). This is the default setup — your wallet derives from OutLayer's shared vault, nothing to configure. (An optional `vault_id` field appears only for the rare keys bound to a dedicated customer vault.)
+The NEAR account is the **`address`** field (there is no `account_id` field here — that name only appears on `/wallet/v1/balance`). This is the default setup — your wallet derives from OutLayer's shared vault, nothing to configure, and nobody can take its keys out. (An `exit_owner` field appears for a wallet whose owner can leave with its keys; an optional `vault_id` field for the rare keys bound to a dedicated customer vault. Either gives the user an exit — see `references/register-and-auth.md`.)
 
 Supported chains: `near`, all EVM chains (`ethereum`, `polygon`, `base`, `arbitrum`, `optimism`, `bsc`, `avalanche`, and aliases `eth`/`pol`/`matic`/`arb`/`op`/`avax`), and `solana` (alias `sol`). **All EVM chains return ONE shared secp256k1 `0x` address** (the same EOA on every EVM network); `solana` returns the wallet's own base58 ed25519 address (the pubkey IS the address). `bitcoin` is still gated (`UnsupportedChain`). To sign for the EVM or the Solana address see `references/signing-evm-solana.md`; for cross-chain value movement use `/intents/deposit/cross-chain` and `/intents/withdraw` with the `chain` param.
 
