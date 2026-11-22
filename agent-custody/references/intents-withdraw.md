@@ -55,7 +55,97 @@ Notes:
 - **Submit status:** a successful async submit is exactly `"processing"` (never `pending`/`queued`). On a **multisig** wallet the submit returns `"pending_approval"` instead — handle that before assuming you can just poll.
 - **Sync fallback** (`async` false/absent): the POST blocks and usually returns a terminal `status` in the same body, **but a slow settlement — the bridge, or the solver relay on a same-chain withdraw — can still return `"processing"`** with a `poll_url` — branch on the status and poll it, don't assume the sync body is always terminal. The withdrawal runs to its outcome even if your client disconnects. Either send `X-Answer-Within: <seconds>` below your own timeout (the call then answers `processing` with `request_id` and `poll_url` within that many seconds — see below), or give a sync call at least 90 s. If your client gives up first, do NOT submit a new withdraw — re-send with the same `X-Idempotency-Key`: the duplicate answer names the request (`request_id`, `status`, `poll_url`), and nothing runs twice (see "X-Idempotency-Key — one key per operation").
 - **Errors:** auth, policy (limits/whitelist/multisig) and request-shape validation are returned **synchronously** as HTTP 4xx. Insufficient balance and the bridge execution itself are deferred in async mode and surface as the polled row's `failed` status — not as a POST error.
-- **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event (HMAC-signed, header `X-Webhook-Signature`) on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap` / `limit_order` (the last one fires when a multisig-approved order has been placed and funded — NOT when it fills; read the order for that).
+- **Webhook (preferred over long polling for the slow tail):** if the wallet's policy has a `webhook_url`, OutLayer POSTs a `request_completed` event on the terminal transition, including bridges that outlive your poll window. Payload: `{ request_id, type, status, result }`, where `type` is `intents_withdraw` / `intents_cross_chain_withdraw` / `intents_swap` / `limit_order` (the last one fires when a multisig-approved order has been placed and funded — NOT when it fills; read the order for that).
+
+#### Verifying a webhook
+
+Every webhook is signed with OutLayer's Ed25519 key of the network. The receiver needs no secret: the public keys are at `GET /wallet/v1/webhook-keys` (no auth) → `{"keys":[{"id","algorithm":"ed25519","public_key":"<64 hex>","public_key_near":"ed25519:<base58>"}]}`. Mainnet and testnet have different keys.
+
+**A valid signature means "OutLayer sent this", NOT "this is about your wallet".** Anyone can set the `webhook_url` of their own wallet to your URL; its events arrive correctly signed. `X-Wallet-Id` is what says whose event it is — check it (step 2).
+
+| Header | Value |
+|---|---|
+| `X-Webhook-Id` | delivery id — a random UUID (lower-case, hyphenated), the same on every attempt of one delivery (up to 3) |
+| `X-Webhook-Timestamp` | unix seconds of this attempt |
+| `X-Webhook-Key-Id` | the `id` of the key that signed |
+| `X-Webhook-Signature-Ed25519` | the signature, 128 hex chars |
+| `X-Wallet-Id` | whose event: your wallet's `wallet_id` (as `POST /register` answered it) for `request_completed`, `approval_needed`, `approval_received`, `policy_update_signed`; `<owner account>:<nonce>` of the payment key for `subscription_notification`; `owner:<account>` for an owner's task events |
+| `X-Event-Type` | e.g. `request_completed` |
+
+The signed bytes are six parts joined by `\n`, the last being the raw request body (the bytes received — never JSON you parsed and re-serialized):
+
+```
+outlayer-webhook-v1\n<X-Webhook-Id>\n<X-Webhook-Timestamp>\n<X-Wallet-Id>\n<X-Event-Type>\n<raw body>
+```
+
+Accept a request only when ALL hold; otherwise drop it:
+1. the key with `id` = `X-Webhook-Key-Id` verifies the Ed25519 signature over those bytes;
+2. `X-Wallet-Id` is YOUR wallet's id (one of the ids you expect) — the header is signed, so read it from there;
+3. `X-Webhook-Timestamp` is within 300 s of your clock (this bounds how long a captured request can be re-sent);
+4. you have not accepted this `X-Webhook-Id` before — remember accepted ids for at least 300 s; inside that window this is the only thing that stops a re-sent capture.
+
+Holding the keys:
+- re-read `webhook-keys` at least every 10 minutes and REPLACE your list with the answer — a key no longer listed is no longer trusted;
+- a request naming a key id you do not hold → re-read, but at most once per minute no matter how many such requests arrive (anyone can send one; the key id is read before the signature is checked);
+- list unreadable and nothing read in the last 10 minutes → refuse with an error status (the delivery is retried).
+
+```js
+// Node 20+, no dependencies. `headers` has lower-case names, as Node gives them;
+// `rawBody` is a Buffer; `myWalletIds` lists the X-Wallet-Id values you expect.
+import { createPublicKey, verify } from 'node:crypto';
+
+const KEYS_URL = 'https://api.outlayer.ai/wallet/v1/webhook-keys';
+let keys = [], keysReadAt = 0, keysTriedAt = 0;
+const seen = new Map(); // delivery id -> when it was accepted
+
+// The keys: read again every 10 minutes and replaced, so a key that left the
+// list is gone; an unknown key id causes a read too. Never more than one read
+// a minute, and no keys younger than 10 minutes means no verdict.
+async function keysFor(keyId) {
+  const now = Date.now();
+  const due = now - keysReadAt >= 600_000 || !keys.some((k) => k.id === keyId);
+  if (due && now - keysTriedAt >= 60_000) {
+    keysTriedAt = now;
+    const response = await fetch(KEYS_URL).catch(() => null);
+    if (response?.ok) [keys, keysReadAt] = [(await response.json()).keys, now];
+  }
+  if (now - keysReadAt >= 600_000) throw new Error('webhook keys could not be read');
+  return keys;
+}
+
+async function isMyOutlayerWebhook(headers, rawBody, myWalletIds) {
+  const id = headers['x-webhook-id'] ?? '';
+  const timestamp = headers['x-webhook-timestamp'] ?? '';
+  const signature = headers['x-webhook-signature-ed25519'] ?? '';
+  const walletId = headers['x-wallet-id'] ?? '';
+  if (!id || !/^[0-9a-f]{128}$/i.test(signature) || !/^[0-9]{1,15}$/.test(timestamp)) return false;
+  const key = (await keysFor(headers['x-webhook-key-id'])).find(
+    (k) => k.id === headers['x-webhook-key-id'] && k.algorithm === 'ed25519',
+  );
+  if (!key) return false;
+  const signed = Buffer.concat([
+    Buffer.from(`outlayer-webhook-v1\n${id}\n${timestamp}\n${walletId}\n${headers['x-event-type']}\n`),
+    rawBody,
+  ]);
+  const publicKey = createPublicKey({
+    key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(key.public_key, 'hex')]),
+    format: 'der',
+    type: 'spki',
+  });
+  if (!verify(null, signed, publicKey, Buffer.from(signature, 'hex'))) return false; // 1
+  if (!myWalletIds.includes(walletId)) return false;                                  // 2
+  const now = Date.now();
+  if (Math.abs(now / 1000 - Number(timestamp)) > 300) return false;                   // 3
+  for (const [known, at] of seen) if (now - at > 300_000) seen.delete(known);
+  if (seen.has(id)) return false;                                                     // 4
+  seen.set(id, now);
+  return true;
+}
+```
+
+In TypeScript, `createWebhookKeyCache()` + `verifyWebhook({ headers, rawBody, keys, walletIds })` of `@outlayer/sdk` hold the keys this way and do steps 1–3. A wallet's webhook carries no `X-Webhook-Signature` header.
+
+**A verified webhook is still only a signal.** Before anything that moves money or releases goods, read the request yourself — `GET /wallet/v1/requests/{request_id}` with your own key — and act on that answer.
 
 #### Result fields are identifiers, NOT tx hashes — except `destination_tx_hash`
 

@@ -57,6 +57,7 @@
 | Swap tokens privately | `POST /wallet/v1/confidential/swap` with `{ token_in, token_out, amount_in, min_amount_out? }` — distinct assets, no public-chain trace |
 | Preview a confidential swap | `POST /wallet/v1/confidential/swap/quote` |
 | Read your private (confidential) balance | `GET /wallet/v1/confidential/balance?token={defuse_id}` or omit `token` for all |
+| Check that a webhook is really OutLayer's and about YOUR wallet | `GET /wallet/v1/webhook-keys` (no auth) for the Ed25519 public keys, verify `X-Webhook-Signature-Ed25519`, then check `X-Wallet-Id` is your wallet — the four steps in `intents-withdraw.md`, "Verifying a webhook" |
 | Authenticate to an external service | `POST /wallet/v1/sign-message` - NEP-413 signed message for login/auth |
 | Let the user set spending limits | Share the `handoff_url` from registration |
 | Create wallets for users (no per-user keys) | Use deterministic registration: `POST /register` with NEAR signature fields |
@@ -115,6 +116,7 @@
 | List tokens | GET | `/wallet/v1/tokens` | - |
 | Request status | GET | `/wallet/v1/requests/{request_id}` | - |
 | List requests | GET | `/wallet/v1/requests` | - |
+| Webhook public keys (no auth) | GET | `/wallet/v1/webhook-keys` | - |
 | Sign message (NEP-413) | POST | `/wallet/v1/sign-message` | - |
 | Sign EVM typed data / message / raw tx | POST | `/wallet/v1/evm/sign-typed-data` · `/evm/sign-message` · `/evm/sign-transaction` | - (off-chain; you broadcast) |
 | Sign Solana message / transaction | POST | `/wallet/v1/solana/sign-message` · `/solana/sign-transaction` | - (off-chain; you broadcast) |
