@@ -246,7 +246,10 @@ opened from. Tell the user both before they sign.
 **After the owner exits**, a call that needs the wallet's keys — an address, a signature,
 a transfer — answers `403`, and its message says the owner of this wallet has exited and
 its keys were handed to the owner. The same answer comes while the owner's claim is in
-flight, and a claim that failed can be made again for days. Either way the owner is
+flight, and a claim that failed can be made again for days. No payment key of the wallet
+spends either — trial and funded keys answer `403 wallet_exited` — and a funded key's money
+comes back to the owner through the wallet's account: `outlayer keys close <nonce>`, then
+`outlayer keys claim <nonce>` a day later. Either way the owner is
 leaving: stop using this wallet, move nothing more into it, and tell the user. Ask the user whether they want a new one, and start again from step 1.
 
 You cannot start, approve or claim an exit: those are transactions from the owner's account,

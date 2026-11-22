@@ -191,6 +191,7 @@ body's field; `—` means the body has none.
 | 403 | `policy_row_not_owner` | true | a trading connector got a row that is not your owner's → send no `secrets_ref`; try no other rows |
 | 403 | `calls_suspended` | false | your wallet is blocked on both trading connectors for a while; the same call works after → stop naming other accounts' rows; tell your owner |
 | 403 | `wallet_not_yours` | true | `X-Wallet-Id` is not your wallet → send yours (`GET /wallet/v1/address`) |
+| 403 | `wallet_exited` | true; false while a claim is in flight or the DAO does not verify the vault | the key's wallet left with an exit: none of its keys spends → tell the user; a funded key's money: `outlayer keys close <nonce>`, a day later `outlayer keys claim <nonce>` |
 | 403 | `project_not_allowed` | — | the key's scope does not reach this project → use a key whose scope does; funding changes nothing |
 | 404 | `project_not_found` | — | no such project on this network → check the name and the host pair |
 | 400 | `unknown_operation` | true | no `operation`, or an unpriced one → see the connector's skill |

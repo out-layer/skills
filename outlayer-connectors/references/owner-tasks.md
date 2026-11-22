@@ -153,7 +153,7 @@ A task never returns to `open`. An outcome is kept 30 days; after that
 
 | `failure_reason` | what happened | what you do |
 |---|---|---|
-| `preparer_key_unavailable` | your payment key could not pay for the run: deleted, spent, expiring, out of scope, over its own ceiling, or in a vault the platform does not serve | fix the key, then prepare again |
+| `preparer_key_unavailable` | your payment key could not pay for the run: deleted, spent, expiring, out of scope, over its own ceiling, in a vault the platform does not serve, or of a wallet whose keys left with an exit | fix the key, then prepare again |
 | `operation_limit_reached` | the answering operation's limit for your key is reached | prepare again later |
 | `build_changed` | the connector published a new build after you prepared the task; nothing was charged | prepare the task again |
 | `operation_priced`, `operation_unknown`, `wallet_unresolved`, `queue_unavailable`, `run_not_started` | the platform could not start or run the run: the connector's price list, your wallet, or the queue | report it; `queue_unavailable` and `run_not_started` are worth one more try |

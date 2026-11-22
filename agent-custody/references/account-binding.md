@@ -27,6 +27,18 @@ secret's access condition admits you. A credential the owner wants you to read
 must therefore name that account. Naming the bound account instead
 (`alice.near`) looks right and admits nothing.
 
+### Which wallets can be bound
+
+A wallet whose keys can leave with an exit — one made from an owner's exit link, or
+one in a vault — is bound only to the account its keys leave to: the owner's own
+account, or the vault's parent. Anything else answers `400 bad_request` with
+`A wallet whose keys leave with an exit is bound only to the account they leave to…`,
+naming the account, and `kind: "hos_lease"` is refused for such a wallet outright. The
+keystore refuses the same thing at signing (`w_execute_extension` on any other account).
+Such a wallet also signs no raw NEAR payload (`raw_sign` on `near`), whatever its policy
+lists — use `call`, `transfer` and the intents operations.
+A wallet with no owner and no vault binds as below.
+
 ### Binding a user's own account
 
 **Step 1.** Record it. This returns the `executor_account_id` the user is about
