@@ -106,7 +106,17 @@ or aim it elsewhere while it waits; poll the request.
 **An amount that runs without asking.** `approval.auto_up_to` is
 `{"daily": {"<token>": "<amount>"}}` (also `hourly`, `monthly`): while what the
 wallet spent in that token in the window, plus this payment, is at most the
-amount, a transfer or a withdrawal on NEAR to a listed address runs at once. Past it, each payment
+amount, a payment to a listed address runs at once — but only three kinds:
+`/wallet/v1/transfer` (native NEAR from the wallet's account, token `native`),
+`/wallet/v1/intents/withdraw` on NEAR and `/wallet/v1/intents/transfer`. A token
+other than NEAR is covered only when it leaves your intents balance; sent from
+the wallet's NEAR account it is a `/wallet/v1/call` (`ft_transfer`), and a call
+always waits. NEAR inside intents is `nep141:wrap.near`, not `native`: it is
+covered only if the policy names that key. The same split holds in
+`rules.limits`: `{"daily": {"native": "…", "nep141:wrap.near": "…",
+"nep141:<usdc>": "…"}}` limits NEAR on the account, NEAR inside intents and USDC
+inside intents apart. So pay tokens out of the intents balance when the owner
+set an amount for them, and read which keys the policy names before you plan. Past it, each payment
 answers `pending_approval` until the window turns over — the UTC day, the
 clock hour, the calendar month. What the limits count is what counts here, payments
 the owner approved included. A token with no entry always waits, and so does
