@@ -102,7 +102,7 @@ and `positions` before placing it again.
    `intents_usdc`, `volume_today_usd`, the policy, and `next`, a sentence that
    says what to call. Read `next`. About 3 s.
 2. `{"operation": "setup"}` — one step per call, each a paid call: `deploying`
-   (the relayer deploys your deposit wallet) → `approving` (seven approvals in
+   (the relayer deploys your deposit wallet) → `approving` (the missing approvals in
    one relayer batch, with the Polygon `tx_hash`) → `done`. Wait a few seconds
    between calls; three calls is normal. Nobody pays gas: the relayer does.
 3. `{"operation": "deposit_start", "amount": "2.5"}` — moves USDC from the
@@ -128,7 +128,11 @@ and `positions` before placing it again.
 `{"operation": "markets", "query": "fed rate"}` searches the public index.
 `{"operation": "markets", "market": "<condition_id>"}` returns `tokens:
 [{outcome, price, token_id}]`, `tick_size`, `min_order_size`, `neg_risk`,
-`accepting_orders`, `end_date`.
+`accepting_orders`, `version`, `end_date`.
+
+`version` is the market's protocol, `v1` or `v2`; the connector handles both and
+you pass nothing. A `v2` order needs `status.v2_ready`: if false, `setup` until
+`done`. `v2` was not exercised live yet.
 
 **An order names a `token_id`, not a market.** One token is one outcome,
 priced 0–1; one share pays $1 if that outcome wins.
@@ -216,6 +220,8 @@ withdrawals are not affected.
   The headers are credentials for that one request: never log them. On a
   node that can place, `auto` just places (`submitted: true`).
 * `"submit_mode": "self"` returns the envelope every time and sends nothing.
+* Under the owner's `max_open_notional_usd` a buy gets no envelope: only the
+  retry is left.
 * No place to POST from outside the fence? Then only the retry is left — the
   next run lands on the other node about half the time.
 
@@ -224,26 +230,29 @@ not you post it.
 
 ## Positions and winnings
 
-`{"operation": "positions"}` → `collateral_usd` and one row per holding:
+`{"operation": "positions"}` → `collateral_usd` and one row per outcome held,
+from 0.01 share:
 `asset` (the token), `conditionId` (what `redeem` takes), `outcome`, `size`,
-`avgPrice`, `curPrice`, `currentValue`, `cashPnl`, `redeemable`, `endDate`,
-`slug`, `eventSlug`.
+`avgPrice`, `curPrice`, `currentValue`, `cashPnl`, `redeemable`, `endDate`
+(null: none), `slug`, `eventSlug`. A null figure is unavailable, not zero.
 
 `{"operation": "redeem", "condition_id": "<positions[].conditionId>"}` claims a
 resolved market into collateral. `redeemable` comes from the venue's data
 service; the connector itself reads the on-chain resolution (the conditional
 tokens' `payoutDenominator`) and refuses while the chain has not resolved,
-rather than burning shares — there can be a lag between the two. A losing
+rather than burning shares — there can be a lag between the two. One call
+takes both sides: `payout_usd` is the sum, `outcomes` each side's. A losing
 side redeems for zero and clears the row. Not exercised live yet.
 
 ### Wins and losses, where to read them
 
 * **While you hold**: `positions[].cashPnl` and `percentPnl` are the
   unrealized result against `avgPrice`; `currentValue` is what the shares
-  would fetch now; `initialValue` what they cost, `entryFeesUsdc` the fee paid.
+  would fetch now; `initialValue` what they cost without fees, `entryFeesUsdc` the fees;
+  `realizedPnl` what is already realized.
 * **After the market resolves**: `curPrice` goes to 1 for the winning outcome
   and 0 for the losing one, `redeemable` turns true, and `cashPnl` becomes the
-  final result. `redeem` moves a win into collateral; a loss is a row that
+  final result of what you hold. `redeem` moves a win into collateral; a loss is a row that
   redeems to nothing.
 * **After you sell**: the row leaves `positions`; the result is what the
   sell returned (`makingAmount`, minus the fees) less what you paid. Note it
@@ -264,7 +273,7 @@ empty value and `{}` all mean no policy. `status.policy` then reads
 |---|---|
 | `max_order_usd` | cap on one order's notional. Absent: no orders |
 | `max_daily_volume_usd` | cap on what is ordered per UTC day, filled or not. Absent: no orders |
-| `max_open_notional_usd` | cap on open orders plus positions, read from the venue. Absent: no cap |
+| `max_open_notional_usd` | cap on resting buys plus position value, read from the venue before each buy; one that would pass it, or cannot be checked, is refused. Never holds a sell. Under it a buy with `submit_mode` `self` is refused and `auto` hands no envelope back. Not exact: buys at once, or a fill not indexed yet, can pass it — `max_daily_volume_usd` is the hard bound. Absent: no cap |
 | `markets` | condition ids or token ids you may trade. Absent or `["any"]`: every market. Another is refused `policy_denied: the owner's policy does not allow market <condition_id> (token <token_id>)` |
 | `allow_deposit`, `max_deposit_usd` | `allow_deposit` is `false` unless set `true` — then `deposit_start` is refused. `max_deposit_usd` absent: no cap |
 | `allow_withdraw`, `withdraw_to` | `allow_withdraw` is `false` unless set `true` — then `withdraw_start` is refused. `withdraw_to` pins the destination; absent: `intents` only |
@@ -360,10 +369,14 @@ changed, not in a loop; balances move in about a minute.
 
 * `policy_denied: this order is $6.00, over the owner's max_order_usd of $5.00`
   — the owner's caps, with the numbers. Change the request or ask the owner.
+* `… it may have been placed all the same` — a timeout or 5xx on `order`: read
+  `orders` and `positions` before ordering again; it counts in the day's volume.
 * `invalid: a withdrawal must be at least 2.1 USDC …` — the bridge floor.
 * `region_blocked: …` — see above.
-* `no deposit wallet yet` — run `setup` first.
+* `no deposit wallet yet`, `has not approved …` — run `setup` first.
 * `the book holds N shares on that side` — a market order larger than the depth.
 * `has not resolved on chain yet` — wait before redeeming.
+* `the Polymarket data API refused …: HTTP 429` / `503` — Polymarket's side;
+  call again after its `Retry-After` seconds.
 * `the builder credentials are missing` — an operator problem, not yours:
   the relayer-paid operations are unavailable until it is fixed.

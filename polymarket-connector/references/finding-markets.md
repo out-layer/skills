@@ -10,6 +10,10 @@ hours later. Crypto up/down markets are the fastest and carry the highest
 fee. An order you may want to cancel later belongs on a market that is
 neither.
 
+**Two protocols, one way to order.** A market says `version: "v1"` or `"v2"` in
+gamma (a `v1` CLOB book has no such field). Name its `token_id` either way:
+`clobTokenIds` carries the right id for both. Combos are not traded.
+
 Polymarket's public APIs need no key, and a keyword search is cheaper there
 than through the connector. The pattern: search and read at Polymarket, place
 and settle through the connector.
@@ -22,7 +26,7 @@ and settle through the connector.
   → `markets[]` with `conditionId`, `clobTokenIds` and `outcomes` (both are
   JSON **strings** — parse them; the n-th token is the n-th outcome),
   `outcomePrices`, `bestBid`, `bestAsk`, `orderMinSize`,
-  `orderPriceMinTickSize`, `negRisk`, `endDate`, `feesEnabled`.
+  `orderPriceMinTickSize`, `negRisk`, `endDate`, `feesEnabled`, `version`.
 * The live book for a token: `GET https://clob.polymarket.com/book?token_id=<token_id>`
   → `bids[]`, `asks[]` with `price` and `size`; sort them yourself.
 * Show the user `https://polymarket.com/event/<slug>` — the same page the
