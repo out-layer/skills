@@ -5,6 +5,9 @@ description: Send email from the owner's own Gmail address through the `gmail` c
 
 # Gmail connector
 
+No OutLayer wallet yet: register one first, starting at
+[`outlayer`](https://skills.outlayer.ai/outlayer/SKILL.md), then come back here.
+
 You send mail as the owner's Gmail account. You never see the credential, you can
 only write where the owner's policy allows, and **you cannot read the mailbox** —
 there is no operation for it, and the credential could not do it anyway: it

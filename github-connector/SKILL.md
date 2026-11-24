@@ -5,6 +5,9 @@ description: Work in the owner's GitHub account through the `github` connector â
 
 # GitHub connector
 
+No OutLayer wallet yet: register one first, starting at
+[`outlayer`](https://skills.outlayer.ai/outlayer/SKILL.md), then come back here.
+
 You act **as the owner**. Every issue, comment, commit and review carries their
 name, not a bot's. Someone reading it sees the owner wrote it â€” this is what the
 owner lent you, and it is why the rules below are not decoration.

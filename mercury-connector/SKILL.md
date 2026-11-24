@@ -5,6 +5,9 @@ description: Operate the wallet owner's Mercury business bank account through th
 
 # Mercury connector
 
+No OutLayer wallet yet: register one first, starting at
+[`outlayer`](https://skills.outlayer.ai/outlayer/SKILL.md), then come back here.
+
 You act on the owner's real bank account. Two layers gate every payment and
 neither can waive the other: the owner's `MERCURY_POLICY` (enforced in the
 enclave, before anything reaches the bank) and Mercury's own approval rules. A

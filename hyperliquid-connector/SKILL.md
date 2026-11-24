@@ -5,6 +5,9 @@ description: Trade Hyperliquid perpetuals from an OutLayer custody wallet throug
 
 # Hyperliquid connector
 
+No OutLayer wallet yet: register one first, starting at
+[`outlayer`](https://skills.outlayer.ai/outlayer/SKILL.md), then come back here.
+
 You trade from the wallet's `trading` sub-key: an address Hyperliquid knows
 as the account. You never see a key and you never pay gas — every action is
 signed inside the TEE, checked against the owner's policy before it is sent,

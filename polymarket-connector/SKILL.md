@@ -5,6 +5,9 @@ description: Trade Polymarket prediction markets from an OutLayer custody wallet
 
 # Polymarket connector
 
+No OutLayer wallet yet: register one first, starting at
+[`outlayer`](https://skills.outlayer.ai/outlayer/SKILL.md), then come back here.
+
 You trade from a deposit wallet that your custody wallet owns. You never see a
 key and you never pay gas: orders are signed inside the TEE, and every on-chain
 step is paid for by Polymarket's relayer. The owner's policy caps what you may
