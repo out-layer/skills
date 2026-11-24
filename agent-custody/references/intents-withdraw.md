@@ -152,7 +152,7 @@ In TypeScript, `createWebhookKeyCache()` + `verifyWebhook({ headers, rawBody, ke
 **`/intents/withdraw` has NO `tx_hash` field.** The only destination-chain transaction in its `result` is the dedicated `destination_tx_hash` field — do not synthesize explorer links from any *other* withdraw/swap field, and do not carry over the `tx_hash` field you saw on `/call`.
 
 - **Exact `result` shape (this is all there is):**
-  - Cross-chain (`chain` ≠ `near`): `{ "to", "amount_out", "transfer_intent_hash", "cross_chain": true, "chain", "deposit_address", "destination_tx_hash" }`
+  - Cross-chain (`chain` ≠ `near`): `{ "to", "amount_out", "transfer_intent_hash", "cross_chain": true, "chain", "deposit_address", "destination_tx_hash", "quote", "refunded_amount" }`. `quote` is the 1Click quote the withdrawal ran with — `amount_in`, `min_amount_in`, `amount_out`, `min_amount_out`, `withdraw_fee`, `deadline`, `swap_type`, and `max_amount_in` on an exact output — present from the moment the transfer is signed, so compare delivery against it. `refunded_amount` is `null` until 1Click reports what it returned to the wallet (the unused input of an exact output)
   - Same-chain NEAR (`chain: "near"`): `{ "intent_hash", "delivered" }`
 - **`destination_tx_hash` is the one real destination-chain txid** — the delivery transaction on the destination chain, safe to render as an explorer link *on the requested `chain`*. It is **nullable**: `null` while the bridge is still settling (a sync response that returned `"processing"`, or an async row before settlement); the lazy re-poll fills it in, so re-read `GET /wallet/v1/requests/{id}` at `success` (the `request_completed` webhook carries it too). Gasless `/intents/swap` rows gain the same nullable `result.destination_tx_hash` on settlement.
 - **`transfer_intent_hash` / `intent_hash` are NEAR-Intents identifiers** (solver-relay intent hashes), **not** transactions on Base/Arbitrum/Solana/Polygon/etc. The value is NOT an EVM/Solana txid even when it looks like `0x{64}`. Building `basescan.org/tx/…`, `arbiscan.io/tx/…`, `solscan.io/tx/…`, … from it produces dead 404 links. **Never regex a `0x{64}` out of these fields and never guess the destination network to build a link.**
@@ -218,6 +218,42 @@ The `/intents/withdraw` endpoint is **gasless** - it uses NEP-413 signed intents
 
 > For a **non-NEAR** destination chain, add `"async": true` to the withdraw body and poll `GET /wallet/v1/requests/{request_id}` for the terminal status — the 1Click bridge usually outlasts the synchronous response window. See "Async mode — strongly recommended for cross-chain withdrawals" above.
 
+### Sizing a cross-chain withdrawal: what leaves vs what arrives
+
+`amount` is what LEAVES the wallet. The recipient gets it less 1Click's fees, and on a chain that charges to open the recipient's account that cost comes out of it too: 0.30 USDC sent to a fresh Solana address delivered about 0.12 (`withdraw_fee` ≈ 0.18 for the token account). To pay an invoice, fix what ARRIVES instead.
+
+| You know | Send | What happens |
+|---|---|---|
+| What to spend | `amount` | That amount leaves; the recipient gets the quote's output |
+| What to spend, and the least the recipient may get | `amount` + `min_amount_out` | The fresh quote's `min_amount_out` (the guarantee) is compared to your floor before anything is signed. Under it: `400 below_min_amount_out` with `quoted_min_amount_out`, nothing moved |
+| What the recipient must get | `amount_out` + `max_amount_in` (no `amount`, no `min_amount_out`) | The recipient receives exactly `amount_out`, fees and account cost included. The wallet sends the fresh quote's `amount_in` and 1Click returns the unused part to the intents balance after the swap. If the quote needs more than `max_amount_in`: `400 above_max_amount_in` with `quoted_amount_in`, nothing moved |
+
+Paying an exact amount, in two calls:
+
+```bash
+# 1. Price it (nothing moves). max_amount_in here is only an upper bound for the preview.
+curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $API_KEY" \
+  -d '{"chain":"solana","to":"<recipient>","token":"nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount_out":"300000","max_amount_in":"1000000"}' \
+  "https://api.outlayer.ai/wallet/v1/intents/withdraw/dry-run"
+# → {"would_succeed":true,"amount_in":"486272","min_amount_in":"483241","amount_out":"300000","min_amount_out":"300000","withdraw_fee":"183178",...}
+
+# 2. Pay, with the ceiling about 1% over the previewed amount_in.
+curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $API_KEY" \
+  -H "X-Idempotency-Key: $(uuidgen)" \
+  -d '{"chain":"solana","to":"<recipient>","token":"nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1","amount_out":"300000","max_amount_in":"491135","async":true}' \
+  "https://api.outlayer.ai/wallet/v1/intents/withdraw"
+```
+
+- **One dry-run is enough.** Do not search for the right `amount` by repeated dry-runs; `amount_out` asks for it directly.
+- **Leave the market room.** The withdrawal quotes again; a ceiling exactly at the previewed `amount_in` (or a floor exactly at the previewed `min_amount_out`) is refused when the fresh quote is one unit worse. On `above_max_amount_in`, re-price from `quoted_amount_in`.
+- **`max_amount_in` is what your policy sees**: limits and approvers judge it, the balance must cover all of it — not only the quoted `amount_in`; a ceiling above the balance is `insufficient_balance` — and the daily limit is charged it — the returned input is not given back. Keep it tight.
+- **`chain: "near"` takes `amount` only.** A withdrawal on NEAR is not quoted and delivers `amount` exactly; `amount_out`, `max_amount_in` and `min_amount_out` there are `400 bad_request`.
+- An exact output too small for the route answers 1Click's own refusal (`no_liquidity`, `upstream_rejected`) or `503 route_unavailable` ("Failed to get quote"); raise the amount rather than retrying the same one.
+
+### No memo, no destination tag
+
+A withdrawal delivers **no memo and no destination tag** to the recipient, on any chain. A body with `memo` is refused: `400 memo_not_supported` (dry-run: `reason`). **Never withdraw to an address that needs a memo or tag** (an exchange deposit address on XRP, Stellar, TON, …) — the funds would arrive unattributed. Any other field the body does not define is `400 bad_request` naming it.
+
 ### Dry-run (check without executing)
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
@@ -226,7 +262,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.ai/wallet/v1/intents/withdraw/dry-run"
 ```
 
-`{ would_succeed, reason?, message? }`. A bridge refusal is `would_succeed: false` with `reason` set to the same code the real withdraw answers in `error` — `no_liquidity`, `upstream_rejected` (1Click's words in `message`), `unsupported_token` — beside `wallet_frozen`, `policy_denied`, `storage_not_registered`, `recipient_not_found`, `insufficient_balance`, `invalid_request`. What was never assessed is an error, not a reason: `503 route_unavailable` (1Click did not answer), `400 unsupported_chain`, `429 operation_limit_reached`. **A dry-run counts against the wallet's daily custody ceiling** (1000 per day on the free tier) like the real call; quote fees before each payment only as often as that allows, or lift the ceiling with a subscription.
+`{ would_succeed, reason?, message? }`, and for a cross-chain withdrawal the bridge quote as fields, 1Click's values unchanged: `amount_in`, `min_amount_in`, `amount_out`, `min_amount_out`, `amount_in_usd`, `amount_out_usd`, `withdraw_fee`, `refund_fee`, `time_estimate_seconds`. **Read the fields, never parse `message`.** Two quotes a moment apart differ by the market, so a figure here and one from another quote can be a unit apart. A refusal is `would_succeed: false` with `reason` set to the same code the real withdraw answers in `error` — `no_liquidity`, `upstream_rejected` (1Click's words in `message`), `unsupported_token`, `memo_not_supported`, `below_min_amount_out` / `above_max_amount_in` (the quote's figures are still in the body) — beside `wallet_frozen`, `policy_denied`, `storage_not_registered`, `recipient_not_found`, `insufficient_balance`, `invalid_request`. What was never assessed is an error, not a reason: `503 route_unavailable` (1Click did not answer), `400 unsupported_chain`, `429 operation_limit_reached`. **A dry-run counts against the wallet's daily custody ceiling** (1000 per day on the free tier) like the real call; quote fees before each payment only as often as that allows, or lift the ceiling with a subscription.
 
 ### Transfer inside Intents (`/intents/transfer`) vs Withdraw
 

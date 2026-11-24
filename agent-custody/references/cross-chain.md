@@ -103,7 +103,8 @@ Response: `{"request_id": "uuid", "status": "success"}`
 ### Cross-chain limitations
 
 - **Minimum deposit/withdraw**: ~$0.10. 1Click returns clear error with exact minimum if too low.
-- **Fee**: ~0.2% (shown in `amount_out` / `min_amount_out`).
+- **Fee**: ~0.2% (shown in `amount_out` / `min_amount_out`), plus what the destination chain charges to open a recipient's account — a fresh Solana token account costs about 0.18 USDC, taken out of the amount (`withdraw_fee` in the dry-run). To deliver an exact amount, or to set a floor, see "Sizing a cross-chain withdrawal" in [intents-withdraw.md](intents-withdraw.md).
+- **No memo or destination tag** is delivered on any chain; a withdraw body with `memo` is refused. Do not withdraw to an address that needs one.
 - **Settlement time**: ~15-30 seconds depending on chain.
 - **Deposit address**: unique per intent, valid ~30 min. Each `deposit-intent` call creates a new address. Amount sent must match exactly.
 - **Supported tokens**: use `GET /wallet/v1/tokens` to check available tokens per chain.

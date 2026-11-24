@@ -113,10 +113,12 @@ QUOTE=$(curl -s -X POST -H "Content-Type: application/json" \
   "https://api.outlayer.ai/wallet/v1/intents/swap/quote")
 
 AMOUNT_OUT=$(echo $QUOTE | jq -r '.amount_out')
+MIN_OUT=$(echo $QUOTE | jq -r '.min_amount_out')   # what 1Click guarantees, 1% under the estimate
 echo "1 wNEAR = $(echo "scale=2; $AMOUNT_OUT / 1000000" | bc) USDT"
 
-# 2. Only swap if rate is above threshold (e.g. 3.0 USDT per wNEAR)
-if [ "$AMOUNT_OUT" -ge 3000000 ]; then
+# 2. Only swap if the GUARANTEED output clears the threshold (e.g. 3.0 USDT per wNEAR).
+#    The swap holds min_amount_out to its own fresh quote's guarantee, so test the same figure.
+if [ "$MIN_OUT" -ge 3000000 ]; then
   curl -s -X POST -H "Content-Type: application/json" \
     -H "Authorization: Bearer $API_KEY" \
     -d "{\"token_in\":\"nep141:wrap.near\",\"token_out\":\"nep141:usdt.tether-token.near\",\"amount_in\":\"1000000000000000000000000\",\"min_amount_out\":\"3000000\"}" \

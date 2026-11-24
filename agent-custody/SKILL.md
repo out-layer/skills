@@ -267,7 +267,8 @@ Two rules for all five:
 - **Always check balance before any operation.** Query `/wallet/v1/balance` before swap, transfer, call, or withdraw.
 - **Use quote to preview swap rates.** No gas, no state change — but each quote counts against the wallet's custody ceiling, like a dry-run.
 - **Tokens must be in intents balance before swapping.** Use `/intents/deposit` to move FT from wallet, or request funds with `dest=intents` to skip this step.
-- **`min_amount_out` is optional** but recommended for slippage protection.
+- **`min_amount_out` is optional** but recommended. It is held to the fresh quote's guaranteed `min_amount_out`, so set it a little under a preview's `min_amount_out`, never from `amount_out`. To receive or deliver an exact amount, send `amount_out` + `max_amount_in` instead (`intents-swap.md`, `intents-withdraw.md`).
+- **No memo or destination tag on withdrawals.** A body with `memo` is refused; never withdraw to an address that needs one.
 - **Cross-chain transfers need deposit + withdraw.** Only for moving tokens without swapping.
 - **Solana deposits create a temporary address.** Each `deposit-intent` call generates a unique Solana address. Poll `deposit-status` until `success`.
 - **Solana withdraw goes through 1Click bridge.** Use `POST /wallet/v1/intents/withdraw` with `chain:"solana"` - tokens leave intents balance and arrive on Solana in ~15-20 seconds.

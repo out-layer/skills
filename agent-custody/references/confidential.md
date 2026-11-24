@@ -105,10 +105,19 @@ intents balance use `/confidential/unshield` instead.
 
 ```json
 {
+  "amount_in": "...", "min_amount_in": "...",
   "amount_out": "...", "min_amount_out": "...",
-  "deadline": "2026-…T…Z", "time_estimate_seconds": 10
+  "amount_in_usd": "...", "amount_out_usd": "...",
+  "withdraw_fee": "...", "refund_fee": "...",
+  "time_estimate_seconds": 10
 }
 ```
+
+1Click's own figures; each is present when 1Click reported it. With a
+`min_amount_out` or `max_amount_in` in the body that this quote does not meet,
+the preview is still a 200 and adds `"reason": "below_min_amount_out"` or
+`"above_max_amount_in"` with its sentence in `hint` — the refusal the real call
+would give.
 
 When 1Click gives no estimate for the route, `amount_out` and `min_amount_out`
 are absent and `"hint": "1Click gave no output estimate for this route"` is
@@ -118,10 +127,10 @@ present. It is still a 200; asking again gives the same answer.
 |---|---|---|---|
 | `POST /wallet/v1/confidential/shield` | `{ token, amount }` | `ConfidentialOpResponse` | SHIELD — wallet must already hold `token` in its **public** intents balance. Canonical; legacy alias `POST /wallet/v1/confidential/deposit` still works |
 | `POST /wallet/v1/confidential/unshield` | `{ token, amount }` | `ConfidentialOpResponse` | Reverse of SHIELD; returns funds to **your own** public intents balance |
-| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, amount, token }` (all required) | `ConfidentialOpResponse` | `chain` is the token's **home chain** (the chain `GET /wallet/v1/tokens` lists it on, not a word in its id), where the token itself is delivered, or another chain listing the same symbol, `"near"` included (delivered as that listing, swapped on the way); a token with no listing there (e.g. `chain="bitcoin"` + a ZEC token, `chain="near"` + BNB) or an address of the wrong chain is rejected with 400. `chain="near"` delivers to the named `to` account: **native NEAR** for `nep141:wrap.near` (1Click `native_withdraw` unwraps wNEAR); a token from another chain arrives as NEAR's listing of its symbol (ZEC as `1cs_v1:near:nep141:zec.omft.near`, Polygon USDC as NEAR USDC). To return funds to your **own** public intents balance use `/confidential/unshield` instead. Chains are the 1Click catalog's (`GET /wallet/v1/tokens`), the home chain included; a chain the catalog does not list is `400 unsupported_chain`. HOT-bridged assets (`nep245:v2_1.omni.hot.tg:<chainId>_…`) are accepted, their chain read from the catalog; a `1cs_v1:near:nep141:…` id names the same balance as `nep141:…`. The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
+| `POST /wallet/v1/confidential/withdraw` | `{ chain, to, token }` + a size: `amount` (optional `min_amount_out`) **or** `amount_out` + `max_amount_in` — sized exactly as a public cross-chain withdrawal, on every chain, `"near"` included (see "Sizing a cross-chain withdrawal" in `intents-withdraw.md`). `memo` is refused | `ConfidentialOpResponse` | `chain` is the token's **home chain** (the chain `GET /wallet/v1/tokens` lists it on, not a word in its id), where the token itself is delivered, or another chain listing the same symbol, `"near"` included (delivered as that listing, swapped on the way); a token with no listing there (e.g. `chain="bitcoin"` + a ZEC token, `chain="near"` + BNB) or an address of the wrong chain is rejected with 400. `chain="near"` delivers to the named `to` account: **native NEAR** for `nep141:wrap.near` (1Click `native_withdraw` unwraps wNEAR); a token from another chain arrives as NEAR's listing of its symbol (ZEC as `1cs_v1:near:nep141:zec.omft.near`, Polygon USDC as NEAR USDC). To return funds to your **own** public intents balance use `/confidential/unshield` instead. Chains are the 1Click catalog's (`GET /wallet/v1/tokens`), the home chain included; a chain the catalog does not list is `400 unsupported_chain`. HOT-bridged assets (`nep245:v2_1.omni.hot.tg:<chainId>_…`) are accepted, their chain read from the catalog; a `1cs_v1:near:nep141:…` id names the same balance as `nep141:…`. The NEAR-side `ft_withdraw` is signed by a 1Click hop — your wallet stays off the public chain |
 | `POST /wallet/v1/confidential/withdraw/dry-run` | same as `withdraw` | `QuotePreview` | No DB write, no sign/submit. Use to preview spread/eta before the real call |
 | `POST /wallet/v1/confidential/transfer` | `{ to, amount, token }` (no `chain`) | `ConfidentialOpResponse` | `to` = recipient's `intentsUserId` (their 64-hex NEAR implicit address). NEAR-only context. Recipient must also have confidential intents enabled on their deployment |
-| `POST /wallet/v1/confidential/swap` | `{ token_in, token_out, amount_in, min_amount_out? }` | `ConfidentialOpResponse` | `token_in != token_out`; `min_amount_out` enforced before signing (rejects 400 if quote below floor) |
+| `POST /wallet/v1/confidential/swap` | `{ token_in, token_out }` + a size: `amount_in` (optional `min_amount_out`) **or** `amount_out` + `max_amount_in` | `ConfidentialOpResponse` | `token_in != token_out`; sized exactly as a public swap (see "Sizing a swap" in `intents-swap.md`): the floor is held to the fresh quote's guaranteed `min_amount_out` before signing, an exact output to its `max_amount_in` |
 | `POST /wallet/v1/confidential/swap/quote` | same as `swap` | `QuotePreview` | Read-only; no DB, no sign. Preview the swap rate |
 | `POST /wallet/v1/confidential/deposit/cross-chain` | `{ source_asset, amount }` **or** `{ chain, token?, amount }` (`token` defaults to `"USDC"`) | `{ intent_id, deposit_address, amount, amount_out?, min_amount_out?, expires_at?, hint? }` | Quote-only — returns the bridge address on the source chain; you then send funds out-of-band on that chain. **Privacy-preserving path**: your NEAR wallet never touches the public chain. Canonical; legacy alias `POST /wallet/v1/confidential/deposit-intent` still works |
 | `GET /wallet/v1/confidential/balance?token=` | query string | `{ balance, token, account_id }` (filtered) or `{ balances: [{ token, balance }, …], account_id }` (no filter) | Reads `/v0/account/balances` from the private shard. Zero-balance tokens are **omitted** from the unfiltered list |
@@ -174,7 +183,9 @@ curl -s $BASE/wallet/v1/confidential/balance                          -H "Author
 | 503 | `confidential_unavailable` | confidential intents not enabled on this deployment — **don't retry**, route to a different deployment or fall back to public intents |
 | 502 | `confidential_jwt_expired` / `keystore_error` | upstream (1Click / keystore) hiccup; the coordinator already retried auth once. Safe to retry |
 | 403 | `policy_denied` / `wallet_frozen` | blocked by the wallet's on-chain policy (same engine as `/intents/withdraw`). Don't retry without changing the policy |
-| 400 | `bad_request` | bad input — missing `to`/`token`, `token_in == token_out` on swap, quote `amount_out` below `min_amount_out`, etc. (note: `chain="near"` on withdraw is **valid** — native NEAR delivery) |
+| 400 | `bad_request` | bad input — missing `to`/`token`, `token_in == token_out` on swap, two sizes in one body, a field the body does not define, etc. (note: `chain="near"` on withdraw is **valid** — native NEAR delivery) |
+| 400 | `below_min_amount_out` / `above_max_amount_in` | the fresh quote guarantees less than `min_amount_out`, or an exact output needs more than `max_amount_in`. Nothing was signed; the body carries `quoted_min_amount_out` / `quoted_amount_in`. Re-price from it |
+| 400 | `memo_not_supported` | a withdraw body with `memo`: none is delivered on any route |
 | 400 | `bad_request`, "1Click's intent is not the transfer that was quoted" | 1Click returned a message that is not exactly the quoted transfer (this wallet, the quote's deposit address, the quoted asset and amount, nothing else). Nothing was signed, nothing moved. Not an input error: retry the same request later; if it persists, tell the user the confidential route is refusing its own quotes |
 
 ### Privacy model — read this before relying on "confidential"

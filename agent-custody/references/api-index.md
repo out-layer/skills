@@ -98,7 +98,8 @@
 | Register token storage, paid in intents wNEAR | POST | `/wallet/v1/intents/storage-deposit` | gasless |
 | Move FT: wallet → intents.near | POST | `/wallet/v1/intents/deposit` | on-chain |
 | Withdraw native NEAR / wNEAR / cross-chain (gasless, default) | POST | `/wallet/v1/intents/withdraw` | gasless |
-| Dry-run withdrawal | POST | `/wallet/v1/intents/withdraw/dry-run` | - |
+| Withdraw cross-chain so the recipient gets an exact amount | POST | `/wallet/v1/intents/withdraw` with `amount_out` + `max_amount_in` | cross-chain |
+| Dry-run withdrawal (cross-chain: returns the quote's figures) | POST | `/wallet/v1/intents/withdraw/dry-run` | - |
 | Swap tokens | POST | `/wallet/v1/intents/swap` | gasless |
 | Swap quote | POST | `/wallet/v1/intents/swap/quote` | - |
 | Deposit from any chain | POST | `/wallet/v1/intents/deposit/cross-chain` | cross-chain (alias `/deposit-intent`) |
@@ -164,7 +165,13 @@ Base URL: `https://api.outlayer.ai`
 | HTTP **402** on a vault-bound wallet | The **vault** cannot pay for its on-chain key derivation (this is the vault's gas, not the wallet's balance). The body carries the amount to top up. Distinct from `insufficient_balance`, which is the wallet's own funds |
 | `"token_in must be an asset id with a nep141:, nep245: or 1cs_v1: prefix"` (HTTP 400) | Swap token without a prefix — use an id from `/tokens`. A `1cs_v1:` id on another chain as `token_in` is `unsupported_token` (a source is named by its id on intents.near; `1cs_v1:near:nep141:…` is accepted) |
 | `"amount_in must be an integer amount…"` / `"min_amount_out must be an integer amount…"` (HTTP 400) | Swap amounts are decimal strings of integer minimal units — no decimal point, exponent or whitespace. A floor that cannot be read is refused, never treated as 0 |
-| `"Quote amount_out (X) is less than min_amount_out (Y); nothing was signed"` (HTTP 400) | The fresh quote fell below your floor. Re-quote and retry, or lower `min_amount_out` |
+| `below_min_amount_out` | HTTP 400 on swap or withdraw (public and confidential): the fresh quote GUARANTEES less than your `min_amount_out`. Nothing was signed. Body carries `min_amount_out` and `quoted_min_amount_out`. Re-price from it, or lower the floor — and never set a floor from a quote's `amount_out` (the estimate, 1% above the guarantee) |
+| `above_max_amount_in` | HTTP 400 on an exact-output swap or withdraw: the fresh quote needs more input than your `max_amount_in`. Nothing was signed. Body carries `max_amount_in` and `quoted_amount_in`. Raise the ceiling or leave it |
+| `result.error_code` on a `failed` request | An `async` or approved swap/withdraw refused at its quote AFTER the call returned: `result` carries `error_code` (`below_min_amount_out` / `above_max_amount_in`), the bound, the quote's figure and `never_submitted: true`. Nothing moved; the approval is spent — re-price and send a new request |
+| `"… must be an integer amount in the token's minimal units"` | HTTP 400 `bad_request`: an amount is decimal digits only — no `+`, no leading zero, no spaces, no decimal point |
+| `memo_not_supported` | HTTP 400 on any withdraw whose body has `memo`: no route delivers a memo or destination tag. Do not withdraw to an address that needs one |
+| `"Invalid request body: unknown field …"` (HTTP 400) | A withdraw, swap or `/intents/transfer` body carried a field the endpoint does not define. Remove it — nothing that moves money runs with part of its body unread |
+| `"Send either amount (exact input) or amount_out with max_amount_in (exact output), not both"` / `"amount_out requires max_amount_in"` (HTTP 400) | One size per request: `amount` (`amount_in` on a swap) with an optional `min_amount_out`, or `amount_out` + `max_amount_in`. On a public `chain:"near"` withdraw only `amount` |
 | `"1Click swap was refunded"` | Solver couldn't fill - tokens returned to wallet |
 | `"1Click's terms for this order are worse than the ones authorised"` | Limit order: the upstream asked for more, or promised less, than your policy approved. The order was cancelled unfunded — nothing was sent. Re-quote and retry |
 | `"Limit order amount must be at least 0.1 USD"` | Limit order below 1Click's minimum order value |
