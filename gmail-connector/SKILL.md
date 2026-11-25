@@ -65,7 +65,7 @@ The mailbox owner connects their account once, at
 <https://app.outlayer.ai/connect/gmail>, and then grants your payer account on
 the secrets row `gmail`. You cannot do either for them: it takes their Google
 consent and their wallet signature. Say what will happen before they click —
-someone who does not know stops at Google's warning screen and reports that it
+someone who does not know stops at Google's consent screen and reports that it
 is broken:
 
 > To let me send mail as you: connect your account at

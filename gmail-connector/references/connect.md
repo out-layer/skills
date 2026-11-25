@@ -6,7 +6,7 @@ The mailbox owner connects their account once, at
 **<https://app.outlayer.ai/connect/gmail>**. You cannot do it for them — it needs
 their Google consent and their wallet signature — so your job is to send them
 there **and tell them what will happen before they click anything**. Someone who
-does not know what the page does stops at Google's warning screen, or at the
+does not know what the page does stops at Google's consent screen, or at the
 wallet, and reports that it is broken.
 
 ## What they need first
@@ -25,9 +25,7 @@ wallet, and reports that it is broken.
 1. A page saying "Google will ask you to allow one thing: sending mail." One
    button, *Connect Google account*.
 2. **Google's consent screen**, asking for `gmail.send` and nothing else. The app
-   is published but not verified by Google, so Google may first show an
-   "unverified app" warning, and it admits at most 100 accounts. That screen is
-   expected; continuing is *Advanced* → *Go to …*.
+   is verified by Google.
 3. **Back on the page, with nothing to click.** It turns the consent into a
    long-lived credential and fetches the key it will be sealed to — a key whose
    private half exists only inside the keystore enclave. The page says "Google
