@@ -98,7 +98,8 @@ const collected = await collectSetup(options, setup.key);
 if (collected === null) {
   // the owner has not finished: ask again later
 } else {
-  const { account, key, seed } = collected; // the wallet contract's account, your AgentKey, its 32-byte seed
+  // the wallet contract's account, your AgentKey, its 32-byte seed, the enclave's public key
+  const { account, key, seed, teePublicKey } = collected;
 }
 ```
 
@@ -134,8 +135,8 @@ you. Funds sent to it move only under both signatures.
   owner's own key, and the owner's wallet makes the same signature on request.
   A lost key is not lost funds: tell the owner, and open a setup again.
 - If your key may have leaked, tell the owner at once. The owner freezes the
-  wallet, then installs the contract again with another agent key or sets up
-  another account.
+  wallet, sets up another agent on another account and moves the assets
+  there. The key of one wallet is always the same key.
 
 ## 3. Ask for an operation
 
@@ -148,7 +149,7 @@ the operation ends.
 ```ts
 import { WalletContract } from '@outlayer/sdk';
 
-const contract = new WalletContract({ account, key });
+const contract = new WalletContract({ account, key, teePublicKey });
 // For testnet add: baseUrl: 'https://testnet-api.outlayer.ai'
 
 const op = { kind: 'transfer', to: 'bob.near', amount: '1000000000000000000000000' } as const; // 1 NEAR
@@ -203,9 +204,10 @@ exist only for a request that is the operation you asked for. **Never sign a
 of yours anywhere, and that is the property.
 
 `WalletContract.run` and `relay` do the check (`messageIsFor`) and throw a
-`CustodyError` without signing when it fails. With `teePublicKey` in the
-options (from `GET /wallet/v1/contract/key`) they also verify the enclave's
-half. Driving it yourself, check all of:
+`CustodyError` without signing when it fails. They verify the enclave's half
+against `teePublicKey` (required in the options; from
+`GET /wallet/v1/contract/key`) and sign one request under an id. Driving it
+yourself, verify the enclave's half too, and check all of:
 
 | Kind | `message` must be |
 |---|---|
