@@ -8,6 +8,8 @@ By default the wallet acts as its own implicit account — a 64-character hex
 string. **Binding** lets it act as a named account instead: spending from it
 under the owner's policy, and sending email as `alice.near@near.email`.
 
+> **An owner's own account.** To act as an account your owner already has, set up on-chain custody: a wallet contract on that account, or on a sub-account of it, that moves only under two signatures, yours and the enclave's. See `on-chain-custody.md`. The `personal_account` mode below is not offered to new owners.
+
 There are two modes and they are NOT interchangeable. Pick by who owns the
 account:
 
