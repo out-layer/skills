@@ -88,13 +88,12 @@
 | Get intents balance | GET | `/wallet/v1/balance?token={token}&source=intents` | - |
 | Transfer NEAR | POST | `/wallet/v1/transfer` | on-chain |
 | Call contract | POST | `/wallet/v1/call` | on-chain |
-| On-chain custody: open the setup, get the link for the owner | POST | `/wallet/v1/contract/setup` | - |
-| On-chain custody: has the owner finished; collect the sealed key | GET | `/wallet/v1/contract/setup` | - |
-| On-chain custody: the enclave's key of your wallet contract | GET | `/wallet/v1/contract/key` | - |
-| On-chain custody: name / read the wallet contract's account | PUT / GET | `/wallet/v1/contract` | - |
-| Wallet contract: ask for an operation (signed by your agent key, no `Authorization`) | POST | `/wallet/contract/v1/operations` | - |
-| Wallet contract: sign your half and relay | POST | `/wallet/contract/v1/operations/{id}/relay` | on-chain (your wallet pays) |
-| Wallet contract: where an operation stands | GET | `/wallet/contract/v1/operations/{id}` | - |
+| Record account binding | PUT | `/wallet/v1/binding` | - |
+| Read account binding | GET | `/wallet/v1/binding` | - |
+| End account binding | DELETE | `/wallet/v1/binding` | - |
+| Installation kit (personal_account) | GET | `/wallet/v1/binding/setup?kind=personal_account` | - |
+| Bound account balance | GET | `/wallet/v1/binding/balance` | - |
+| Spend from bound account | POST | `/wallet/v1/binding/transfer` | `to`, `amount`, `token?`, `memo?` |
 | Delete wallet | POST | `/wallet/v1/delete` | on-chain |
 | Register token storage | POST | `/wallet/v1/storage-deposit` | on-chain |
 | Register token storage, paid in intents wNEAR | POST | `/wallet/v1/intents/storage-deposit` | gasless |
@@ -139,7 +138,7 @@
 
 **Gas column:** `on-chain` = wallet pays gas (needs NEAR), `gasless` = solver relay pays, `cross-chain` = 1Click bridge (fee ~0.2%), `confidential` = 1Click solver settles on the private shard (no wallet gas, no wallet on the public chain except for SHIELD/UNSHIELD edges), `-` = no transaction.
 
-All endpoints except `/register` and `PUT /wallet/v1/api-key` require `Authorization: Bearer <api_key>` or `Bearer near:<base64url>` header. The routes under `/wallet/contract/v1/operations` take no `Authorization` header: each request is signed by your agent key (`on-chain-custody.md`).
+All endpoints except `/register` and `PUT /wallet/v1/api-key` require `Authorization: Bearer <api_key>` or `Bearer near:<base64url>` header.
 Base URL: `https://api.outlayer.ai`
 
 ## Error Handling
@@ -186,10 +185,7 @@ Base URL: `https://api.outlayer.ai`
 | `check_expired` | Check expired - cannot claim (sender can reclaim) |
 | `memo_too_long` | Memo exceeds 256 characters |
 | `timestamp_expired` | Signature timestamp outside allowed window (±30s for Bearer, ±5min for register/api-key) |
-| `conflict` | Cannot revoke last active API key (409). On the wallet contract's operation routes (409): the request's nonce was taken, or the operation `id` was used for another content — `on-chain-custody.md` |
-| `invalid_signature` | HTTP 401 on the wallet contract's operation routes: the request is not signed by your agent key, its timestamp is outside 120 s, or `agent_half` is not your signature over the operation's request — `on-chain-custody.md` |
-| `wallet_busy` | HTTP 409 on the wallet contract's operation routes: another operation is using this wallet. Ask again later |
-| `request_not_found` | HTTP 404: no operation of the wallet contract under this id, no setup opened, or no wallet contract recorded for this wallet |
+| `conflict` | Cannot revoke last active API key (409) |
 | `upstream_unavailable` | HTTP 503: a service behind the API is briefly unreachable. Transient — wait the `Retry-After` seconds and send the same request again |
 | `internal_error` | HTTP 500: a platform fault. Sending the same request again does not help — report it with the request you sent |
 | `"Ambiguous auth"` | PUT /api-key received both Bearer header and signature fields in body — use one or the other |
@@ -223,4 +219,5 @@ Base URL: `https://api.outlayer.ai`
 | `insufficient_allowance` | `/call` (402, terminal): the subscription's allowance is below this operation's price and the key has no money. Fund the key or extend the subscription |
 | `expires_too_soon` | `/call` (402, terminal): the subscription ends before this operation could finish, and the key has no money. Fund the key or extend the subscription |
 | `call_already_in_flight` | `/call` (429, `terminal: false`): the subscription has a call in flight and the key has no balance for another. Wait for it, or fund the key |
-| `no_bound_identity` | `/call` (409) with `use_bound_identity`: nothing to run as. `terminal: true` — the key names no wallet; `false` — the wallet has no wallet contract. Drop the flag, or finish the setup in `on-chain-custody.md` |
+| `no_bound_identity` | `/call` (409) with `use_bound_identity`: nothing to run as. `terminal: true` — the key names no wallet; `false` — the wallet has no active binding yet. Drop the flag, or bind an account |
+| `agent_connect_denied` | The account-binding pre-flight refused the call BEFORE signing, so no gas was spent. The body carries `class`, `promise_index` and **`terminal`** — read `terminal` first: `true` means retrying is pointless and the owner must act (issue a new grant, re-provision the executor, fund the account, rewrite the request); `false` means the same request may work later unchanged (a freeze lifted, recognized code restored) |

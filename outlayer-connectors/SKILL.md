@@ -211,7 +211,7 @@ body's field; `—` means the body has none.
 | 429 | `call_already_in_flight` | false | the subscription has a call in flight, the key has no money → wait for it, or fund the key |
 | 429 | `operation_limit_reached` | false | a connector's cap on one operation → wait `retry_after_seconds`; look for a loop |
 | 408 | `timeout` | — | not finished in the synchronous window; it may still execute and is charged → do not resend; `GET https://api.outlayer.ai/calls/{call_id}` (the body's `poll_url`) with the same key; send long work with `async: true` |
-| 409 | `no_bound_identity` | true / false | `use_bound_identity` with nothing to run as: `true`, the key names no wallet; `false`, the wallet has no wallet contract → drop the flag, or finish the on-chain custody setup (`https://skills.outlayer.ai/agent-custody/references/on-chain-custody.md`) |
+| 409 | `no_bound_identity` | true / false | `use_bound_identity` with nothing to run as: `true`, the key names no wallet; `false`, no active binding yet → drop the flag, or the owner binds an account |
 | 423 | `vault_unlocked` | — | the secret's vault was recovered by its customer → its owner moves the secret |
 | 403 | `vault_not_verified` | — | the secret's vault is not verified by the keystore DAO → its owner re-registers it or moves the secret |
 | 503 | `upstream_unavailable` | false | a dependency is briefly down → wait `Retry-After`, send again |

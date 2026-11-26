@@ -92,3 +92,6 @@ Rules that keep an offer honest:
   owner set it on purpose. If you think the policy is too tight for what they
   want, say that instead.
 * **Do not start a second flow** while one on the same connector is unfinished.
+* **A leased account** (`hos_lease`) cannot store a secret under your wallet;
+  the owner's row ([`credentials.md`](credentials.md)) is the only route to
+  offer there.
