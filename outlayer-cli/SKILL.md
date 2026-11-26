@@ -50,7 +50,7 @@ outlayer login              # mainnet
 outlayer login testnet      # testnet
 
 # Login with custody wallet API key (for agents using OutLayer Agent Custody)
-outlayer login --wallet-key wk_15807dbda492636df5280629d7617c3ea80f915ba960389b621e420ca275e545
+outlayer login --wallet-key wk_FAKE000000000000000000000000000000000000000000000000000000000000
 outlayer login testnet --wallet-key wk_...
 
 outlayer whoami             # show current account, network, public key, auth type
@@ -259,7 +259,7 @@ Trustless agent-to-agent payments via ephemeral intents accounts. Requires a wal
 
 ```bash
 # Set wallet API key (from POST /register)
-export OUTLAYER_WALLET_KEY=wk_15807dbda492636df5280629d7617c3ea80f915ba960389b621e420ca275e545
+export OUTLAYER_WALLET_KEY=wk_FAKE000000000000000000000000000000000000000000000000000000000000
 
 # Create a check for 1 USDC with memo and 24h expiry
 outlayer checks create 17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1 1000000 \

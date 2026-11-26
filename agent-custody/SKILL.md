@@ -146,7 +146,7 @@ policies, connectors and payment keys all work there.
 Response:
 ```json
 {
-  "api_key": "wk_15807dbda492636df5280629d7617c3ea80f915ba960389b621e420ca275e545",
+  "api_key": "wk_FAKE000000000000000000000000000000000000000000000000000000000000",
   "wallet_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "near_account_id": "36842e2f73d0b7b2f2af6e0d94a7a997398c2c09d9cf09ca3fa23b5426fccf88",
   "handoff_url": "https://app.outlayer.ai/wallet?key=wk_...",
