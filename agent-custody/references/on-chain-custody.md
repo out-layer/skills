@@ -189,8 +189,10 @@ This set is exhaustive.
 | `failed` | The chain refused; `result` carries its failure | Read the failure. The same thing again is a new operation under a new id |
 | `closed` | Ended with nothing sent, for `reason`: the vote did not end in approval, or a prepared request was not relayed within an hour | Read `reason`. Start a new operation under a new id |
 
-- The vote stays open for 24 hours. Do not poll the operation in a tight loop
-  while it waits: asking again is how you learn the vote ended.
+- The vote lives 24 hours, and an approval is good within them only: ask
+  again under the same id before they end, or the operation is closed. Do not
+  poll the operation in a tight loop while it waits: asking again is how you
+  learn the vote ended.
 - **Relay within an hour.** A prepared request that is not relayed within an
   hour is `closed`, and what it counted stays counted.
 - Nothing is retried on your behalf. A failed or closed operation is over.
