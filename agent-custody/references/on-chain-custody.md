@@ -189,7 +189,7 @@ This set is exhaustive.
 | `relayed` | The transaction `tx_hash` was sent; its outcome is not recorded | Read the operation with `get(id)`; the read settles it |
 | `success` | The request executed on chain. For `swap` and `cross_chain_withdraw` it says the input reached 1Click; read again for `route_status` | Done |
 | `failed` | The chain refused; `result` carries its failure | Read the failure. The same thing again is a new operation under a new id |
-| `closed` | Ended with nothing sent, for `reason`: the vote was rejected or expired, an approval was not used within its 24 hours, or a prepared request was not relayed within an hour | Read `reason`. Start a new operation under a new id |
+| `closed` | Ended with nothing sent, for `reason`: the vote was rejected or expired, an approval was not used within its 24 hours, a prepared request was not relayed within an hour, or its transaction never reached the chain in that hour | Read `reason`. Start a new operation under a new id |
 
 - The vote lives 24 hours, and an approval is good within them only: ask
   again under the same id before they end, or the operation is closed. Do not
