@@ -189,7 +189,7 @@ This set is exhaustive.
 | `relayed` | The transaction `tx_hash` was sent; its outcome is not recorded | Read the operation with `get(id)`; the read settles it |
 | `success` | The request executed on chain. For `swap` and `cross_chain_withdraw` it says the input reached 1Click; read again for `route_status` | Done |
 | `failed` | The chain refused; `result` carries its failure | Read the failure. The same thing again is a new operation under a new id |
-| `closed` | Ended with nothing sent, for `reason`: the vote was rejected or expired, an approval was not used within its 24 hours, a prepared request was not relayed within ten minutes, or its transaction never reached the chain in that time | Read `reason`. Start a new operation under a new id |
+| `closed` | Ended with nothing sent, for `reason`: the vote was rejected or expired, an approval was not used within its 24 hours, a prepared request was not relayed within ten minutes, its transaction never reached the chain in that time, or the node refused it three times | Read `reason`. Start a new operation under a new id |
 
 - The vote lives 24 hours, and an approval is good within them only: ask
   again under the same id before they end, or the operation is closed. Do not
@@ -409,6 +409,9 @@ is the client's own check, and nothing was signed.
 | 404 | `request_not_found` | no | No operation under this id (`GET`, `relay`), or no setup was opened (`GET /wallet/v1/contract/setup`) |
 | 409 | `conflict` | yes | The nonce was taken: sign again with a new nonce. Or the `id` was used for another content: take a new id |
 | 409 | `wallet_busy` | yes, later | Another operation is using this wallet; one runs at a time |
+| 409 | `conflict` (votes) | later | 20 operations already wait for the approvers. Wait for a vote to end |
+| 400 | `insufficient_balance` | after funding | A swap or a withdrawal to another chain sends more than the wallet contract holds inside NEAR Intents |
+| 429 | `rate_limited` | later | Too many quotes for this wallet |
 | 429 | `operation_limit_reached` | after `Retry-After` | The wallet's counted ceiling on operations is reached |
 
 ## 8. Running a program as your wallet contract's account
