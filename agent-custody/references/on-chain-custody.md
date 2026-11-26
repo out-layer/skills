@@ -198,6 +198,8 @@ This set is exhaustive.
 - **Relay within ten minutes.** A prepared request that is not relayed within ten
   minutes is `closed`, and what it counted stays counted.
 - Nothing is retried on your behalf. A failed or closed operation is over.
+- **After a restart, read what is under way**: `GET /wallet/contract/v1/operations` (signed like the rest, empty body) lists your operations that are not over. Continue each by its status.
+- The owner's webhook, when the policy names one, receives `operation_updated` on each change of status.
 
 ### Why you sign last, and what you check
 
