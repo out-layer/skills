@@ -189,14 +189,14 @@ This set is exhaustive.
 | `relayed` | The transaction `tx_hash` was sent; its outcome is not recorded | Read the operation with `get(id)`; the read settles it |
 | `success` | The request executed on chain. For `swap` and `cross_chain_withdraw` it says the input reached 1Click; read again for `route_status` | Done |
 | `failed` | The chain refused; `result` carries its failure | Read the failure. The same thing again is a new operation under a new id |
-| `closed` | Ended with nothing sent, for `reason`: the vote was rejected or expired, an approval was not used within its 24 hours, a prepared request was not relayed within an hour, or its transaction never reached the chain in that hour | Read `reason`. Start a new operation under a new id |
+| `closed` | Ended with nothing sent, for `reason`: the vote was rejected or expired, an approval was not used within its 24 hours, a prepared request was not relayed within ten minutes, or its transaction never reached the chain in that time | Read `reason`. Start a new operation under a new id |
 
 - The vote lives 24 hours, and an approval is good within them only: ask
   again under the same id before they end, or the operation is closed. Do not
   poll the operation in a tight loop while it waits: asking again is how you
   learn the vote ended.
-- **Relay within an hour.** A prepared request that is not relayed within an
-  hour is `closed`, and what it counted stays counted.
+- **Relay within ten minutes.** A prepared request that is not relayed within ten
+  minutes is `closed`, and what it counted stays counted.
 - Nothing is retried on your behalf. A failed or closed operation is over.
 
 ### Why you sign last, and what you check
@@ -349,7 +349,7 @@ def message_hash(m):              # SHA3-256("NEAR_WALLET_CONTRACT/V1" ‖ borsh
                   + bytes(8))
     borsh = (b"\x00" + bstr(m["chain_id"]) + bstr(m["signer_id"])
              + m["nonce"].to_bytes(4, "little") + int(m["created_at_ns"]).to_bytes(8, "little")
-             + (3600).to_bytes(4, "little") + bytes(4) + (1).to_bytes(4, "little")
+             + (600).to_bytes(4, "little") + bytes(4) + (1).to_bytes(4, "little")
              + bstr(m["promise"]["receiver_id"]) + b"\x00" + (1).to_bytes(4, "little") + action)
     return hashlib.sha3_256(b"NEAR_WALLET_CONTRACT/V1" + borsh).digest()
 
@@ -403,6 +403,7 @@ is the client's own check, and nothing was signed.
 | 401 | `invalid_signature` | after fixing | The request is not signed by the key in your wallet contract's pair, the timestamp is outside 120 s, or the account is no wallet's wallet contract. On `relay`: `agent_half` is not your signature over this operation's request. Check the clock, the account, the signed bytes |
 | 403 | `policy_denied` | no | The policy refuses it, or the wallet has no policy stored by its owner; `message` says why. Tell the owner; do not split the operation or send it another way |
 | 403 | `wallet_frozen` | no | The owner froze the wallet. Tell the owner |
+| 403 | `wallet_contract_refused` | no | The enclave does not serve the account as your wallet contract: its build is not an approved one, it has an extension, signatures are switched off, or its pair is not this wallet's; `message` says which. Tell the owner |
 | 404 | `request_not_found` | no | No operation under this id (`GET`, `relay`), or no setup was opened (`GET /wallet/v1/contract/setup`) |
 | 409 | `conflict` | yes | The nonce was taken: sign again with a new nonce. Or the `id` was used for another content: take a new id |
 | 409 | `wallet_busy` | yes, later | Another operation is using this wallet; one runs at a time |
