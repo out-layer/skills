@@ -268,8 +268,8 @@ four headers:
 |---|---|
 | `x-agent-account` | your wallet contract's account |
 | `x-agent-timestamp` | Unix seconds; accepted within 120 s of the server's clock |
-| `x-agent-nonce` | 16 random bytes in hex; each request is taken once |
-| `x-agent-signature` | 64 bytes in hex: your key's Ed25519 signature |
+| `x-agent-nonce` | 16 random bytes in lowercase hex; each request is taken once |
+| `x-agent-signature` | 64 bytes in lowercase hex: your key's Ed25519 signature |
 
 The signature is over the ASCII text `OUTLAYER_AGENT_REQUEST/V1` followed by
 the Borsh encoding of: the account (string), the method in capitals (string),
