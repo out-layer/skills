@@ -173,8 +173,9 @@ token's own for a token). A token is its id inside NEAR Intents,
 | `swap` | `token_in`, `amount_in`, `token_out`, `min_out` | A swap through 1Click; the output arrives in the wallet contract's balance inside NEAR Intents |
 | `cross_chain_withdraw` | `to`, `amount`, `token`, `chain` | A withdrawal to the address `to` on another chain through 1Click |
 
-A `call` to a NEAR Intents contract or to the keystore DAO contract, and a
-call of a method whose name starts with `w_execute_`, are refused: use the
+A `call` to a NEAR Intents contract, to the keystore DAO contract or to the
+OutLayer contract, and a call of a method whose name starts with `w_execute_`,
+are refused: use the
 kinds above for NEAR Intents.
 
 ### Statuses, and what to do in each
@@ -188,7 +189,7 @@ This set is exhaustive.
 | `relayed` | The transaction `tx_hash` was sent; its outcome is not recorded | Read the operation with `get(id)`; the read settles it |
 | `success` | The request executed on chain. For `swap` and `cross_chain_withdraw` it says the input reached 1Click; read again for `route_status` | Done |
 | `failed` | The chain refused; `result` carries its failure | Read the failure. The same thing again is a new operation under a new id |
-| `closed` | Ended with nothing sent, for `reason`: the vote did not end in approval, or a prepared request was not relayed within an hour | Read `reason`. Start a new operation under a new id |
+| `closed` | Ended with nothing sent, for `reason`: the vote was rejected or expired, an approval was not used within its 24 hours, or a prepared request was not relayed within an hour | Read `reason`. Start a new operation under a new id |
 
 - The vote lives 24 hours, and an approval is good within them only: ask
   again under the same id before they end, or the operation is closed. Do not

@@ -2,6 +2,8 @@
 
 > Part of the `agent-custody` skill. Read `SKILL.md` first. When fetched over HTTP the base is `https://skills.outlayer.ai/agent-custody/`.
 
+> These routes act on your OutLayer wallet, the account whose key is in the enclave. If your main balance lies in a wallet contract (on-chain custody), it does not move through them: see `on-chain-custody.md`. The OutLayer wallet stays your working account and pays the gas of each relay.
+
 ### `/storage-deposit` - register token storage
 
 Before withdrawing tokens to an account, that account must have storage registered on the token contract. Use this endpoint to register storage.

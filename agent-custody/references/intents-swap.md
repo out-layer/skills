@@ -2,6 +2,8 @@
 
 > Part of the `agent-custody` skill. Read `SKILL.md` first. When fetched over HTTP the base is `https://skills.outlayer.ai/agent-custody/`.
 
+> These routes act on your OutLayer wallet, the account whose key is in the enclave. If your main balance lies in a wallet contract (on-chain custody), it does not move through them: see `on-chain-custody.md`. A swap asked for there returns its result, and any refund, to the wallet contract's balance inside NEAR Intents.
+
 ## Cross-Chain Swaps (NEAR Intents)
 
 Swap tokens across 20+ blockchains using NEAR Intents protocol. All swaps are atomic - either both sides complete or nothing happens.

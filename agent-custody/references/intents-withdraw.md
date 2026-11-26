@@ -2,6 +2,8 @@
 
 > Part of the `agent-custody` skill. Read `SKILL.md` first. When fetched over HTTP the base is `https://skills.outlayer.ai/agent-custody/`.
 
+> These routes act on your OutLayer wallet, the account whose key is in the enclave. If your main balance lies in a wallet contract (on-chain custody), it does not move through them: see `on-chain-custody.md`. A withdrawal asked for there leaves the wallet contract's balance inside NEAR Intents; a refund of a route to another chain returns to it.
+
 ### `/intents/withdraw`
 
 - **Gasless.** Signs a NEP-413 intent, the solver relay executes it; the wallet's implicit account needs no NEAR. This is the only withdraw endpoint — there is no on-chain `ft_withdraw` route.
