@@ -82,8 +82,9 @@ Tell the owner what the link does, with the link:
 
 Rules:
 
-- **The link is a credential for 24 hours.** Whoever holds it can name your
-  wallet's wallet contract. Give it to the owner and to nobody else.
+- **The link is a credential for 24 hours**, and ends when the owner has
+  finished. It names your owner's account or a sub-account of it and no
+  other. Give it to the owner and to nobody else.
 - **Opening a setup again ends the earlier link** and discards a key that was
   left and not collected. Open again only when the link expired or was lost.
 - The page offers the owner a choice you do not make for them: keep the
