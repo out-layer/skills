@@ -1,6 +1,6 @@
 ---
 name: agent-custody
-description: Multi-chain custody wallet for AI agents, keys held in a TEE. Register a gasless wallet in one POST; hold, send and receive on NEAR, Ethereum, Bitcoin, Solana and 20+ chains; swap and place limit orders via NEAR Intents; confidential (shielded) balances; pay other agents with payment checks; sign EIP-712, EIP-191 and Solana payloads; act as a named NEAR account (account binding) under the owner's policy; sub-agents and sovereign vaults; payment keys and the connector trial. Use when an agent needs any crypto operation — a balance, a transfer, a swap, a limit order, a cross-chain move, a signature, a payment check, funding or a spend policy from its owner, or spending from a user's account.
+description: Multi-chain custody wallet for AI agents, keys held in a TEE. Register a gasless wallet in one POST; hold, send and receive on NEAR, Ethereum, Bitcoin, Solana and 20+ chains; swap and place limit orders via NEAR Intents; confidential (shielded) balances; pay other agents with payment checks; sign EIP-712, EIP-191 and Solana payloads; keep the main balance in a wallet contract on NEAR that moves only under two signatures, the agent's and the enclave's (on-chain custody); sub-agents and sovereign vaults; payment keys and the connector trial. Use when an agent needs any crypto operation — a balance, a transfer, a swap, a limit order, a cross-chain move, a signature, a payment check, funding or a spend policy from its owner, or an operation of its wallet contract.
 metadata:
   api:
     base_url: https://api.outlayer.ai
@@ -37,7 +37,7 @@ Paths below are relative to this file. Fetched over HTTP, the base is
 | Shielded balances, private transfer or swap, and what "confidential" does and does not hide | `references/confidential.md` |
 | Place, read or cancel a limit order | `references/limit-orders.md` |
 | Pay another agent with a check; claim, peek or reclaim one | `references/payment-checks.md` |
-| Act as `alice.near` instead of a hex address; spend from a user's account under their policy | `references/account-binding.md` |
+| On-chain custody: keep your main balance in a wallet contract under two signatures — open the setup for your owner, collect and keep your key, run an operation and sign your half, run a program as that account | `references/on-chain-custody.md` |
 | Call a connector: the free trial, the subscription, reading a `/call` refusal, asking the owner for a credential | the `outlayer-connectors` skill — `https://skills.outlayer.ai/outlayer-connectors/SKILL.md` |
 | Ask the user for money or for a spend policy; create a payment key | `references/funding-and-payment-keys.md` |
 | Drive the `outlayer` CLI with a `wk_` instead of a NEAR key | the `outlayer-cli` skill — `https://skills.outlayer.ai/outlayer-cli/SKILL.md` |
@@ -71,7 +71,7 @@ refused a user's request.
 **Testnet caveat:** NEAR Intents do not exist there — no solvers. Swaps,
 cross-chain withdrawals and intents balances are mainnet-only, and the
 coordinator answers `503` for them on testnet. Everything else — wallets,
-policies, payment keys, connectors, account binding — works on both.
+policies, payment keys, connectors — works on both.
 
 The USDT you see in the wallet examples further down is just an example of a
 token a wallet can hold and move; it is not what OutLayer charges in.
@@ -141,7 +141,7 @@ curl -s -X POST https://testnet-api.outlayer.ai/register
 
 The `wk_` that comes back belongs to that network and means nothing on the
 other one. Registering on testnet first is the cheap way to rehearse a flow —
-binding, policies, connectors and payment keys all work there.
+policies, connectors and payment keys all work there.
 
 Response:
 ```json
@@ -245,10 +245,10 @@ Two rules for all five:
 * **Never ask for the secret itself in chat.** Not the token, not the seed
   phrase, not the private key. The pages encrypt in the browser precisely so
   that nobody — you, us, the page — holds the value.
-* **Raise the policy one yourself, before you are asked.** After a binding goes
-  active you can move everything in that account until a policy says otherwise.
-  You are the party that benefits from the limit being absent, so you are the
-  party who has to mention it.
+* **Raise the policy one yourself, before you are asked.** Until a policy says
+  otherwise, nothing limits what your wallet moves. You are the party that
+  benefits from the limit being absent, so you are the party who has to
+  mention it.
 
 ## Reading Transaction Statuses
 
@@ -260,7 +260,6 @@ Two rules for all five:
 | `pending_approval` | The owner's approval is needed: the policy asks for every such operation, the payment took the period's total past what runs unattended, or the address is new to an address list that asks | Tell the user what it is and why it waits, give `https://app.outlayer.ai/wallet/approvals/{approval_id}`, poll `GET /wallet/v1/requests/{id}`. Do not split it or send it another way — `references/funding-and-payment-keys.md` §4 |
 | `pending_deposit` | Confidential op accepted by 1Click, waiting for solver settlement | Poll `GET /wallet/v1/requests/{id}` (typical 5–30s) |
 | `refunded` | Confidential op failed mid-flight; funds refunded inside the confidential balance | Inspect `result.swap_details.refundReason`; safe to retry |
-| `partially_failed` | Only for `w_execute_extension` on a bound account: some promises in the request succeeded and some did not. **Not an error** — the wallet runs its promises independently, so the ones that succeeded moved real money | Read `result.promises[]`: each has `index`, `receiver`, `status` (`success` / `failed` / `unknown`) and the chain's `failure`. Retry only the failed ones |
 
 ## Guidelines
 

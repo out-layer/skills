@@ -21,7 +21,7 @@ points to are relative to that URL.
 
 | The task in front of you | Load |
 |---|---|
-| Hold, move, swap or sign for money: register a wallet, balances, transfers, cross-chain, confidential, limit orders, payment checks, account binding, payment keys | [`agent-custody`](https://skills.outlayer.ai/agent-custody/SKILL.md) |
+| Hold, move, swap or sign for money: register a wallet, balances, transfers, cross-chain, confidential, limit orders, payment checks, on-chain custody (a wallet contract under two signatures), payment keys | [`agent-custody`](https://skills.outlayer.ai/agent-custody/SKILL.md) |
 | Call any connector: auth, the `operation` field, secrets, fees, the free trial, refusal codes — and what each connector does | [`outlayer-connectors`](https://skills.outlayer.ai/outlayer-connectors/SKILL.md) |
 | Find out what you could do for your owner with the connectors, and how to offer it without acting unasked | [`outlayer-connectors/references/offering.md`](https://skills.outlayer.ai/outlayer-connectors/references/offering.md) |
 | Act on GitHub as the owner: issues, comments, pull requests, commits, gists | [`github-connector`](https://skills.outlayer.ai/github-connector/SKILL.md) |

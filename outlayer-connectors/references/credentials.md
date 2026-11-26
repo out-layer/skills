@@ -33,8 +33,8 @@ Authorization: Bearer <that wallet's wk_>
 ```
 
 It is the `address`. Not the `wallet_id`, which is a UUID and names nothing on
-chain. Not a bound name like `alice.near`, which is the identity you ACT as and
-never the one a grant names. Not another wallet you also hold — if you have
+chain. Not the account of your wallet contract, which is the identity a run acts as
+with `use_bound_identity` and never the one a grant names. Not another wallet you also hold — if you have
 several, the payer is the one that matters.
 
 **Step 2 — ask in a sentence a person can evaluate.** An identifier on its own
@@ -102,9 +102,7 @@ saved it), enter the project, put the credential in the Secret box as JSON
 under the variable names the connector's skill gives, and press "Store for
 agent". Storing again for the same project replaces the value.
 
-Which route you get is the owner's choice, not yours. A leased account
-(`hos_lease`) has only the owner's row: storing under your wallet needs that
-wallet's `wk_`, and the human holding the lease does not have it.
+Which route you get is the owner's choice, not yours.
 
 **Say what you are asking for and why.** "I need your SendGrid key to send the
 mail you asked for" is a sentence a person can refuse. A bare link is not.

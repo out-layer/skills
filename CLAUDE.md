@@ -37,7 +37,7 @@ Write for a small-context model that reads only what it is pointed at.
 | Confidential intents and the privacy model | `…/confidential.md` |
 | Limit orders | `…/limit-orders.md` |
 | Payment checks | `…/payment-checks.md` |
-| Account binding | `…/account-binding.md` |
+| On-chain custody: the setup link, the agent's key, a wallet contract's operations and statuses, the signed request, `use_bound_identity` | `…/on-chain-custody.md` |
 | Fund link, policy request, creating a payment key | `…/funding-and-payment-keys.md` |
 | Task→endpoint table, every endpoint, every `/wallet/v1` error code | `…/api-index.md` |
 | Token ids per chain; end-to-end curl walkthroughs | `…/token-reference.md`, `…/cross-chain-patterns.md` |
