@@ -93,22 +93,25 @@ Tell the owner what the link does, with the link:
 > signatures, mine and one from OutLayer's enclave given only within your
 > policy, open this link and connect as `{owner account}`:
 > `https://app.outlayer.ai/wallet/custody#setup={token}`
-> You will choose my account (a sub-account of yours, or your own account),
-> sign one message that becomes my key, and install the contract. The link
+> You will sign one message that becomes my key and send a little NEAR for
+> gas; the page creates my account (by default a new one with no key; a
+> sub-account of yours or your own account are the other options). The link
 > works for 24 hours. Then set my policy: I can act only under a policy you
 > stored."
 
 Rules:
 
 - **The link is a credential for 24 hours**, and ends when the owner has
-  finished. It names your owner's account or a sub-account of it and no
-  other. Give it to the owner and to nobody else.
+  finished. Whoever finishes it first names your wallet contract: a new
+  `0s…` account, a sub-account of the owner's, or the owner's own account.
+  Give it to the owner and to nobody else. If the owner says the page told
+  them the setup was already finished, and they did not finish it, open a
+  new setup at once and use nothing from the one you collected.
 - **Opening a setup again ends the earlier link** and discards a key that was
   left and not collected. Open again only when the link expired or was lost.
-- The page offers the owner a choice you do not make for them: keep the
-  owner's key on your account (the default; the owner can act on the account
-  directly at any time), or remove every key from a sub-account (nothing moves
-  without both signatures, and the owner alone acts only through the exit).
+- The account has no access key in the end, whichever the owner picks
+  (except their own account, which keeps their keys): nothing moves without
+  both signatures, and the owner alone acts on it only through the exit.
 
 ## 2. Collect your account and your key
 
