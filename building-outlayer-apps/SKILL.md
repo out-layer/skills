@@ -225,6 +225,9 @@ curl -X POST "$OUTLAYER_API_URL/call/owner.near/project" \
   -H "X-Payment-Key: $PAYMENT_KEY" \
   -d '{"input": {"action": "test"}}'
 ```
+The HTTPS call parses stdout as JSON by default: a program that prints plain
+text ends `failed` with `Failed to parse output as JSON`. Send
+`"response_format": "Text"` (or `"Bytes"`, base64) for such a program.
 
 ## Reference Files
 

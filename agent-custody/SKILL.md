@@ -1,6 +1,6 @@
 ---
 name: agent-custody
-description: Multi-chain custody wallet for AI agents, keys held in a TEE. Register a gasless wallet in one POST; hold, send and receive on NEAR, Ethereum, Bitcoin, Solana and 20+ chains; swap and place limit orders via NEAR Intents; confidential (shielded) balances; pay other agents with payment checks; sign EIP-712, EIP-191 and Solana payloads; act as a named NEAR account (account binding) under the owner's policy; sub-agents and sovereign vaults; payment keys and the connector trial. Use when an agent needs any crypto operation — a balance, a transfer, a swap, a limit order, a cross-chain move, a signature, a payment check, funding or a spend policy from its owner, or spending from a user's account.
+description: Multi-chain custody wallet for AI agents, keys held in a TEE. Register a gasless wallet in one POST; hold, send and receive on NEAR, Ethereum, Bitcoin, Solana and 20+ chains; swap and place limit orders via NEAR Intents; tokenized stocks and ETFs (Ondo) and yield vaults (Earn); confidential (shielded) balances; pay other agents with payment checks; sign EIP-712, EIP-191 and Solana payloads; act as a named NEAR account (account binding) under the owner's policy; sub-agents and sovereign vaults; payment keys and the connector trial. Use when an agent needs any crypto operation — a balance, a transfer, a swap, a limit order, a cross-chain move, a signature, a payment check, funding or a spend policy from its owner, or spending from a user's account.
 metadata:
   api:
     base_url: https://api.outlayer.ai
@@ -36,6 +36,7 @@ Paths below are relative to this file. Fetched over HTTP, the base is
 | Bring funds in from Solana / an EVM chain / Bitcoin, or send them there | `references/cross-chain.md` |
 | Shielded balances, private transfer or swap, and what "confidential" does and does not hide | `references/confidential.md` |
 | Place, read or cancel a limit order | `references/limit-orders.md` |
+| Buy, hold or sell a tokenized stock or ETF (Ondo), or put USDC in a yield vault (Earn) | `references/stocks-and-earn.md` |
 | Pay another agent with a check; claim, peek or reclaim one | `references/payment-checks.md` |
 | Act as `alice.near` instead of a hex address; spend from a user's account under their policy | `references/account-binding.md` |
 | Call a connector: the free trial, the subscription, reading a `/call` refusal, asking the owner for a credential | the `outlayer-connectors` skill — `https://skills.outlayer.ai/outlayer-connectors/SKILL.md` |

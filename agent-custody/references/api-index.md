@@ -17,7 +17,8 @@
 | Send FT tokens (USDT, wNEAR) to someone | Use `POST /wallet/v1/call` with `ft_transfer` (see `wallet-ops.md`) |
 | Swap tokens (e.g. wNEAR to USDT) | Use `POST /wallet/v1/intents/swap` - gasless swap via 1Click. Tokens must be in intents balance first |
 | Preview swap rate before committing | Use `POST /wallet/v1/intents/swap/quote` - read-only, no gas spent |
-| List available tokens for swaps | Use `GET /wallet/v1/tokens` - returns ~200 tokens across 20+ chains |
+| List available tokens for swaps | Use `GET /wallet/v1/tokens` - returns ~260 tokens across 20+ chains |
+| Buy or sell a tokenized stock / ETF (Ondo), or enter or leave a yield vault (Earn) | A swap into or out of its token, each step its own call — see `stocks-and-earn.md` |
 | Withdraw native NEAR (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain: "near"` and `token: "near"` (default). Unwraps your wNEAR → native NEAR; receiver needs **no** storage. Recipient account must already exist (or be a 64-char implicit account) |
 | Send tokens cross-chain (gasless) | Use `POST /wallet/v1/intents/withdraw` with `chain` param - gasless. **For non-NEAR chains pass `"async": true` and poll the result (the bridge rarely finishes in the sync window).** For NEAR delivering wNEAR (`token: "nep141:wrap.near"`): receiver must have storage (use `/storage-deposit` first). For Solana: use `chain: "solana"` |
 | Register token storage | Use `POST /wallet/v1/storage-deposit` (paid in NEAR) or `POST /wallet/v1/intents/storage-deposit` (paid in intents wNEAR, gasless) - needed before withdrawing to accounts without storage |

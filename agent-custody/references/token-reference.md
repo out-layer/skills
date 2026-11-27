@@ -79,6 +79,30 @@ These use the `nep245:` prefix and route through HOT bridge. Supported in swaps 
 | OP | `nep245:v2_1.omni.hot.tg:10_vLAiSt9KfUGKpw5cD3vsSyNYBo7` | 18 | Optimism |
 | AVAX | `nep245:v2_1.omni.hot.tg:43114_11111111111111111111` | 18 | Avalanche |
 
+## Tokenized Stocks and ETFs (Ondo, BNB Chain)
+
+All 18 decimals, chain `bsc`. The full set is every `bsc` entry in `GET /wallet/v1/tokens` whose symbol ends in `on`, plus `USDY`. How to hold one: `stocks-and-earn.md`.
+
+| Symbol | Tracks | Defuse Asset ID |
+|--------|--------|-----------------|
+| TSLAon | Tesla | `nep141:bnb-0x2494b603319d4d9f9715c9f4496d9e0364b59d93.omdep.near` |
+| NVDAon | NVIDIA | `nep141:bnb-0xa9ee28c80f960b889dfbd1902055218cba016f75.omdep.near` |
+| AAPLon | Apple | `nep141:bnb-0x390a684ef9cade28a7ad0dfa61ab1eb3842618c4.omdep.near` |
+| MSFTon | Microsoft | `nep141:bnb-0x6bfe75d1ad432050ea973c3a3dcd88f02e2444c3.omdep.near` |
+| SPYon | SPDR S&P 500 ETF | `nep141:bnb-0x6a708ead771238919d85930b5a0f10454e1c331a.omdep.near` |
+| QQQon | Invesco QQQ ETF | `nep141:bnb-0x0cde6936d305d5b34667fc46425e852efd73559a.omdep.near` |
+| GLDon | SPDR Gold Shares | `nep141:bnb-0xfa9a1e901085e269f6d428f79cd5252d8b919344.omdep.near` |
+
+## Vault Receipt Tokens (1Click Earn)
+
+Holding the token is the vault position. How to enter and leave: `stocks-and-earn.md`.
+
+| Symbol | Vault | Defuse Asset ID | Decimals | Chain |
+|--------|-------|-----------------|----------|-------|
+| TLO | Taler USDC | `nep141:eth-0x0f38f1ce62776d4a0038bc6cac66877a5687383b.omft.near` | 8 | Ethereum |
+| gtUSDCp | Gauntlet USDC Prime (Morpho) | `nep141:base-0x0bb69b79bc829e1cfcc34a740110886d98d2bd14.omft.near` | 18 | Base |
+| kV-gtSOLb | Kamino SOL | `nep141:sol-0xa69aa1bcb03a369e338156a8718ad60271145803.omdep.near` | 9 | Solana |
+
 ## Amount Conversion Examples
 
 ```
