@@ -71,7 +71,7 @@ import { openSetup, collectSetup } from '@outlayer/sdk';
 
 const options = { apiKey: process.env.OUTLAYER_API_KEY! }; // your wk_
 const setup = await openSetup(options);
-// setup.url       → https://app.outlayer.ai/wallet/custody?setup=<token>
+// setup.url       → https://app.outlayer.ai/wallet/custody#setup=<token>
 // setup.expiresAt → the link works for 24 hours
 // setup.key       → your one-time key: keep it in memory until step 2 returns
 ```
@@ -84,7 +84,7 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
   -d '{"recipient_public_key":"<your one-time X25519 public key, 64 lowercase hex>"}' \
   "https://api.outlayer.ai/wallet/v1/contract/setup"
 # → {"token":"<64 hex>","expires_at":"2026-11-27T12:00:00Z"}
-# The link is https://app.outlayer.ai/wallet/custody?setup=<token>
+# The link is https://app.outlayer.ai/wallet/custody#setup=<token>
 ```
 
 Tell the owner what the link does, with the link:
@@ -92,7 +92,7 @@ Tell the owner what the link does, with the link:
 > "To keep my main balance in a wallet contract that moves nothing without two
 > signatures, mine and one from OutLayer's enclave given only within your
 > policy, open this link and connect as `{owner account}`:
-> `https://app.outlayer.ai/wallet/custody?setup={token}`
+> `https://app.outlayer.ai/wallet/custody#setup={token}`
 > You will choose my account (a sub-account of yours, or your own account),
 > sign one message that becomes my key, and install the contract. The link
 > works for 24 hours. Then set my policy: I can act only under a policy you
