@@ -104,7 +104,9 @@ Rules:
 - **The link is a credential for 24 hours**, and ends when the owner has
   finished. Whoever finishes it first names your wallet contract: a new
   `0s…` account, a sub-account of the owner's, or the owner's own account.
-  Give it to the owner and to nobody else. If the owner says the page told
+  Give it to the owner and to nobody else: send it to the owner directly,
+  never print it to a log, a shared chat, an issue or a status message, and
+  do not keep it after the owner has finished. If the owner says the page told
   them the setup was already finished, and they did not finish it, open a
   new setup at once and use nothing from the one you collected.
 - **Opening a setup again ends the earlier link** and discards a key that was
