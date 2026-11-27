@@ -176,23 +176,20 @@ stay in the wallet contract the whole time.
 
 1. Make a new key: `wk_` and 64 random lowercase hex characters. Give the owner
    its SHA-256 fingerprint (hex of the hash of the whole string), never the key.
-2. The owner adds the fingerprint to the wallet's keys in its policy
-   (`authorized_key_hashes`) and stores the policy. On the site this is the
-   policy page, list of keys, "add by fingerprint"; the page opens a wallet
-   only in a browser that holds one of its keys. Without one, the owner does
-   it through the API with their own signature (below). A locked policy needs
-   its approvers. Wait until `GET /wallet/v1/address?chain=near` answers to
-   your new key.
-3. Open a setup with the new key and give the owner the link (section 1). The
-   owner signs with the key used at the first setup; you collect the same
+2. The owner stores the policy with your fingerprint as the wallet's key
+   (`authorized_key_hashes`). On the site this is the policy page, list of
+   keys, "add by fingerprint"; the page opens a wallet only in a browser that
+   holds one of its keys. Without one, the owner does it through the API with
+   their own signature (below). A locked policy needs its approvers.
+   **The list is the whole list**: a key the policy does not name stops
+   working when the policy is stored, the key the wallet was created with
+   included. So the lost key is out in the same step, and nothing is left to
+   revoke. A key of another machine that should keep working goes into the
+   list beside yours.
+3. Wait until `GET /wallet/v1/address?chain=near` answers to your new key (a
+   few seconds). Open a setup with it and give the owner the link (section 1).
+   The owner signs with the key used at the first setup; you collect the same
    agent key (section 2), for the same account.
-4. Ask the owner to revoke the lost key:
-   `DELETE /wallet/v1/api-key/{key_hash}` with the owner's `Bearer near:`.
-   This takes the lost key's fingerprint, and no route lists a wallet's keys:
-   it is known only if it was written down (the wallet's creation link carried
-   it). Until it is revoked the lost key still runs the wallet, within the
-   policy; if the old machine may be in someone's hands, tell the owner to
-   freeze the wallet meanwhile.
 
 #### The owner's part through the API
 
@@ -231,15 +228,17 @@ API=https://api.outlayer.ai; OWNER=alice.near
 export OWNER_KEY_FILE=~/.near-credentials/mainnet/$OWNER.json   # the owner's own key file
 tok() { node owner-token.mjs "$OWNER" "$1"; }
 
-# Which of the owner's wallets is yours: its seed is "0", "1", … or the one its link named.
+# Which of the owner's wallets is yours. Its seed is the one its creation link named, or
+# "0", "1", … when the link named none; a named seed cannot be guessed, the owner has to know it.
 for s in 0 1 2 3 4; do echo "$s: $(curl -s -H "Authorization: Bearer near:$(tok $s)" $API/wallet/v1/contract | jq -r '.account_id // .error')"; done
 S=<the seed whose account is your wallet contract>; NEW=<your fingerprint>
 
-# The policy as stored, with your key added. GET /policy does not return the
-# webhook URL: if the policy has one, add "webhook_url" to new.json by hand.
+# The policy as stored, with your key as the wallet's only key (add other machines'
+# fingerprints to the list to keep them). GET /policy does not return the webhook URL:
+# if the policy has one, add "webhook_url" to new.json by hand.
 curl -s -H "Authorization: Bearer near:$(tok $S)" $API/wallet/v1/policy \
   | jq --arg h "$NEW" '{wallet_id, rules, approval, capabilities, refund_addresses,
-      authorized_key_hashes: ((.authorized_key_hashes // []) + [$h] | unique)} | with_entries(select(.value != null))' > new.json
+      authorized_key_hashes: [$h]} | with_entries(select(.value != null))' > new.json
 ENC=$(curl -s -X POST -H "Authorization: Bearer near:$(tok $S)" -H 'Content-Type: application/json' \
   -d @new.json $API/wallet/v1/encrypt-policy | jq -r .encrypted_base64)
 ARGS=$(curl -s -X POST -H "Authorization: Bearer near:$(tok $S)" -H 'Content-Type: application/json' \
@@ -248,8 +247,6 @@ ARGS=$(curl -s -X POST -H "Authorization: Bearer near:$(tok $S)" -H 'Content-Typ
 near contract call-function as-transaction outlayer.near store_wallet_policy json-args "$ARGS" \
   prepaid-gas '100 Tgas' attached-deposit '0.1 NEAR' sign-as $OWNER network-config mainnet sign-with-keychain send
 
-# Step 4, once your new key works, when the lost key's fingerprint is known: the lost key out.
-curl -s -X DELETE -H "Authorization: Bearer near:$(tok $S)" $API/wallet/v1/api-key/<lost key's fingerprint>
 ```
 
 On testnet: `https://testnet-api.outlayer.ai`, `outlayer.testnet`, `network-config testnet`.
