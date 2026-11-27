@@ -11,14 +11,22 @@ Your OutLayer wallet (the `wk_` one) stays. It is your **working account**: it
 relays every move of the wallet contract and pays the gas, and it is where you
 do everything the wallet contract does not.
 
-Keep **0.5 NEAR** on the working account. Before each relay the node checks
-that it could pay the relay's 300 Tgas at ten times the current gas price:
-0.3 NEAR today, checked, not spent. A transfer burns about 0.0004 NEAR, a call
-at most 0.03 NEAR, so the 0.2 above the check lasts some 500 transfers. Ask
-your owner for 0.5 NEAR when the setup is done. Read the balance
-(`GET /wallet/v1/balance?chain=near` with your `wk_`) before a run of moves,
-and when it is under 0.35 NEAR ask once for a top-up back to 0.5, rather than
-waiting for a relay to answer `402 wallet_underfunded`.
+Keep **0.5 NEAR** on the working account. It is not spent: it stays yours,
+for your own use. The numbers:
+
+- A relay is sent only while the working account holds at least **0.3 NEAR**.
+  The node checks that it could pay the relay's 300 Tgas at ten times today's
+  gas price (0.0001 NEAR per Tgas). The 0.3 is checked, not taken.
+- A relay spends about **0.0004 NEAR** for a transfer and at most **0.03 NEAR**
+  for a call that uses all its gas.
+- If the gas price rises, the check rises with it: at twice today's price it
+  is 0.6 NEAR. 0.5 leaves room for a rise and for some 500 transfers.
+
+Ask your owner for 0.5 NEAR on the working account when the setup is done.
+Read its balance (`GET /wallet/v1/balance?chain=near` with your `wk_`) before
+a run of moves; under 0.35 NEAR, ask once for a top-up back to 0.5. A relay
+the account cannot cover answers `402 wallet_underfunded` with the balance and
+the cost.
 
 | | OutLayer wallet (working account) | Wallet contract |
 |---|---|---|
