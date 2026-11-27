@@ -157,10 +157,102 @@ you. Funds sent to it move only under both signatures.
   collect it once and keep the seed.
 - **The owner can derive the key again.** It comes from one signature of the
   owner's own key, and the owner's wallet makes the same signature on request.
-  A lost key is not lost funds: tell the owner, and open a setup again.
+  A lost key is not lost funds: tell the owner, and open a setup again. It
+  must be the same key of the owner's account that signed at the first setup:
+  another key makes another agent key, and the page refuses it with nothing
+  sent, naming the key that signed. Ask the owner to sign with another of
+  their full-access keys, and to keep that key while you hold funds. Only if
+  no key of theirs makes it (or the contract on record is not theirs), the
+  page offers a new wallet contract for the key they have; the funds in the
+  old contract do not follow, so say that before they choose it.
 - If your key may have leaked, tell the owner at once. The owner freezes the
   wallet, sets up another agent on another account and moves the assets
   there. The key of one wallet is always the same key.
+
+### On a new machine, without the old files
+
+You have lost your `wk_` and your seed. Walk the owner through it; the funds
+stay in the wallet contract the whole time.
+
+1. Make a new key: `wk_` and 64 random lowercase hex characters. Give the owner
+   its SHA-256 fingerprint (hex of the hash of the whole string), never the key.
+2. The owner adds the fingerprint to the wallet's keys in its policy
+   (`authorized_key_hashes`) and stores the policy. On the site this is the
+   policy page, list of keys, "add by fingerprint"; the page opens a wallet
+   only in a browser that holds one of its keys. Without one, the owner does
+   it through the API with their own signature (below). A locked policy needs
+   its approvers. Wait until `GET /wallet/v1/address?chain=near` answers to
+   your new key.
+3. Open a setup with the new key and give the owner the link (section 1). The
+   owner signs with the key used at the first setup; you collect the same
+   agent key (section 2), for the same account.
+4. Ask the owner to revoke the lost key:
+   `DELETE /wallet/v1/api-key/{key_hash}` with the owner's `Bearer near:`.
+   This takes the lost key's fingerprint, and no route lists a wallet's keys:
+   it is known only if it was written down (the wallet's creation link carried
+   it). Until it is revoked the lost key still runs the wallet, within the
+   policy; if the old machine may be in someone's hands, tell the owner to
+   freeze the wallet meanwhile.
+
+#### The owner's part through the API
+
+The owner runs this on their own machine, with their own full-access key.
+**Never ask for the owner's key or token, and never run this yourself**: the
+owner's key is what stores the policy you are held to. You write the commands;
+the owner runs them.
+
+The owner's credential is `Bearer near:<token>`: base64url of
+`{"account_id","seed","pubkey","timestamp","signature","master":"owner"}`, the
+signature an ed25519 signature of the plain text `auth:<seed>:<timestamp>:@owner`
+by a full-access key of the owner (not NEP-413: a browser wallet cannot make
+it; near-cli's key file can). A token is good for 30 seconds, so make one per
+request. `owner-token.mjs`, with no dependencies:
+
+```js
+import { createPrivateKey, sign } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+const [account, seed] = process.argv.slice(2);
+const B = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const unb58 = (t) => { let n = 0n; for (const c of t) n = n * 58n + BigInt(B.indexOf(c));
+  let h = n.toString(16); if (h.length % 2) h = '0' + h;
+  return Buffer.concat([Buffer.alloc(t.match(/^1*/)[0].length), Buffer.from(n ? h : '', 'hex')]); };
+const b58 = (b) => { let n = BigInt('0x' + (Buffer.from(b).toString('hex') || '0')), o = '';
+  while (n > 0n) { o = B[Number(n % 58n)] + o; n /= 58n; } for (const x of b) { if (x) break; o = '1' + o; } return o; };
+const { public_key, private_key } = JSON.parse(readFileSync(process.env.OWNER_KEY_FILE, 'utf8'));
+const key = createPrivateKey({ format: 'der', type: 'pkcs8', key: Buffer.concat([
+  Buffer.from('302e020100300506032b657004220420', 'hex'), unb58(private_key.replace(/^ed25519:/, '')).subarray(0, 32)]) });
+const timestamp = Math.floor(Date.now() / 1000);
+const signature = b58(sign(null, Buffer.from(`auth:${seed}:${timestamp}:@owner`), key));
+console.log(Buffer.from(JSON.stringify({ account_id: account, seed, pubkey: public_key, timestamp, signature, master: 'owner' })).toString('base64url'));
+```
+
+```bash
+API=https://api.outlayer.ai; OWNER=alice.near
+export OWNER_KEY_FILE=~/.near-credentials/mainnet/$OWNER.json   # the owner's own key file
+tok() { node owner-token.mjs "$OWNER" "$1"; }
+
+# Which of the owner's wallets is yours: its seed is "0", "1", … or the one its link named.
+for s in 0 1 2 3 4; do echo "$s: $(curl -s -H "Authorization: Bearer near:$(tok $s)" $API/wallet/v1/contract | jq -r '.account_id // .error')"; done
+S=<the seed whose account is your wallet contract>; NEW=<your fingerprint>
+
+# The policy as stored, with your key added. GET /policy does not return the
+# webhook URL: if the policy has one, add "webhook_url" to new.json by hand.
+curl -s -H "Authorization: Bearer near:$(tok $S)" $API/wallet/v1/policy \
+  | jq --arg h "$NEW" '{wallet_id, rules, approval, capabilities, refund_addresses,
+      authorized_key_hashes: ((.authorized_key_hashes // []) + [$h] | unique)} | with_entries(select(.value != null))' > new.json
+ENC=$(curl -s -X POST -H "Authorization: Bearer near:$(tok $S)" -H 'Content-Type: application/json' \
+  -d @new.json $API/wallet/v1/encrypt-policy | jq -r .encrypted_base64)
+ARGS=$(curl -s -X POST -H "Authorization: Bearer near:$(tok $S)" -H 'Content-Type: application/json' \
+  -d "$(jq -nc --arg e "$ENC" --arg c "$OWNER" '{encrypted_data:$e, caller:$c}')" $API/wallet/v1/sign-policy \
+  | jq -c --arg e "$ENC" '{wallet_pubkey:("ed25519:"+.public_key_hex), encrypted_data:$e, wallet_signature:.signature_hex, version, locked, valid_until}')
+near contract call-function as-transaction outlayer.near store_wallet_policy json-args "$ARGS" \
+  prepaid-gas '100 Tgas' attached-deposit '0.1 NEAR' sign-as $OWNER network-config mainnet sign-with-keychain send
+
+# Step 4, once your new key works, when the lost key's fingerprint is known: the lost key out.
+curl -s -X DELETE -H "Authorization: Bearer near:$(tok $S)" $API/wallet/v1/api-key/<lost key's fingerprint>
+```
+
+On testnet: `https://testnet-api.outlayer.ai`, `outlayer.testnet`, `network-config testnet`.
 
 ## 3. Ask for an operation
 
