@@ -19,8 +19,9 @@ for your own use. The numbers:
   gas price (0.0001 NEAR per Tgas). The 0.3 is checked, not taken.
 - A relay spends about **0.0004 NEAR** for a transfer and at most **0.03 NEAR**
   for a call that uses all its gas.
-- If the gas price rises, the check rises with it: at twice today's price it
-  is 0.6 NEAR. 0.5 leaves room for a rise and for some 500 transfers.
+- The check moves with the gas price. 0.5 NEAR passes it up to a price 1.6
+  times today's, and pays for some 500 transfers on the way; if the price goes
+  higher, a relay answers `402 wallet_underfunded` and you ask for more.
 
 Ask your owner for 0.5 NEAR on the working account when the setup is done.
 Read its balance (`GET /wallet/v1/balance?chain=near` with your `wk_`) before
