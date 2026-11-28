@@ -234,7 +234,7 @@ phishing attempt looks like.
 
 | You want | Say this, with this link |
 |---|---|
-| **A wallet contract for your main balance** (on-chain custody) | "Open this and follow the steps — it sets up an account of yours that pays out only when both I and OutLayer's enclave sign, under the policy you set: `https://app.outlayer.ai/wallet/custody#setup={token}`" — the token comes from `POST /wallet/v1/contract/setup`; see `references/on-chain-custody.md` |
+| **A wallet contract for your main balance** (on-chain custody) | "Open this and follow the steps — it sets up an account of yours that pays out only when both I and OutLayer's enclave sign, under the policy you set: `https://app.outlayer.ai/wallet/custody#setup={token}&to={one-time key}`" — the token comes from `POST /wallet/v1/contract/setup`, `to` is the one-time X25519 key you sent it; see `references/on-chain-custody.md` |
 | **A credential for a connector** | "The <service> connector needs its API token. Store it here — it is encrypted in your browser and I never see it: `https://app.outlayer.ai/secrets?project={connector_project_id}&name={VAR_NAME}`" |
 | **A limit on what you may spend** | "I can spend from your account now. Set a cap, an address list, or an approval threshold here: `https://app.outlayer.ai/wallet?key={api_key}`" |
 | **To pay an address the policy does not list** | "My policy lets me pay only listed addresses, and `{address}` is not one of them. It is <who it is and why I need to pay it>. Open this to add it, check the address, and sign: `https://app.outlayer.ai/wallet?wallet={near_account_id}&add_address={address}`" — see `references/funding-and-payment-keys.md` §4 |

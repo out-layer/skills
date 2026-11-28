@@ -54,7 +54,10 @@ Requirements:
   `exit_owner`. Without it every route here answers `400 bad_request`
   ("On-chain custody is for a wallet with an owner"); the owner registers
   first — `register-and-auth.md`, "A wallet whose owner can leave with its
-  keys".
+  keys". `exit_owner` tells you only that there is an owner. **Your owner's
+  account name comes from your operator or your configuration, never from an
+  API answer**: every check of section 2 is held to that name, and a name the
+  API supplied would hold them to an account of the API's choosing.
 - **The owner stores a policy.** The enclave signs for a wallet contract only
   under a policy the owner account stored; until then every operation answers
   `403 policy_denied`.
@@ -69,9 +72,15 @@ With `@outlayer/sdk`:
 ```ts
 import { openSetup, collectSetup } from '@outlayer/sdk';
 
-const options = { apiKey: process.env.OUTLAYER_API_KEY! }; // your wk_
+const options = {
+  apiKey: process.env.OUTLAYER_API_KEY!, // your wk_
+  // your wallet's owner account, from your operator or your configuration:
+  // never from an API answer
+  owner: 'alice.near',
+  // network: 'testnet',
+};
 const setup = await openSetup(options);
-// setup.url       → https://app.outlayer.ai/wallet/custody#setup=<token>
+// setup.url       → https://app.outlayer.ai/wallet/custody#setup=<token>&to=<your one-time key>
 // setup.expiresAt → the link works for 24 hours
 // setup.key       → your one-time key: keep it in memory until step 2 returns
 ```
@@ -84,15 +93,20 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
   -d '{"recipient_public_key":"<your one-time X25519 public key, 64 lowercase hex>"}' \
   "https://api.outlayer.ai/wallet/v1/contract/setup"
 # → {"token":"<64 hex>","expires_at":"2026-11-27T12:00:00Z"}
-# The link is https://app.outlayer.ai/wallet/custody#setup=<token>
+# The link is https://app.outlayer.ai/wallet/custody#setup=<token>&to=<the same public key, 64 lowercase hex>
 ```
+
+**Build the link yourself, with `to`.** The page seals to the key in `to` and
+to no other, so the API never chooses whom it seals to. The page refuses a
+link without `to`. What it seals is the owner's signature, not your key: you
+make your key from it yourself (step 2).
 
 Tell the owner what the link does, with the link:
 
 > "To keep my main balance in a wallet contract that moves nothing without two
 > signatures, mine and one from OutLayer's enclave given only within your
 > policy, open this link and connect as `{owner account}`:
-> `https://app.outlayer.ai/wallet/custody#setup={token}`
+> `https://app.outlayer.ai/wallet/custody#setup={token}&to={one-time key}`
 > You will sign one message that becomes my key and send a little NEAR for
 > gas; the page creates my account (by default a new one with no key; a
 > sub-account of yours or your own account are the other options). The link
@@ -127,8 +141,8 @@ if (collected === null) {
 }
 ```
 
-`collectSetup` opens the sealed key with your one-time key and throws when the
-key it opened is not the agent's key in the contract's pair.
+`collectSetup` does every check below and throws when one fails. Pass
+`walletId` too when you recorded your wallet id at creation.
 
 Without the SDK:
 
@@ -139,13 +153,73 @@ curl -s -H "Authorization: Bearer $API_KEY" "https://api.outlayer.ai/wallet/v1/c
 #                 "agent_public_key":"<64 hex>","sealed_agent_key":"<base64>"}
 ```
 
-Open `sealed_agent_key` with the private half of your one-time key
-(`open_sealed` in section 6) and check that the public key of the 32-byte seed
-you get equals `agent_public_key`. If it does not, do not use the key.
-`404 request_not_found` means this wallet has opened no setup.
+Anyone who knows your one-time public key can seal to it, the API included.
+So take nothing of this answer on its word; use the key only when all hold
+(helpers in section 6):
+
+1. `open_sealed`: `sealed_agent_key` opens with your one-time key for
+   `wallet_id`, first byte `3`, 145 bytes: the owner's 64-byte signature and
+   the 32-byte Ed25519 key that made it;
+2. `nep413_ok`: the signature is NEP-413 over the message you build yourself
+   from your owner and `wallet_id` (recipient `outlayer-agent-key`, the fixed
+   nonce, no callback URL);
+3. through a NEAR RPC, not the API: `view_access_key` of your owner and
+   `ed25519:<base58 of that key>` answers `"permission":"FullAccess"`;
+4. `agent_seed`: the seed derived from the signature gives the public key
+   `agent_public_key`;
+5. the enclave's key passes the check below;
+6. `account_id` is one of exactly three, with your owner's name as your
+   operator or configuration gave it (not `exit_owner`, not any name in an
+   answer):
+   - your owner's account itself;
+   - an account under it: `account_id` ends with `.` + your owner's account
+     (`agent.alice.near`, `a.b.alice.near`);
+   - 42 characters, `0s` and 40 lowercase hex, **and** equal to the `0s`
+     address you compute yourself from `agent_public_key`, `tee_public_key`
+     and the published build's code hash
+     (`4b5158b0d1e911e86575ec7aa3cd07d5df23b5aa5572544aa981b5e154eb6771`):
+     `0s` + hex of the last 20 bytes of Keccak-256 (the original Keccak, not
+     `hashlib.sha3_256`) of the contract's `StateInit`. The bytes are
+     specified in
+     [ON_CHAIN_CUSTODY.md](https://github.com/out-layer/outlayer/blob/main/docs/ON_CHAIN_CUSTODY.md),
+     section 12, "The `0s` address", with test vectors
+     (`custody-core/vectors/deterministic.json`); the SDK's
+     `deterministicAccount(agent, tee)` is the same computation. Without the
+     SDK you accept a `0s` account only by computing it this way: if you
+     cannot, do not accept it.
+
+   Refuse any other account, whatever step 7 answers for it: anyone can
+   deploy a contract that returns your pair. An account of your owner's is
+   your owner's to keep, with whatever else runs there;
+7. through the RPC, the view `w_public_key` of `account_id` answers exactly
+   `agent_public_key` followed by `tee_public_key` (128 hex).
+
+If any fails, do not use the key and tell the owner. `404 request_not_found`
+means this wallet has opened no setup.
 
 `account_id` is your address for your main balance: give it to whoever funds
 you. Funds sent to it move only under both signatures.
+
+### Check the enclave's key before you use it
+
+`GET /wallet/v1/contract/key` (with your `wk_`) answers `tee_public_key` (64
+hex) with the keystore's statement of it: `scope`, `keystore_public_key`
+(`ed25519:<base58>`), `tee_key_signature` (128 hex). The API carries the key
+and could put its own there, so use `tee_public_key` only when all of these
+hold (`collectSetup` and `verifyTeeKey` do it):
+
+1. `scope` is exactly `owner:<your owner>:<generation>`, the generation a
+   decimal number from 1 with no leading zero;
+2. `tee_key_signature` is the Ed25519 signature by `keystore_public_key` over
+   the UTF-8 text you build yourself, lines joined by `\n`, no newline at the
+   end: `OUTLAYER_WALLET_CONTRACT_TEE_KEY/V1`, `dao:<DAO>`, `scope:<scope>`,
+   `wallet:<wallet_id>`, `tee:<tee_public_key>`. `<DAO>` is
+   `dao.outlayer.near` (`dao.outlayer.testnet` on testnet), never a value
+   from the answer;
+3. the DAO's view `is_keystore_approved({"public_key":"<keystore_public_key>"})`,
+   read through a NEAR RPC, answers `true`.
+
+If any fails, do not use the key and tell the owner.
 
 ### Keep the key
 
@@ -153,7 +227,7 @@ you. Funds sent to it move only under both signatures.
   it in chat, in a log or in a request. No API route takes it.
 - `collectSetup` returns the key's 32-byte `seed` beside the `AgentKey`. Store
   the seed in your secret storage; `AgentKey.fromSeed(seed)` builds the same
-  key after a restart. The sealed key opens with your one-time key alone, so
+  key after a restart. The seal opens with your one-time key alone, so
   collect it once and keep the seed.
 - **The owner can derive the key again.** It comes from one signature of the
   owner's own key, and the owner's wallet makes the same signature on request.
@@ -321,8 +395,9 @@ exist only for a request that is the operation you asked for. **Never sign a
 `message` you have not checked.** A refused or waiting operation has no half
 of yours anywhere, and that is the property.
 
-`WalletContract.run` and `relay` do the check (`messageIsFor`) and throw a
-`CustodyError` without signing when it fails. They verify the enclave's half
+`WalletContract.run` and `relay` do the check (`messageIsFor`, and for a route
+through 1Click `checkRoute`, below) and throw a `CustodyError` without signing
+when it fails. They verify the enclave's half
 against `teePublicKey` (required in the options; from
 `GET /wallet/v1/contract/key`) and sign one request under an id. Driving it
 yourself, verify the enclave's half too, and check all of:
@@ -334,9 +409,37 @@ yourself, verify the enclave's half too, and check all of:
 | `call` | `receiver_id` is `to`; `function_name`, `deposit`, `gas` are yours; `args` are your `args_base64` |
 | `intents_transfer` | `receiver_id` is `intents.near`; `function_name` is `mt_transfer`, `deposit` is `1`; the JSON in `args` is exactly `receiver_id` = `to`, `token_id` = `token`, `amount` = `amount` |
 | `withdraw` | `receiver_id` is `intents.near`; `function_name` is `ft_withdraw`, `deposit` is `1`; the JSON in `args` is exactly `token` = your token without `nep141:`, `receiver_id` = `to`, `amount` = `amount` |
-| `swap`, `cross_chain_withdraw` | `receiver_id` is `intents.near`; `function_name` is `mt_transfer`, `deposit` is `1`; the JSON in `args` has exactly `receiver_id`, `token_id`, `amount`, with your input token and amount, and a `receiver_id` that is not your account. That address is 1Click's deposit address: you cannot derive it, so read `quote` for what the route gives |
+| `swap`, `cross_chain_withdraw` | `receiver_id` is `intents.near`; `function_name` is `mt_transfer`, `deposit` is `1`; the JSON in `args` has exactly `receiver_id`, `token_id`, `amount`, with your input token and amount, and a `receiver_id` that is not your account. That address is 1Click's deposit address: check it with 1Click (below) |
 
-If the check fails, do not sign, do not relay, and tell the owner: the API
+**A swap and a withdrawal to another chain: ask 1Click what the address is
+for.** The API chose the deposit address, so read
+`GET https://1click.chaindefuser.com/v0/status?depositAddress=<receiver_id in args>`
+yourself (no key needed) and sign only when every row holds (`checkRoute`
+checks exactly these):
+
+| Field | Must be |
+|---|---|
+| `status` | `PENDING_DEPOSIT`, and `quoteResponse.quoteRequest.deadline` still in the future |
+| `quoteRequest.deadline` | no further than 24 hours ahead: it is what the requester asked for, and the API asks for 600 seconds. `quote.deadline`, 1Click's own, is days ahead on every quote and is not checked |
+| `quote.depositAddress` | the address in `args` |
+| `quoteRequest.swapType`, `depositType` | `EXACT_INPUT`, `INTENTS` |
+| `quoteRequest.depositMode` | `SIMPLE`, or absent |
+| `quoteRequest.amount`, `originAsset` | your `amount_in` and `token_in` (a withdrawal: `amount`, `token`) |
+| `quote.amountIn` | the same amount: the request sends exactly it |
+| `quoteRequest.refundTo`, `refundType` | your wallet contract's account, `INTENTS` |
+| `quoteRequest.slippageTolerance` | a number, at most `100` (basis points: what the API asks for) |
+| `quoteRequest.appFees`, `rebates` | empty or absent |
+| `quoteRequest.customRecipientMsg`, `virtualChainRecipient`, `virtualChainRefundRecipient` | `null` or absent |
+| `quoteRequest.referral` | `null`, absent or empty |
+| `quoteRequest.confidentiality` | `public`, or absent |
+| swap: `destinationAsset`, `recipient`, `recipientType` | `token_out`, your wallet contract's account, `INTENTS`; and `quote.minAmountOut` ≥ `min_out` |
+| withdrawal: `recipient`, `recipientType` | `to`, `DESTINATION_CHAIN`; and `destinationAsset` is, in `GET https://1click.chaindefuser.com/v0/tokens`, an entry of the same `symbol` as `originAsset`'s entry, with `blockchain` = your `chain` as 1Click names it (`eth` for `ethereum`) |
+
+1Click unreachable, or any row different: do not sign. Check before the first
+signature of a request; relaying the same signed request again (its answer
+was lost) needs no second check: by then the address may have its deposit.
+
+If a check fails, do not sign, do not relay, and tell the owner: the API
 returned a request you did not ask for.
 
 ## 4. Swaps and withdrawals to another chain
@@ -365,9 +468,13 @@ wallet contract for one of these answers `400 bad_request`.
 | To return them | An ordinary operation of the working account to the wallet contract's account: `POST /wallet/v1/transfer` for NEAR, `POST /wallet/v1/intents/transfer` for a token |
 | Gas | Keep NEAR on the working account: it pays for every relay. Ask the owner to fund it before it runs out (`funding-and-payment-keys.md`) |
 
-Take out what the work needs and return the rest when it is done. What lies on
-the working account is under the enclave's key within the policy, as for any
-OutLayer wallet; what lies in the wallet contract is under two signatures.
+**The wallet contract is your cold wallet, the working account your hot one.**
+Take out only what a piece of work needs. When the work is done, send
+everything back to the wallet contract: what is left, what the work earned,
+what you withdrew from a venue. Keep on the working account only its gas
+reserve (the 0.5 NEAR above). What lies on the working account is under the
+enclave's key within the policy, as for any OutLayer wallet; what lies in the
+wallet contract is under two signatures.
 
 **Limits are one set.** The policy's limits count your working account and
 your wallet contract together. Usage is counted when a request is prepared
@@ -407,9 +514,10 @@ Your half is your key's signature over the bytes
 Python, with the `cryptography` package:
 
 ```python
-import base64, hashlib, os, time
+import base64, hashlib, hmac, os, time
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -423,14 +531,33 @@ def one_time_key():
 
 def open_sealed(private, sealed_base64, wallet_id):
     sealed = base64.b64decode(sealed_base64)
-    assert sealed[0] == 2 and len(sealed) == 81, "not a sealed agent key"
+    assert sealed[0] == 3 and len(sealed) == 145, "not a sealed owner's signature"
     ephemeral, ciphertext = sealed[1:33], sealed[33:]
     mine = private.public_key().public_bytes(*RAW)
     shared = private.exchange(X25519PublicKey.from_public_bytes(ephemeral))
     key = HKDF(hashes.SHA256(), 32, salt=None,
                info=b"outlayer:encryption-keys:v1:seal:kdf" + ephemeral + mine).derive(shared)
     aad = f"outlayer:wallet-contract:agent-key:{wallet_id}".encode()
-    return AESGCM(key).decrypt(bytes(12), ciphertext, aad)          # the 32-byte seed
+    opened = AESGCM(key).decrypt(bytes(12), ciphertext, aad)
+    return opened[:64], opened[64:]       # the owner's signature, the key that made it
+
+def agent_key_message(owner, wallet_id):
+    return ("This signature is the key of your OutLayer agent. Sign it only on app.outlayer.ai, "
+            f"when you set up or recover an agent.\nOwner: {owner}\nWallet: {wallet_id}")
+
+def nep413_ok(signer, signature, owner, wallet_id):   # NEP-413, as the coordinator verifies it
+    nonce = b"outlayer/agent-key/v1/nonce" + bytes(5)
+    payload = ((2**31 + 413).to_bytes(4, "little") + bstr(agent_key_message(owner, wallet_id))
+               + nonce + bstr("outlayer-agent-key") + b"\x00")          # callbackUrl: None
+    try:
+        Ed25519PublicKey.from_public_bytes(signer).verify(signature, hashlib.sha256(payload).digest())
+        return True
+    except InvalidSignature:
+        return False
+
+def agent_seed(signature, owner, wallet_id):          # the seed, as the owner's page derives it
+    return hmac.new(b"outlayer/agent-key/v1",
+                    signature + agent_key_message(owner, wallet_id).encode(), hashlib.sha256).digest()
 
 def agent_key(seed):
     key = Ed25519PrivateKey.from_private_bytes(seed)
